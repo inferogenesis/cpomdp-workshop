@@ -1,0 +1,89 @@
+[project]
+name = "cpomdp-workshop"
+version = "0.1.0"
+description = "Build a curious rocket — the AII 2026 symposium workshop for cpomdp."
+readme = "README.md"
+requires-python = ">=3.11"
+license = "MIT"
+license-files = ["LICENSE"]
+authors = [{ name = "Inferogenesis" }]
+keywords = ["active-inference", "cpomdp", "workshop", "teaching"]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Intended Audience :: Education",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Topic :: Scientific/Engineering :: Artificial Intelligence",
+]
+# The pin is the single source of truth for the cpomdp version the workshop was
+# measured on; `cpomdp_workshop.WORKSHOP_CPOMDP_VERSION` reads it back from the
+# installed metadata, so the notebook and the tests cannot drift from this line.
+dependencies = [
+    "cpomdp==0.4.4",
+    "matplotlib>=3.5",
+    "numpy>=1.24",
+]
+
+[project.urls]
+Repository = "https://github.com/inferogenesis/cpomdp-workshop"
+
+[project.optional-dependencies]
+# Local Jupyter. Colab supplies all of this, so it is never installed there.
+nb = ["ipykernel>=6.29", "jupyter>=1.1"]
+dev = [
+    "nbclient>=0.10",
+    "nbformat>=5.10",
+    "pre-commit>=4.0",
+    "pytest>=8.0",
+    "ruff>=0.15",
+    "ty>=0.0.1a1",
+]
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/cpomdp_workshop"]
+
+[tool.ruff]
+line-length = 88
+target-version = "py311"
+src = ["src", "tests"]
+
+[tool.ruff.lint]
+select = [
+    "E", "W", "F", "I", "UP", "B", "C4", "SIM", "RET", "PT", "PIE", "ICN",
+    "TID", "PERF", "NPY", "RUF", "D",
+]
+ignore = [
+    # The docstrings use real mathematical notation (−, ×, ᵀ); these read those
+    # glyphs as ambiguous unicode.
+    "RUF001",
+    "RUF002",
+    "RUF003",
+    # Constructors are documented at the class level.
+    "D107",
+]
+
+[tool.ruff.lint.pydocstyle]
+convention = "google"
+
+[tool.ruff.lint.per-file-ignores]
+# Tests document themselves by name, and single-letter matrix names there match the
+# algebra the assertions are checking.
+"tests/**" = ["D", "E741"]
+
+[tool.ty.environment]
+python-version = "3.11"
+
+[tool.ty.src]
+include = ["src", "tests"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-ra"
+markers = [
+    "slow: tests over a few seconds; deselect with -m \"not slow\"",
+]
