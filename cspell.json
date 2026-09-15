@@ -1,0 +1,57 @@
+{
+  "version": "0.2",
+  "language": "en,en-GB",
+  "words": [
+    "Colab",
+    "covs",
+    "cpomdp",
+    "docstrings",
+    "headshots",
+    "inferogenesis",
+    "Koudahl",
+    "Kouw",
+    "linalg",
+    "matplotlib",
+    "nbclient",
+    "nbconvert",
+    "nbformat",
+    "numpy",
+    "papercut",
+    "papercuts",
+    "pdftoppm",
+    "pymdp",
+    "pyproject",
+    "pytest",
+    "randn",
+    "savemat",
+    "selfguided",
+    "soffice",
+    "stdlib",
+    "venv",
+    "warrantlib",
+    "xfail",
+    "Zenodo"
+  ],
+  "patterns": [
+    {
+      "name": "regex-character-class-fragment",
+      "pattern": "/\\[[A-Za-z]{2}\\]\\w+/g"
+    }
+  ],
+  "ignoreRegExpList": [
+    "regex-character-class-fragment"
+  ],
+  "ignorePaths": [
+    "*.lock",
+    "uv.lock",
+    ".venv/**",
+    "node_modules/**",
+    ".git/**",
+    ".claude/**",
+    "assets/**",
+    "**/*.svg",
+    "**/*.png",
+    "**/*.gif",
+    "**/*.pptx"
+  ]
+}
