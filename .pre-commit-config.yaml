@@ -1,0 +1,71 @@
+# One-time setup after cloning (installs both the pre-commit and commit-msg hooks):
+#   uv run --no-sync pre-commit install --hook-type pre-commit --hook-type commit-msg
+# The whole gate, which is what CI runs:
+#   uv run --no-sync pre-commit run --all-files
+# Mirrors the library's gate (cpomdp/.pre-commit-config.yaml) without the
+# protected-files hook, which guards research records this repo does not keep.
+repos:
+  - repo: https://github.com/astral-sh/ruff-pre-commit
+    # Keep in sync with the `ruff` version in uv.lock, so the hook and a bare
+    # `uv run --no-sync ruff` agree on which ruff is judging the code.
+    rev: v0.16.7
+    hooks:
+      - id: ruff-check
+        args: [--fix]
+      - id: ruff-format
+
+  # Strict type-checking. A local hook running the same `ty check` keeps the gate and
+  # the inner loop in lockstep; the pinned ty version lives in uv.lock like ruff.
+  - repo: local
+    hooks:
+      - id: ty
+        name: ty (strict types)
+        entry: uv run --no-sync ty check
+        language: system
+        types: [python]
+        pass_filenames: false
+
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v5.0.0
+    hooks:
+      - id: trailing-whitespace
+      - id: end-of-file-fixer
+      - id: check-yaml
+      - id: check-toml
+      - id: check-merge-conflict
+
+  # Markdown linting. Rules live in `.markdownlint-cli2.yaml` so a bare
+  # `markdownlint-cli2` run and this hook judge the prose identically.
+  - repo: https://github.com/DavidAnson/markdownlint-cli2
+    rev: v0.22.1
+    hooks:
+      - id: markdownlint-cli2
+        # Pinned so pre-commit fetches its own Node rather than using the machine's.
+        # Ubuntu 24.04 ships Node 18, which these hooks refuse to run on.
+        language_version: "22.23.2"
+
+  # Spell-check prose and docstrings. The dictionary lives in `cspell.json`, so the
+  # editor extension and these hooks agree. Two runs: markdown everywhere, plus the
+  # `src/` Python (cspell splits snake_case into words, so it catches docstring and
+  # comment typos; identifiers are allow-listed in cspell.json).
+  - repo: https://github.com/streetsidesoftware/cspell-cli
+    rev: v10.0.1
+    hooks:
+      - id: cspell
+        # cspell-cli v10 needs Node >= 22.18. Same reasoning as markdownlint above.
+        language_version: "22.23.2"
+        name: cspell (markdown)
+        types: [markdown]
+      - id: cspell
+        language_version: "22.23.2"
+        name: cspell (src docstrings)
+        types: [python]
+        files: ^src/
+
+  # Conventional Commit subjects (feat:, fix:, docs:, ...), as in the library's
+  # history. Runs at the commit-msg stage.
+  - repo: https://github.com/compilerla/conventional-pre-commit
+    rev: v4.4.0
+    hooks:
+      - id: conventional-pre-commit
+        stages: [commit-msg]
