@@ -24,8 +24,9 @@ jobs:
         with:
           enable-cache: true
           python-version: "3.12"
-      # `nb` brings the Jupyter kernel the notebook test runs on.
-      - run: uv sync --locked --extra dev --extra nb
+      # `nb` brings the Jupyter kernel the notebook test runs on, `deck` the slide
+      # builder the deck test runs.
+      - run: uv sync --locked --extra dev --extra nb --extra deck
       - uses: actions/cache@v5
         with:
           path: ~/.cache/pre-commit
