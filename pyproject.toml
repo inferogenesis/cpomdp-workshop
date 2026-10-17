@@ -20,7 +20,7 @@ classifiers = [
 # measured on; `cpomdp_workshop.WORKSHOP_CPOMDP_VERSION` reads it back from the
 # installed metadata, so the notebook and the tests cannot drift from this line.
 dependencies = [
-    "cpomdp==0.4.4",
+    "cpomdp==0.5.0",
     "matplotlib>=3.5",
     "numpy>=1.24",
 ]
@@ -50,7 +50,7 @@ packages = ["src/cpomdp_workshop"]
 [tool.ruff]
 line-length = 88
 target-version = "py311"
-src = ["src", "tests"]
+src = ["src", "tests", "scripts"]
 
 [tool.ruff.lint]
 select = [
@@ -74,15 +74,25 @@ convention = "google"
 # Tests document themselves by name, and single-letter matrix names there match the
 # algebra the assertions are checking.
 "tests/**" = ["D", "E741"]
+# Generated teaching cells. An attempt leaves a name unused until its slot is written,
+# a hint cell is one line naming a variable from its attempt, and scaffold comments
+# run long.
+"notebooks/*.ipynb" = ["D103", "E501", "F821", "F841"]
 
 [tool.ty.environment]
 python-version = "3.11"
+# The notebook tests import the builder and the lesson from scripts/, as pytest's
+# pythonpath does.
+extra-paths = ["scripts"]
 
 [tool.ty.src]
-include = ["src", "tests"]
+include = ["src", "tests", "scripts"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
+# The notebook builder and its lesson are scripts, not package modules; the notebook
+# tests import them by name.
+pythonpath = ["scripts"]
 addopts = "-ra"
 markers = [
     "slow: tests over a few seconds; deselect with -m \"not slow\"",
