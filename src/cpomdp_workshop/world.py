@@ -56,8 +56,7 @@ def default_params(beacon_gain: float) -> SensorParams:
 
     Args:
         beacon_gain: how much the reading degrades per unit of squared distance
-            from the beacon — k. Zero is a flat field, which is what session 1
-            flies under.
+            from the beacon, k. Zero switches the beacon off. The blackout stays.
 
     Returns:
         A pytree of the values [`reference_sensor`][cpomdp_workshop.reference_sensor]
@@ -96,7 +95,7 @@ def reference_sensor(x: ArrayLike, params: SensorParams) -> Array:
 
 
 def beacon_sensor(x: ArrayLike, params: SensorParams) -> Array:
-    """The same field with the blackout switched off — the beacon on its own.
+    """The same field with the blackout switched off. Only the beacon is left.
 
     Args:
         x: where the reading is taken.
