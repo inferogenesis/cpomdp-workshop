@@ -1,5 +1,6 @@
 import hashlib
 import re
+import xml.etree.ElementTree as ET
 from pathlib import Path
 from typing import Any
 
@@ -20,15 +21,17 @@ from cpomdp import (
     StateGoal,
 )
 from pptx import Presentation
+from pptx.opc.constants import RELATIONSHIP_TYPE
 
 import build_deck
 import deck_layout
 import lesson
-from cpomdp_workshop import LAUNCH, PAD, model_with, pad_goal
+from cpomdp_workshop import LAUNCH, PAD, model_with, pad_goal, plot
 from cpomdp_workshop.check import backend_differences
 from deck_kit import without_imports
 
 PROSE = ("title", "text", "card", "pill", "placeholder")
+DRAWING = "http://schemas.openxmlformats.org/drawingml/2006/main"
 NUMBER = re.compile(r"(?<![\w.])\d+(?:\.\d+)*(?:e-?\d+)?")
 CLOCK = re.compile(r"\b\d+:\d\d\b")
 
@@ -49,6 +52,7 @@ MEASURED = {
     "0.15": "test_the_k_point_two_rocket_clears_the_rock_and_lands",
     "5": "test_a_rock_in_clear_sky_stops_the_curious_rockets_on_step_five",
     "9": "test_the_search_is_decided_rather_than_sampled",
+    "81": "test_two_moves_ahead_scores_eighty_one_plans_a_step",
     "162": "test_a_second_step_of_lookahead_costs_eighteen_times_as_much",
     "78125": "test_the_coda_certificate_covers_every_seven_step_axis_plan",
     "1e-9": "test_the_kalman_filter_and_the_one_node_graph_agree",
@@ -222,6 +226,16 @@ def snapshot(presentation):
         ]  # fmt: skip
         slides.append((shapes, slide.notes_slide.notes_text_frame.text))
     return slides
+
+
+def test_links_are_drawn_in_ink_not_the_templates_dark_blue(deck):
+    theme = deck.slide_master.part.part_related_by(RELATIONSHIP_TYPE.THEME)
+    scheme = ET.fromstring(theme.blob).find(f".//{{{DRAWING}}}clrScheme")
+    assert scheme is not None
+    for name in ("hlink", "folHlink"):
+        colour = scheme.find(f"{{{DRAWING}}}{name}/{{{DRAWING}}}srgbClr")
+        assert colour is not None
+        assert colour.get("val") == plot.INK.lstrip("#")
 
 
 @pytest.mark.slow

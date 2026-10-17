@@ -21,6 +21,7 @@ from pptx.dml.color import RGBColor
 from pptx.enum.dml import MSO_LINE_DASH_STYLE
 from pptx.enum.shapes import MSO_SHAPE
 from pptx.enum.text import MSO_ANCHOR, PP_ALIGN
+from pptx.opc.constants import RELATIONSHIP_TYPE
 from pptx.shapes.autoshape import Shape
 from pptx.slide import Slide
 from pptx.text.text import TextFrame
@@ -407,6 +408,23 @@ def _code_line(line: str) -> list[Run]:
     return [Run(code), Run(f"{hash_mark}{comment}", colour=MUTED)]
 
 
+def _theme_links_in(presentation, colour: str) -> None:
+    """Set the theme's link colours, visited or not, to ``colour``.
+
+    PowerPoint draws a hyperlink in the theme's link colour whatever its run says.
+    The blank template's is a dark blue that vanishes on the dark background.
+    """
+    theme = presentation.slide_master.part.part_related_by(RELATIONSHIP_TYPE.THEME)
+    blob = theme.blob
+    for name in ("hlink", "folHlink"):
+        slot = rf"<a:{name}>.*?</a:{name}>".encode()
+        recoloured = f'<a:{name}><a:srgbClr val="{colour}"/></a:{name}>'.encode()
+        blob, found = re.subn(slot, recoloured, blob, flags=re.DOTALL)
+        if found != 1:
+            raise ValueError(f"the template's theme has {found} {name} colours, not 1")
+    theme._blob = blob
+
+
 class Deck:
     """A 16:9 deck on the workshop's dark background."""
 
@@ -419,6 +437,7 @@ class Deck:
         properties.title = title
         properties.author = properties.last_modified_by = author
         self._blank = self.presentation.slide_layouts[6]
+        _theme_links_in(self.presentation, INK)
 
     def page(self, title: str | None = None, segment: str = "") -> Page:
         """A new slide on the background, titled unless ``title`` is ``None``."""

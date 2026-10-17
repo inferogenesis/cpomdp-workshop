@@ -724,8 +724,8 @@ def what_steers(deck: Deck) -> None:
     page.text(
         MARGIN, 6.05, FULL_WIDTH, 0.75,
         [
-            "Put the same rock in clear sky on their arc and both curious rockets hit "
-            "it on step 5."
+            "Seed 3: put the same rock in clear sky on their arc and both curious "
+            "rockets hit it on step 5."
         ],
         size=17, colour=MUTED,
     )  # fmt: skip
@@ -856,7 +856,7 @@ def self_guided(deck: Deck) -> None:
     page = deck.page("Self-guided, below the last checkpoint", "self-guided")
     blurbs = (
         "A loose and a tight preference for the pad, flown past the rock.",
-        "The world again, two moves ahead. Each step scores 162 plans in place of 9.",
+        "The world again, two moves ahead. Each step scores 81 plans in place of 9.",
         "The two-node refusal, to read in full.",
     )
     width = (FULL_WIDTH - 0.6) / 3
@@ -875,7 +875,7 @@ def self_guided(deck: Deck) -> None:
         size=20, colour=MUTED, space_after=14,
     )  # fmt: skip
     page.notes(
-        notes("Kev. Pointers only. Two moves ahead costs 162 plans a step against 9.")
+        notes("Kev. Pointers only. Two moves ahead scores 81 plans a step against 9.")
     )
 
 
