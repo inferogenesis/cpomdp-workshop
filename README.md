@@ -45,6 +45,7 @@ follows points nowhere near the cause.
 | `scripts/lesson.py` | What the notebook says, cell by cell |
 | `delivery/hints_chat.txt` | The hint lines pasted into chat. The notebook's hint and reference cells are built from it |
 | `assets/` | Figures, regenerated from the package by `scripts/render_assets.py` |
+| `deck/` | The slides, built from the package, the lesson and the figures by `scripts/build_deck.py` |
 | `tests/test_measured_claims.py` | One test per number the notebook or the deck shows |
 | `tests/test_api_contract.py` | The cpomdp forms the workshop is written against |
 
@@ -53,16 +54,22 @@ follows points nowhere near the cause.
 Every command runs from the repo root.
 
 ```sh
-uv sync --extra dev --extra nb
+uv sync --extra dev --extra nb --extra deck
 uv run --no-sync pytest -q -m "not slow"     # fast tests
 uv run --no-sync pytest -q                   # everything, the notebook run included
 uv run --no-sync pre-commit run --all-files  # the gate CI runs
 uv run --no-sync python scripts/build_notebook.py
 uv run --no-sync python scripts/render_assets.py
+uv run --no-sync python scripts/build_deck.py
 ```
 
 A change to the lesson, the hints or the package means rebuilding the notebook. A stale
 notebook fails a test.
+
+The deck is built the same way, after the figures. A stale deck fails a test too. The
+build checks that no shape leaves its slide or overlaps another and that every text
+frame holds its text. It renders nothing, so a look at the slides in PowerPoint or
+LibreOffice is still owed after a change.
 
 ## Releasing
 
