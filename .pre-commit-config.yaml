@@ -58,9 +58,9 @@ repos:
         types: [markdown]
       - id: cspell
         language_version: "22.23.2"
-        name: cspell (src docstrings)
+        name: cspell (src docstrings and lesson text)
         types: [python]
-        files: ^src/
+        files: ^(src|scripts)/
 
   # Conventional Commit subjects (feat:, fix:, docs:, ...), as in the library's
   # history. Runs at the commit-msg stage.
