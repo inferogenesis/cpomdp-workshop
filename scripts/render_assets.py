@@ -7,6 +7,7 @@ draws anything itself.
 """
 
 import os
+from functools import partial
 from pathlib import Path
 
 # Before pyplot is imported: the figures are written, never shown.
@@ -21,6 +22,10 @@ FIGURES = {
     "tile_task1.png": plot.tile_task1,
     "tile_task2.png": plot.tile_task2,
     "tile_task3.png": plot.tile_task3,
+    **{
+        f"route_{number}_{stage}.png": partial(plot.plot_route, stage)
+        for number, stage in enumerate(plot.ROUTE_STAGES, start=1)
+    },
 }
 
 

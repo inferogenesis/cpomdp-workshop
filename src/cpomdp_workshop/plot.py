@@ -8,9 +8,14 @@ with more than one rocket carries a legend.
 
 Every function returns a figure without showing it. A notebook cell that ends with
 one displays it once.
+
+``plot_route`` draws the slides' build-up. Its frames share one map, so from one frame
+to the next only the field, the rockets and the rock change.
 """
 
-from collections.abc import Mapping, Sequence
+from collections.abc import Callable, Mapping, Sequence
+from dataclasses import dataclass
+from typing import Literal
 
 import jax
 import jax.numpy as jnp
@@ -20,6 +25,7 @@ from matplotlib.axes import Axes
 from matplotlib.colors import LinearSegmentedColormap, Normalize
 from matplotlib.figure import Figure
 from matplotlib.patches import Circle, Ellipse
+from numpy.typing import ArrayLike
 
 from cpomdp_workshop.build import curious_rocket, the_1960_rocket
 from cpomdp_workshop.sim import DEFAULT_SEED, ROCK, Flight, Hazard, fly
@@ -38,9 +44,11 @@ from cpomdp_workshop.world import (
 
 __all__ = [
     "IMPACT_MARKER",
+    "ROUTE_STAGES",
     "plot_beliefs",
     "plot_flights",
     "plot_path",
+    "plot_route",
     "plot_world",
     "preview",
     "tile_task1",
@@ -64,6 +72,12 @@ FIELD_SCALE = Normalize(np.log10(NOISE_FLOOR), np.log10(NOISE_FLOOR + BLACKOUT_G
 
 IMPACT_MARKER = "*"
 CURIOUS_COLOURS = (AMBER, BLUE)
+
+ROUTE_STAGES = ("straight", "beacon", "blackout", "rock")
+"""The frames of the route build-up, in the order the slides show them."""
+
+_BASELINE = "1960 rocket"
+_ROUTE_LEGEND: Literal["lower left"] = "lower left"  # the corner no route crosses
 
 _EXTENT = ((-0.6, 5.6), (-1.1, 2.5))
 _FIELD_SAMPLES = (125, 73)
@@ -187,8 +201,10 @@ def _draw_flight(
         )  # fmt: skip
 
 
-def _legend(axes: Axes) -> None:
-    legend = axes.legend(loc="upper left", frameon=True, fontsize=9)
+def _legend(
+    axes: Axes, loc: Literal["upper left", "lower left"] = "upper left"
+) -> None:
+    legend = axes.legend(loc=loc, frameon=True, fontsize=9)
     legend.get_frame().set_facecolor(PANEL)
     legend.get_frame().set_edgecolor(RULE)
     for text in legend.get_texts():
@@ -258,26 +274,39 @@ def plot_flights(
         ValueError: for more flights than there are series colours. A third hue
             would not stay distinct, so split the flights across figures.
     """
+    _check_colours(flights, baseline)
+    figure, axes = _canvas(title)
+    if sensor is not None:
+        _draw_field(figure, axes, sensor, params if params is not None else {})
+    _draw_landmarks(axes, hazard)
+    inline = len(flights) == 1
+    _draw_flights(axes, flights, baseline, inline=inline)
+    if not inline:
+        _legend(axes)
+    return figure
+
+
+def _check_colours(flights: Mapping[str, Flight], baseline: str | None) -> None:
+    """Refuse more curious flights than there are series colours."""
     curious = [name for name in flights if name != baseline]
     if len(curious) > len(CURIOUS_COLOURS):
         raise ValueError(
             f"{len(curious)} curious flights. Draw at most {len(CURIOUS_COLOURS)} "
             "per figure."
         )
-    figure, axes = _canvas(title)
-    if sensor is not None:
-        _draw_field(figure, axes, sensor, params if params is not None else {})
-    _draw_landmarks(axes, hazard)
-    inline = len(flights) == 1
+
+
+def _draw_flights(
+    axes: Axes, flights: Mapping[str, Flight], baseline: str | None, *, inline: bool
+) -> None:
+    """Each flight in its series style: the baseline dashed ink, the rest in order."""
+    curious = [name for name in flights if name != baseline]
     colours = dict(zip(curious, CURIOUS_COLOURS, strict=False))
     for name, flight in flights.items():
         if name == baseline:
             _draw_flight(axes, flight, INK, name, dashed=True, inline=inline)
         else:
             _draw_flight(axes, flight, colours[name], name, dashed=False, inline=inline)
-    if not inline:
-        _legend(axes)
-    return figure
 
 
 def plot_path(
@@ -328,15 +357,20 @@ def plot_world(
         The figure.
     """
     flights = world_flights(sensor, tuple(beacon_gains), horizon=horizon, hazard=hazard)
-    named = {
-        ("1960 rocket" if k == 0 else f"k = {k:.2f}"): flight
-        for k, flight in flights.items()
-    }
+    named = _named(flights)
     curious = [k for k in flights if k != 0]
     params = default_params(curious[0] if curious else 0.0)
     return plot_flights(
-        named, sensor, params, baseline="1960 rocket", hazard=hazard, title=title
+        named, sensor, params, baseline=_BASELINE, hazard=hazard, title=title
     )
+
+
+def _named(flights: Mapping[float, Flight]) -> dict[str, Flight]:
+    """Each flight under its legend name: the 1960 rocket, or its k."""
+    return {
+        (_BASELINE if k == 0 else f"k = {k:.2f}"): flight
+        for k, flight in flights.items()
+    }
 
 
 def plot_beliefs(
@@ -394,3 +428,91 @@ def tile_task2() -> Figure:
 def tile_task3() -> Figure:
     """Task 3's tile: the blackout world, before the rock is put in it."""
     return plot_world(hazard=None, title="the blackout, before the rock")
+
+
+@dataclass(frozen=True)
+class _RouteFrame:
+    """What one frame of the route build-up draws.
+
+    Attributes:
+        sensor: the noise field under the routes, R(x).
+        params: that field's parameters.
+        flights: each rocket's flight, under its legend name.
+        hazard: the rock, or ``None`` before it is put in.
+    """
+
+    sensor: NoiseFn
+    params: SensorParams
+    flights: dict[str, Flight]
+    hazard: Hazard | None
+
+
+def _one_noise_level(x: ArrayLike, params: SensorParams) -> jax.Array:
+    """The 1960 rocket's world: the same reading noise everywhere, R0."""
+    return jnp.eye(2) * NOISE_FLOOR
+
+
+def _straight_frame() -> _RouteFrame:
+    flights = {_BASELINE: fly(the_1960_rocket())}
+    return _RouteFrame(_one_noise_level, {}, flights, None)
+
+
+def _beacon_frame() -> _RouteFrame:
+    beacon_gain = 0.4  # k, the session 2 reference
+    flights = {
+        _BASELINE: fly(the_1960_rocket()),
+        f"k = {beacon_gain:.2f}": fly(curious_rocket(beacon_gain, beacon_sensor)),
+    }
+    return _RouteFrame(beacon_sensor, default_params(beacon_gain), flights, None)
+
+
+def _blackout_frame(hazard: Hazard | None) -> _RouteFrame:
+    beacon_gains = (0.0, 0.08, 0.20)  # k for the 1960 rocket and the two curious
+    flights = world_flights(reference_sensor, beacon_gains, hazard=hazard)
+    params = default_params(beacon_gains[1])
+    return _RouteFrame(reference_sensor, params, _named(flights), hazard)
+
+
+_ROUTE_FRAMES: dict[str, Callable[[], _RouteFrame]] = {
+    "straight": _straight_frame,
+    "beacon": _beacon_frame,
+    "blackout": lambda: _blackout_frame(None),
+    "rock": lambda: _blackout_frame(ROCK),
+}
+
+
+def plot_route(stage: str) -> Figure:
+    """One frame of the route build-up the slides step through.
+
+    Every frame draws the same map at the same size, with launch, pad and beacon in
+    place and the 1960 rocket dashed, so the eye sees only what the frame adds. All
+    flights use the default seed.
+
+    - ``"straight"``: one noise level everywhere, the 1960 rocket's world. It flies
+      the straight line to the pad.
+    - ``"beacon"``: the beacon's field, and a curious rocket at k = 0.40 bending up
+      toward the beacon.
+    - ``"blackout"``: the blackout added to the field, and curious rockets at
+      k = 0.08 and k = 0.20 flying round it.
+    - ``"rock"``: the rock in the blackout. The 1960 rocket hits it.
+
+    Args:
+        stage: one of [`ROUTE_STAGES`][cpomdp_workshop.plot.ROUTE_STAGES].
+
+    Returns:
+        The figure, with no title. The slide carries it.
+
+    Raises:
+        ValueError: for a stage that is not one of the four.
+    """
+    if stage not in _ROUTE_FRAMES:
+        raise ValueError(
+            f"no route frame {stage!r}. Pick one of {', '.join(ROUTE_STAGES)}."
+        )
+    frame = _ROUTE_FRAMES[stage]()
+    figure, axes = _canvas("")
+    _draw_field(figure, axes, frame.sensor, frame.params)
+    _draw_landmarks(axes, frame.hazard)
+    _draw_flights(axes, frame.flights, _BASELINE, inline=False)
+    _legend(axes, loc=_ROUTE_LEGEND)
+    return figure
