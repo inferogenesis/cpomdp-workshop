@@ -1,27 +1,21 @@
 """Flying a rocket: the loop, the reading it gets, and the rock it might hit.
 
 One step is one perceive-act cycle. The world draws a reading at the rocket's true
-position, with noise the sensor field says applies there; the rocket folds that in and
-picks a move; the move is applied to the true position. If a hazard is given, a landing
-inside it ends the flight there and the path stops at the point of impact.
+position, with the noise its field gives there. The rocket folds the reading in and
+picks a move, and the move is applied to the true position. A move that passes
+through the hazard ends the flight, and the path stops where the move landed.
 
-The rocket never sees the true position, and the loop never tells it where it is. The
-only channel is the reading.
+The rocket never sees its true position. The only channel is the reading.
 """
 
+from collections.abc import Callable
 from dataclasses import dataclass
 
 import numpy as np
 from cpomdp import Agent
+from numpy.typing import ArrayLike
 
-from cpomdp_workshop.world import (
-    BLACKOUT,
-    LAUNCH,
-    NOISE_FLOOR,
-    ROCK_RADIUS,
-    NoiseFn,
-    SensorParams,
-)
+from cpomdp_workshop.world import BLACKOUT, LAUNCH, ROCK_RADIUS, NoiseFn, SensorParams
 
 __all__ = ["DEFAULT_SEED", "DEFAULT_STEPS", "ROCK", "Flight", "fly"]
 
@@ -29,23 +23,25 @@ DEFAULT_STEPS = 36  # T
 DEFAULT_SEED = 3
 ROCK = (BLACKOUT, ROCK_RADIUS)
 
+Hazard = tuple[tuple[float, float], float]
 
-def _noise_at(
-    position: np.ndarray, sensor: NoiseFn | None, params: SensorParams | None
-) -> np.ndarray:
-    """The reading noise the world applies where the rocket actually is."""
+
+def _world_noise(
+    agent: Agent, sensor: NoiseFn | None, params: SensorParams | None
+) -> Callable[[np.ndarray], ArrayLike]:
+    """The observation noise the world applies at a true position, R(x)."""
     if sensor is None:
-        return NOISE_FLOOR * np.eye(2)
+        return agent.model.observation_noise_at
     if params is None:
-        raise ValueError("a sensor needs its params; pass default_params(k).")
-    return np.asarray(sensor(position, params))
+        raise ValueError("a sensor needs its params. Pass default_params(k).")
+    return lambda position: sensor(position, params)
 
 
 def _hits(start: np.ndarray, end: np.ndarray, centre, radius: float) -> bool:
     """Whether the move from ``start`` to ``end`` passes inside the hazard.
 
-    The whole move is tested, not just where it ends. A rocket that crosses a rock
-    and comes out the other side has hit it.
+    The whole move is tested. A rocket that crosses the rock and comes out the other
+    side has hit it.
     """
     centre = np.asarray(centre, dtype=float)
     move = end - start
@@ -63,13 +59,15 @@ class Flight:
     """What one flight did.
 
     Attributes:
-        path: the true positions, launch first, one row per landed move.
-        covs: the rocket's belief covariance after each reading.
-        crashed: whether a move landed inside the hazard.
+        path: the true positions, launch first, one row per move made.
+        means: the rocket's belief about its position after each reading.
+        covs: the covariance of that belief.
+        crashed: whether a move passed through the hazard.
         impact_step: the step that did it, or ``None`` for a flight that survived.
     """
 
     path: np.ndarray
+    means: np.ndarray
     covs: np.ndarray
     crashed: bool
     impact_step: int | None
@@ -91,42 +89,51 @@ def fly(
     *,
     steps: int = DEFAULT_STEPS,
     seed: int = DEFAULT_SEED,
-    hazard: tuple[tuple[float, float], float] | None = None,
+    hazard: Hazard | None = None,
 ) -> Flight:
     """Fly ``agent`` from the launch site and report what happened.
 
     Args:
-        agent: the rocket, from [`rocket`][cpomdp_workshop.rocket].
-        sensor: the noise field the *world* draws readings under. ``None`` gives the
-            flat field. This is the world's sensor, not the rocket's belief about it:
-            pass a field the rocket does not model and it will fly into what it
-            cannot see.
-        params: that field's parameters.
-        steps: how many moves to allow — T.
-        seed: the noise draw. One generator per flight, so a flight is reproducible
-            on its own rather than depending on what ran before it.
-        hazard: ``(centre, radius)``. A move landing inside it ends the flight.
+        agent: the rocket. It must not have flown before. A rocket remembers its
+            belief and its last move, so a second flight would start mid-air.
+        sensor: the noise field the world draws readings under. Left out, the world
+            is the one the rocket's own model describes. Pass a field the rocket
+            does not model and it flies on readings it misjudges.
+        params: that field's parameters. Required with ``sensor``.
+        steps: how many moves to allow, T.
+        seed: the reading noise. Each flight seeds its own legacy Mersenne Twister
+            stream, the one ``np.random.seed`` drives, so a flight is reproducible on
+            its own and leaves the global random state alone.
+        hazard: ``(centre, radius)``. A move passing inside it ends the flight.
 
     Returns:
         A [`Flight`][cpomdp_workshop.Flight].
+
+    Raises:
+        ValueError: if the rocket has flown already, or a sensor is given without
+            parameters.
     """
-    rng = np.random.default_rng(seed)
+    if agent.belief is not agent.model.prior:
+        raise ValueError("this rocket has flown already. Build it again to fly again.")
+    observation_noise_at = _world_noise(agent, sensor, params)  # R(x)
+    reading_noise = np.random.RandomState(seed)
     position = np.asarray(LAUNCH, dtype=float)
-    path = [position]
-    covs = []
+    path, means, covs = [position], [], []
     crashed, impact_step = False, None
 
     for step in range(1, steps + 1):
-        noise = _noise_at(position, sensor, params)
-        reading = position + np.sqrt(np.diag(noise)) * rng.standard_normal(2)
-        belief = agent.infer_states(reading)
+        # A square root of R(x), so a correlated noise is drawn with its correlation.
+        scale = np.linalg.cholesky(np.asarray(observation_noise_at(position)))
+        belief = agent.infer_states(position + scale @ reading_noise.randn(2))
+        means.append(np.asarray(belief.mean))
         covs.append(np.asarray(belief.cov))
         moved_to = position + np.asarray(agent.sample_action())
         path.append(moved_to)
         if hazard is not None and _hits(position, moved_to, *hazard):
             crashed, impact_step = True, step
-            position = moved_to
             break
         position = moved_to
 
-    return Flight(np.asarray(path), np.asarray(covs), crashed, impact_step)
+    return Flight(
+        np.asarray(path), np.asarray(means), np.asarray(covs), crashed, impact_step
+    )

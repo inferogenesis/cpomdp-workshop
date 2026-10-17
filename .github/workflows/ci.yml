@@ -1,0 +1,72 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  # Nightly, for the job that tracks cpomdp's main branch.
+  schedule:
+    - cron: "17 3 * * *"
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  pinned:
+    name: pinned release (required)
+    if: github.event_name != 'schedule'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+      - uses: astral-sh/setup-uv@v8.2.0
+        with:
+          enable-cache: true
+          python-version: "3.12"
+      # `nb` brings the Jupyter kernel the notebook test runs on.
+      - run: uv sync --locked --extra dev --extra nb
+      - uses: actions/cache@v5
+        with:
+          path: ~/.cache/pre-commit
+          key: pre-commit-${{ runner.os }}-${{ hashFiles('.pre-commit-config.yaml') }}
+      - name: pre-commit
+        run: uv run --no-sync pre-commit run --all-files --show-diff-on-failure
+      - name: tests, the notebook run included
+        run: uv run --no-sync pytest -q
+      - name: timings
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: timings-pinned
+          path: artifacts/timings.json
+          if-no-files-found: warn
+
+  main:
+    name: cpomdp main (allowed to fail)
+    if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-latest
+    continue-on-error: true
+    steps:
+      - uses: actions/checkout@v6
+      - uses: astral-sh/setup-uv@v8.2.0
+        with:
+          enable-cache: true
+          python-version: "3.12"
+      - run: uv sync --locked --extra dev --extra nb
+      - name: swap the pin for cpomdp's main branch
+        run: uv pip install "cpomdp @ git+https://github.com/inferogenesis/cpomdp@main"
+      # The report is the diff: every claim and contract test, with what main printed
+      # where it no longer matches. The pin check fails here by design.
+      - name: measured claims and API contract against main
+        run: >-
+          mkdir -p artifacts &&
+          uv run --no-sync pytest -rA --tb=short
+          tests/test_measured_claims.py tests/test_api_contract.py
+          | tee artifacts/main-claims.txt
+      - name: the claims report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: measured-claims-on-main
+          path: artifacts/

@@ -1,0 +1,30 @@
+Pasted into the chat on the timer. The notebook's hint and reference cells are built
+from this file, so what is pasted and what is in the notebook never differ. A hint is
+one line of code that replaces the line of the same name in the attempt cell.
+
+[session 1, hint 1]
+observation_matrix = jnp.eye(2)
+
+[session 1, hint 2]
+observation_noise = 0.05 * jnp.eye(2)
+
+[session 1, reference]
+Reference for task 1: the collapsed cell under hint 2. Run it, then the checkpoint.
+
+[session 2, hint 1]
+pull = params["beacon_gain"] * jnp.minimum(distance_squared, params["beacon_cap"])
+
+[session 2, hint 2]
+beacon_gain = 0.4
+
+[session 2, reference]
+Reference for task 2: the collapsed cell under hint 2. Run it, then the checkpoint.
+
+[session 3, hint 1]
+blindness = height * jnp.exp(-from_blackout / width)
+
+[session 3, hint 2]
+backend = one_node(model)
+
+[session 3, reference]
+Reference for task 3: the collapsed cell under hint 2. Run it, then the checkpoint.

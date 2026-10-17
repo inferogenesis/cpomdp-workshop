@@ -1,42 +1,49 @@
-"""The move set the curious rocket searches over, the search itself, and the engine.
+"""The moves the curious rocket chooses between, and the search that chooses.
 
 Nine moves: stay put, or travel one step along one of the eight compass directions.
-Diagonals are scaled to the same length as the axis moves, so every move costs the
-rocket the same distance. The set is declared and versioned because cpomdp will only
-call a search decisive over a set it was told about in advance.
+Diagonals are scaled to the same length as the axis moves, so every move covers the
+same distance. The set is declared and versioned because cpomdp only calls a search
+decided over a set it was told about in advance. The certificate then names the set
+by its version.
 
-Both rockets fly with the same engine, and ``STEP`` is what it can do in one cycle.
-The move set is already built to that limit; LQR is not, and would otherwise cross
-half the map on its first move, so it flies behind
-[`ThrustLimited`][cpomdp_workshop.ThrustLimited]. The limit sits on the *selector*
-rather than on the flight loop, so the action the rocket commits to is the action the
-world applies, and the filter predicts with the move that was really made.
+A smaller set of five, stay plus the four axis moves, is what the coda searches seven
+steps deep.
 """
 
-from dataclasses import dataclass
+from collections.abc import Callable
 
-import jax.numpy as jnp
 import numpy as np
-from cpomdp import ActionSelector, Belief, LinearGaussianModel, Preference
-from cpomdp.enumeration import (
-    EnumeratedEfeSearch,
+from cpomdp import LinearGaussianModel
+
+from cpomdp_workshop._seams import (
+    EnumeratedEFESearch,
+    ExhaustiveEFESearch,
     FiniteActionSet,
     RecedingHorizonSelector,
 )
-from jax import Array
 
 __all__ = [
-    "ACTION_SET_VERSION",
+    "AXIS_VERSION",
+    "COMPASS_VERSION",
     "STEP",
-    "ThrustLimited",
+    "axis_actions",
     "compass_actions",
+    "compass_moves",
     "compass_planner",
 ]
 
 STEP = 0.5
-ACTION_SET_VERSION = "c"
+COMPASS_VERSION = "compass-9"
+AXIS_VERSION = "axis-5"
 
-_BEARINGS = np.arange(8) * (np.pi / 4)
+_COMPASS_BEARINGS = np.arange(8) * (np.pi / 4)
+_AXIS_BEARINGS = np.arange(4) * (np.pi / 2)
+
+
+def _stay_and_move(bearings: np.ndarray, step: float) -> np.ndarray:
+    """A zero move followed by one move of length ``step`` along each bearing."""
+    moves = step * np.column_stack([np.cos(bearings), np.sin(bearings)])
+    return np.vstack([np.zeros((1, 2)), moves])
 
 
 def compass_actions(step: float = STEP) -> FiniteActionSet:
@@ -46,47 +53,60 @@ def compass_actions(step: float = STEP) -> FiniteActionSet:
         step: how far one move travels.
 
     Returns:
-        The declared, versioned set the search enumerates.
+        The declared set the search enumerates, versioned ``compass-9``.
     """
-    compass = step * np.column_stack([np.cos(_BEARINGS), np.sin(_BEARINGS)])
-    moves = np.vstack([np.zeros((1, 2)), compass])
-    return FiniteActionSet(moves, version=ACTION_SET_VERSION)
+    return FiniteActionSet(
+        _stay_and_move(_COMPASS_BEARINGS, step), version=COMPASS_VERSION
+    )
+
+
+def axis_actions(step: float = STEP) -> FiniteActionSet:
+    """Stay, plus the four axis moves of length ``step``.
+
+    Args:
+        step: how far one move travels.
+
+    Returns:
+        The declared set, versioned ``axis-5``.
+    """
+    return FiniteActionSet(_stay_and_move(_AXIS_BEARINGS, step), version=AXIS_VERSION)
+
+
+def compass_moves(step: float = STEP) -> list[np.ndarray]:
+    """The compass set as a list of moves, the form ``probe_model`` takes.
+
+    Args:
+        step: how far one move travels.
+
+    Returns:
+        Nine moves, stay first.
+    """
+    return list(_stay_and_move(_COMPASS_BEARINGS, step))
 
 
 def compass_planner(
-    model: LinearGaussianModel, *, step: float = STEP, horizon: int = 1
+    model: LinearGaussianModel,
+    *,
+    step: float = STEP,
+    horizon: int = 1,
+    search: Callable[..., ExhaustiveEFESearch] = EnumeratedEFESearch,
 ) -> RecedingHorizonSelector:
-    """Plan by scoring every move sequence the rocket could fly, then take the first.
+    """Score every compass plan the rocket could fly, then take the first move.
 
     Args:
-        model: the rocket's generative model. It needs a control matrix; a rocket
-            that cannot act has nothing to plan.
+        model: the rocket's generative model. It needs a control matrix.
         step: how far one move travels.
-        horizon: how many moves ahead to look. The search scores ``9 ** horizon``
-            sequences on every step, so this is where the compute goes.
+        horizon: how many moves ahead to look, H. The search scores ``9 ** horizon``
+            plans on every step, so this is where the compute goes.
+        search: the exhaustive search to plan with. ``ChunkedEFESearch`` scores the
+            plans a block at a time, for horizons whose plans do not fit in memory at
+            once. Either gives the same move.
 
     Returns:
-        A selector that re-plans on the current belief at every step, carrying the
-        certificate that says the search was exhaustive rather than sampled.
+        A selector that re-plans on the current belief at every step. After its
+        first plan it carries the certificate that says the search covered every
+        plan rather than a sample of them.
     """
-    search = EnumeratedEfeSearch(model, compass_actions(step), horizon=horizon)
-    return RecedingHorizonSelector(search)
-
-
-@dataclass(frozen=True)
-class ThrustLimited:
-    """A selector that shortens any move longer than the engine can manage.
-
-    Attributes:
-        selector: the selector being limited.
-        limit: the longest move the engine can make in one cycle.
-    """
-
-    selector: ActionSelector
-    limit: float = STEP
-
-    def select(self, belief: Belief, preference: Preference) -> Array:
-        """Ask the wrapped selector, then rescale anything past the limit."""
-        action = jnp.asarray(self.selector.select(belief, preference), dtype=float)
-        length = jnp.linalg.norm(action)
-        return jnp.where(length > self.limit, action * self.limit / length, action)
+    return RecedingHorizonSelector(
+        search(model, compass_actions(step), horizon=horizon)
+    )
