@@ -28,8 +28,8 @@ __all__ = [
 ]
 
 CODA_HORIZON = 7
-CLEAR_SKY_ROCK = ((1.6, 1.75), ROCK_RADIUS)
-"""A rock the size of the first, moved out of the blackout onto the curious arc."""
+CLEAR_SKY_ROCK = ((4.2, -0.7), ROCK_RADIUS)
+"""A rock the size of the first, in clear sky where most curious routes pass."""
 
 
 def axis_certificate(horizon: int = CODA_HORIZON) -> CompletenessCertificate:

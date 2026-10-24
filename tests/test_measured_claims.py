@@ -10,11 +10,14 @@ from importlib import metadata
 import numpy as np
 import pytest
 from cpomdp import (
+    Agent,
     Belief,
     CallableSensor,
     IncompatibleLinearizationError,
     KalmanBackend,
     LinearGaussianModel,
+    Preference,
+    probe_model,
 )
 
 from cpomdp_workshop import WORKSHOP_CPOMDP_VERSION
@@ -23,6 +26,7 @@ from cpomdp_workshop.build import (
     curious_rocket,
     model_with,
     one_node,
+    pad_preference,
     the_1960_rocket,
 )
 from cpomdp_workshop.check import (
@@ -33,7 +37,7 @@ from cpomdp_workshop.check import (
     epistemic_spread,
     probe,
 )
-from cpomdp_workshop.planner import compass_planner
+from cpomdp_workshop.planner import compass_moves, compass_planner
 from cpomdp_workshop.selfguided import two_node_backend
 from cpomdp_workshop.sim import ROCK, fly
 from cpomdp_workshop.solutions import CLEAR_SKY_ROCK, axis_certificate, rxinfer_refusal
@@ -163,15 +167,40 @@ def test_a_rocket_too_curious_to_land_stays_short_however_far_it_looks(
     assert round(flight.distance_to(PAD), 2) == short_of_the_pad
 
 
-@pytest.mark.parametrize("beacon_gain", [0.08, 0.20])
-def test_a_rock_in_clear_sky_stops_the_curious_rockets_on_step_five(beacon_gain):
-    flight = fly(curious_rocket(beacon_gain), hazard=CLEAR_SKY_ROCK)
-    assert flight.crashed is True
-    assert flight.impact_step == 5
+def build(beacon_gain):
+    return the_1960_rocket() if beacon_gain == 0 else curious_rocket(beacon_gain)
 
 
-def test_the_1960_rocket_flies_under_the_clear_sky_rock():
-    assert fly(the_1960_rocket(), hazard=CLEAR_SKY_ROCK).crashed is False
+@pytest.mark.slow
+@pytest.mark.parametrize(
+    ("beacon_gain", "hit_on_seeds"),
+    [(0.0, []), (0.08, [2, 4, 5, 6, 7, 9]), (0.20, [4, 5, 6, 8, 9])],
+)
+def test_in_clear_sky_the_rock_is_hit_on_the_curious_rockets_routes(
+    beacon_gain, hit_on_seeds
+):
+    hits = [
+        seed
+        for seed in range(10)
+        if fly(build(beacon_gain), seed=seed, hazard=CLEAR_SKY_ROCK).crashed
+    ]
+    assert hits == hit_on_seeds
+
+
+def test_a_rock_never_changes_a_route_only_ends_it():
+    free = fly(curious_rocket(0.08), seed=2)
+    hit = fly(curious_rocket(0.08), seed=2, hazard=CLEAR_SKY_ROCK)
+    assert hit.crashed is True
+    assert np.array_equal(hit.path, free.path[: len(hit.path)])
+
+
+@pytest.mark.slow
+def test_most_curious_routes_pass_below_the_blackout():
+    below = 0
+    for seed in range(30):
+        y = fly(curious_rocket(0.08), seed=seed).path[:, 1]
+        below += bool(y[np.argmax(np.abs(y))] < 0)
+    assert below == 19
 
 
 def test_the_beacon_sensor_bends_the_path_to_the_beacon_and_lands(capsys):
@@ -187,6 +216,76 @@ def test_the_rxinfer_oracle_refuses_the_curious_model_in_these_words():
         "the model's observation_model is state-dependent; the RxInfer model filters "
         "on one fixed Q and R. Use KalmanBackend for R(x) or Q(x)."
     )
+
+
+def a_fixed_model(noise, prior):
+    return LinearGaussianModel(
+        I,
+        control_matrix=I,
+        observation_matrix=I,
+        observation_noise=np.asarray(noise),
+        dynamics_noise=1e-3 * I,
+        prior=Belief(mean=[0.0, 0.0], cov=np.asarray(prior)),
+    )
+
+
+def test_a_sensor_sharper_along_x_teaches_less_per_reading_and_the_same_per_move():
+    report = probe(a_fixed_model(np.diag([0.05, 2.0]), 4 * I))
+    assert rounded(report.epistemic_range, 4) == (2.7467, 2.7467)
+    assert f"{epistemic_spread(report):.6f} nats" == "0.000000 nats"
+
+
+@pytest.mark.parametrize(
+    ("noise", "prior"),
+    [
+        (np.diag([0.05, 2.0]), 4 * I),
+        (np.diag([2.0, 0.05]), 4 * I),
+        (np.diag([0.05, 2.0]), np.diag([4.0, 0.5])),
+        ([[1.0, 0.8], [0.8, 1.0]], 4 * I),
+    ],
+)
+def test_noise_fixed_in_place_never_tells_the_moves_apart(noise, prior):
+    report = probe(a_fixed_model(noise, prior))
+    assert report.epistemic_varies is False
+    assert f"{epistemic_spread(report):.6f}" == "0.000000"
+
+
+def fly_with(sensor, beacon_gain, hazard=None, **changes):
+    params = {**default_params(beacon_gain), **changes}
+    model = model_with(sensor, params)
+    rocket = Agent(model, pad_preference(), selector=compass_planner(model))
+    return fly(rocket, hazard=hazard)
+
+
+def test_a_small_cap_keeps_the_beacons_route_nearly_straight():
+    flight = fly_with(beacon_sensor, 0.4, beacon_cap=1.0)
+    assert round(float(np.abs(flight.path[:, 1]).max()), 2) == 0.35
+
+
+def test_a_large_cap_leaves_the_beacons_rocket_well_short_of_the_pad():
+    flight = fly_with(beacon_sensor, 0.4, beacon_cap=9.0)
+    assert round(flight.distance_to(PAD), 2) == 1.42
+
+
+@pytest.mark.parametrize("noise_floor", [0.01, 0.1, 0.5])
+def test_the_noise_floor_leaves_the_beacons_bend_and_landing_unchanged(noise_floor):
+    flight = fly_with(beacon_sensor, 0.4, noise_floor=noise_floor)
+    assert round(float(np.abs(flight.path[:, 1]).max()), 2) == 1.41
+    assert round(flight.distance_to(PAD), 2) == 0.24
+
+
+@pytest.mark.parametrize("beacon_gain", [0.08, 0.20])
+@pytest.mark.parametrize(
+    "changes",
+    [{"blackout_width": 0.1}, {"blackout_gain": 1.0}],
+    ids=["narrow", "faint"],
+)
+def test_a_small_or_faint_blackout_lets_the_curious_rockets_hit_the_rock(
+    beacon_gain, changes
+):
+    flight = fly_with(reference_sensor, beacon_gain, hazard=ROCK, **changes)
+    assert flight.crashed is True
+    assert flight.impact_step == 5
 
 
 @pytest.mark.slow
@@ -224,3 +323,78 @@ def test_the_kalman_filter_and_the_one_node_graph_agree():
 def test_a_branching_model_refuses_to_flatten():
     with pytest.raises(IncompatibleLinearizationError, match="mean-shifting coupling"):
         two_node_backend().to_flat_model()
+
+
+@pytest.mark.parametrize(
+    ("noise", "prior", "step"),
+    [
+        (0.01, 4.0, 0.5),
+        (2.0, 4.0, 0.5),
+        (0.05, 0.1, 0.5),
+        (0.05, 20.0, 0.5),
+        (0.05, 4.0, 0.1),
+        (0.05, 4.0, 3.0),
+    ],
+)
+def test_no_noise_level_prior_or_step_moves_the_1960_spread(noise, prior, step):
+    model = a_fixed_model(noise * I, prior * I)
+    report = probe_model(model, model.prior, compass_moves(step))
+    assert f"{epistemic_spread(report):.6f}" == "0.000000"
+
+
+def test_a_beacon_on_the_straight_line_holds_the_rocket_short_of_the_pad():
+    flight = fly_with(beacon_sensor, 0.4, beacon=np.array([2.5, 0.0]))
+    assert round(flight.distance_to(PAD), 2) == 1.09
+
+
+def fly_preferring(beacon_gain, precision, seed=3):
+    model = model_with(beacon_sensor, default_params(beacon_gain))
+    preference = Preference(np.asarray(PAD), precision=precision * I)
+    return fly(Agent(model, preference, selector=compass_planner(model)), seed=seed)
+
+
+@pytest.mark.slow
+@pytest.mark.parametrize(
+    ("beacon_gain", "precision", "landed"),
+    [(0.4, 0.1, 0), (0.4, 1.0, 8), (0.6, 0.1, 0), (0.6, 1.0, 0), (0.6, 10.0, 0)],
+)
+def test_precision_helps_a_loose_rocket_land_and_never_lands_a_noisy_pad(
+    beacon_gain, precision, landed
+):
+    ends = [fly_preferring(beacon_gain, precision, seed) for seed in range(10)]
+    assert sum(flight.distance_to(PAD) < 0.5 for flight in ends) == landed
+
+
+def test_above_one_precision_leaves_the_route_unchanged():
+    paths = [fly_preferring(0.4, precision).path for precision in (1.0, 3.0, 10.0)]
+    assert all(np.array_equal(path, paths[0]) for path in paths)
+
+
+def fly_design(k_model, precision, seed, rock):
+    model = model_with(reference_sensor, default_params(k_model))
+    preference = Preference(np.asarray(PAD), precision=precision * I)
+    rocket = Agent(model, preference, selector=compass_planner(model))
+    return fly(rocket, reference_sensor, default_params(0.08), seed=seed, hazard=rock)
+
+
+def tally(k_model, precision, seeds, rock):
+    flights = [fly_design(k_model, precision, seed, rock) for seed in seeds]
+    landed = sum(not f.crashed and f.distance_to(PAD) < 0.5 for f in flights)
+    return landed, sum(f.crashed for f in flights)
+
+
+@pytest.mark.slow
+@pytest.mark.parametrize(
+    ("k_model", "precision", "searched", "fresh", "fresh_clear_sky"),
+    [
+        (0.02, 0.3, (9, 1), (20, 0), (8, 12)),
+        (0.02, 1.0, (9, 1), (20, 0), (8, 12)),
+        (0.08, 1.0, (8, 2), (19, 1), (8, 12)),
+    ],
+)
+def test_the_searchs_winner_holds_by_one_flight_and_not_when_the_rock_moves(
+    k_model, precision, searched, fresh, fresh_clear_sky
+):
+    assert tally(k_model, precision, range(10), ROCK) == searched
+    assert tally(k_model, precision, range(10, 30), ROCK) == fresh
+    assert tally(k_model, precision, range(10, 30), CLEAR_SKY_ROCK) == fresh_clear_sky
