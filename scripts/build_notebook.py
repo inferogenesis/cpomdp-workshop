@@ -160,10 +160,12 @@ def build(hints: dict[tuple[int, str], str] | None = None) -> NotebookNode:
     version = metadata.version("cpomdp-workshop")
     cells = [
         _markdown(lesson.TITLE, "title"),
+        _markdown(lesson.GETTING_STARTED, "getting-started"),
         _code(lesson.INSTALL.format(version=version), "install"),
         _markdown(lesson.PREVIEW_INTRO, "preview"),
         _code(lesson.PREVIEW, "preview"),
         _markdown(lesson.PREFLIGHT, "preflight"),
+        _markdown(lesson.HELP, "help"),
         _collapsed_symptoms(),
     ]
     for session in lesson.SESSIONS:

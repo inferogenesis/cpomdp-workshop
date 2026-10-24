@@ -11,16 +11,38 @@ from dataclasses import dataclass
 TITLE = """\
 # Build a curious rocket
 
-A hands-on session on cpomdp, continuous active inference in Python. You build three
-rockets. The first is the 1960 controller, a Kalman filter with a goal. In the last,
-three rockets fly past a rock none of them was told about.
+What makes a rocket curious? In this hands-on workshop, we'll explore that question
+using `cpomdp`, a Python library for continuous active inference. We'll begin with a
+rocket that uses a Kalman filter to estimate its position and a linear quadratic
+regulator (LQR) to guide it towards a landing pad. Next, we'll introduce a sensor whose
+reliability depends on where the rocket flies and investigate how this changes its
+behaviour. Finally, we'll compare three rockets navigating an environment containing an
+obstacle that none of them knows is there.
 
-Run the cells in order. Each task has an attempt cell with two lines for you to write,
-two hints and a collapsed reference cell. Using the reference is fine. The checkpoint
-after each task puts the reference names in place, so a task that went wrong costs
-nothing later.
+Work through the notebook from top to bottom, running the code cells as you go. Each
+task includes two lines of code for you to complete, along with two hints and a
+reference solution if you need some help. Feel free to use these at any point. The aim
+is to explore the ideas behind the code, rather than test your programming skills. If
+you finish a task early, each one also has two optional bonus exercises.
 
-Ask anonymously on the form (link to come)."""
+At the end of each task, **make sure you run the checkpoint cell**, even if everything
+worked correctly. This restores the reference setup needed for the next task, so you can
+continue without difficulty if something didn't work as expected.
+
+If you have any questions during the workshop, you can also submit them anonymously
+using the form (link to come)."""
+
+GETTING_STARTED = """\
+## Getting started
+
+We recommend using **Google Colab**, which allows you to run the notebook directly in
+your browser without needing to set up Python on your computer. If you prefer to work
+locally using VS Code, that's absolutely fine too.
+
+To run a code cell, click the play button beside it, or press **Shift + Enter**. Start
+by running the setup cell below, which will install the required workshop packages from
+PyPI and check that everything is ready. If you're using VS Code, make sure the required
+packages are installed in your selected Python environment."""
 
 INSTALL = """\
 # Installs the workshop on Colab, then checks the versions it was measured on.
@@ -32,13 +54,29 @@ import cpomdp_workshop as workshop
 
 workshop.hello()"""
 
-PREVIEW_INTRO = "*This is what you will have built by 1:32.*"
+PREVIEW_INTRO = """\
+## A preview of what's to come
+
+Before we begin building our rockets, let's take a look at where we're heading. Run the
+next cell to see a preview of the three rockets we'll be exploring. Don't worry if you
+can't yet explain what you're seeing. We'll work towards understanding their behaviour
+as we progress through the exercises."""
 
 PREVIEW = "workshop.preview()"
 
 PREFLIGHT = """\
-Missed the three questions at registration? They take thirty seconds: the pre-flight
-form (link to come)."""
+## A quick pre-flight check
+
+If you've already answered the three questions during registration, you're all set. If
+you missed them, please take a moment to complete our short pre-flight form (link to
+come). It should only take around 30 seconds."""
+
+HELP = """\
+## Need a little help?
+
+If you encounter an error while working through the notebook, don't worry. The
+troubleshooting section below covers five common issues and how to resolve them. You can
+return to it at any point during the workshop."""
 
 SYMPTOMS = """\
 # @title Stuck on an error? The five most common, with their fixes
@@ -98,20 +136,26 @@ class Session:
 SESSION_1 = Session(
     number=1,
     brief="""\
-## Task 1 · the 1960 rocket
+## Task 1 · The 1960 rocket
 
-The rocket flies from the launch site to the pad. It reads its position through a
-sensor whose noise is the same everywhere. That is the Kalman filter's world. LQR is
-its controller.
+We'll begin with a rocket that uses a Kalman filter to estimate its position from noisy
+sensor readings and a linear quadratic regulator (LQR) to guide it towards a landing
+pad. In this first model, the sensor is equally reliable wherever the rocket flies. But
+does this mean that every possible movement is equally informative?
 
-Write the two `...` lines. The rest is written. `check_agent` prints the rocket you
-built and flies it. Then `probe_model` asks cpomdp whether any of the nine compass
-moves would teach the rocket more than another.
+In the code below, you'll find two missing lines marked with `...`. Your task is to
+complete these lines to define what the sensor observes and how much noise is present in
+its readings. Everything else is already provided.
 
-Then try to make it curious. Change the noise level, the prior's spread, the step
-size or the goal, and probe again.
+Once you've completed the two lines, run the cell. The `check_agent` function will show
+you the rocket you've built and simulate its flight. Next, `probe_model` will evaluate
+how much information the rocket could expect to gain from each possible action, and
+`show_probe` will display the results.
 
-**Paste your spread in chat.**""",
+Pay particular attention to the **spread**, which tells us how much the expected
+information gain varies between the available movements.
+
+**Share your spread value in the workshop chat.**""",
     attempt="""\
 import jax.numpy as jnp
 from cpomdp import Agent, Belief, LinearGaussianModel, StateGoal, probe_model
@@ -137,46 +181,62 @@ report = probe_model(model, model.prior, compass_moves())
 show_probe(report)  # paste the spread in chat""",
     bonuses=(
         Bonus(
-            title="change the other numbers",
+            title="Try changing the other numbers",
             question="""\
-In your task 1 cell, change one number at a time and run the cell again:
+In Task 1, you completed two lines, but the cell contains other numbers too. Try
+changing them one at a time, rerunning the cell each time:
 
-- the `0.05` in `observation_noise`, the noise level
-- the `4` in `prior`, how unsure the rocket starts
-- the step size, by writing `compass_moves(1.5)` in place of `compass_moves()`
+- the noise level, the `0.05` in `observation_noise`
+- the rocket's initial uncertainty, the `4` in `prior`
+- the size of each movement, by writing `compass_moves(1.5)` instead of
+  `compass_moves()`
 
-Watch the last line it prints. Does the spread ever leave 0.000000?""",
+Keep an eye on the spread in the last line. Does it ever move away from 0.000000?""",
             hint="""\
-A bigger number in front of `jnp.eye(2)` is more noise or more doubt.
-`compass_moves(1.5)` makes every move 1.5 long.""",
+A bigger number in front of `jnp.eye(2)` means more noise, or more initial uncertainty.
+`compass_moves(1.5)` makes every movement 1.5 units long.""",
             answer="""\
-Never. Whatever the noise level, the starting doubt or the step, the spread stays
-0.000000. The noise is the same everywhere, so every move leaves the rocket equally
-unsure. Only noise that changes with position can make the moves differ. Run the
-checkpoint to put the task's own numbers back.""",
+It never does. Whatever the noise level, the initial uncertainty or the step size, the
+spread stays at 0.000000. Because the noise is the same everywhere, every movement
+leaves the rocket equally uncertain. Only noise that changes with position can make some
+movements more informative than others. When you're done, run the checkpoint to restore
+the task's original numbers.""",
         ),
         Bonus(
-            title="a sensor sharper in one direction",
+            title="Can unequal sensor noise make the rocket curious?",
             question="""\
-What happens if the sensor's noise differs between x and y? Predict first: will moves
-along the sharper axis teach the rocket more? Then try it in the cell below. Compare
-how much one reading teaches, as well as the spread.
+So far, our rocket's sensor has been equally reliable along both axes. But what happens
+if the sensor measures one axis much more accurately than the other?
 
-For an additional challenge, make the starting doubt differ between x and y too. What
-changes, and what stays the same? Explain it with how the Kalman filter updates its
-uncertainty.""",
+Try modifying the observation noise matrix so that measurements along one axis are much
+noisier than along the other. Keep the sensor's reliability constant across locations.
+
+Before running the code, consider whether this change should make some movements more
+informative than others.
+
+Run `probe_model` again and compare the expected information gain and its spread across
+the available actions.
+
+**For an additional challenge:** Try making the rocket's prior uncertainty different
+along the two axes as well.
+
+What changes in the results, and what stays the same? Can you explain your observations
+in terms of how the Kalman filter updates uncertainty?""",
             hint="""\
-`jnp.diag(jnp.array([0.05, 2.0]))` builds a matrix with 0.05 and 2.0 on its diagonal.
-Use it as `observation_noise` in a copy of your task 1 cell. `report.epistemic_range`
-holds the least and the most one reading teaches over the nine moves.""",
+`jnp.diag(jnp.array([0.05, 2.0]))` builds a matrix with 0.05 and 2.0 on its diagonal, so
+x is read much more accurately than y. Try using it as `observation_noise` in a copy of
+your Task 1 cell. The expected information gain is in `report.epistemic_range`, which
+holds the lowest and highest values across the nine movements.""",
             answer="""\
-Each reading teaches less: 2.7467 nats with 0.05 on x and 2.0 on y, against 4.3947 in
-task 1. Every move still teaches the same, so the spread stays 0.000000. An uneven
-start changes the amount again and leaves the spread at 0. The Kalman filter's
-uncertainty update uses the noise and the old uncertainty. It never uses the move or
-the position. With the same noise everywhere, a move changes where the rocket is and
-nothing about how well it sees.""",
-            code="# Your code here. A copy of your task 1 cell is a good start.",
+Each reading becomes less informative: 2.7467 nats with 0.05 on x and 2.0 on y, compared
+with 4.3947 in Task 1. But every movement is still equally informative, so the spread
+stays at 0.000000. Making the prior uneven changes the amount of information again, and
+the spread still stays at 0. The reason lies in how the Kalman filter updates its
+uncertainty: it uses the noise and the previous uncertainty, but never the movement or
+the position. When the noise is the same everywhere, a movement changes where the rocket
+is, not how well it can see.""",
+            code="""\
+# Your code here. A copy of your task 1 cell is a good start.""",
         ),
     ),
     poll="""\
@@ -201,27 +261,34 @@ three change nothing about that, which bonus 1 lets you check.
 SESSION_2 = Session(
     number=2,
     brief="""\
-## Task 2 · a beacon
+## Task 2 · The beacon
 
-Now the reading depends on where the rocket is. Near the nav beacon it is sharp.
-Away from it, the noise grows with the squared distance up to a cap. `k` sets how
-fast it grows.
+In Task 1, the rocket's sensor was equally reliable everywhere. Now, we'll introduce a
+navigation beacon. Observations are more reliable near the beacon and become noisier
+with increasing distance. The parameter `k` (`beacon_gain` in the code) controls how
+quickly this noise increases, up to a maximum value.
 
-Pick `k` first. `default_params(k)` puts k and the world's other settings into
-`params`, a dictionary. A setting is read by its name in square brackets, as in
-`params["beacon_cap"]`. The attempt cell lists every setting this task reads.
+We're also introducing a **preference over observations**, rather than states. The
+rocket prefers a sensor reading that indicates it is on the landing pad. At each step,
+its planner evaluates nine possible actions, taking into account the expected
+observations and their uncertainty.
 
-Then write the beacon's pull into `my_sensor`. It is a function. Given a position `x`,
-it returns the reading's noise there. `check_my_sensor` flies a rocket with your sensor
-and says what it did.
+**Your task:** Complete the two missing lines marked with `...`:
 
-The goal changes too. This rocket prefers a reading, the one that says "on the
-pad". Every step it scores all nine compass moves and takes the one that best trades
-getting there against reading clearly.
+1. Choose a value for `k` to control how quickly the noise increases with distance.
+2. Calculate the additional sensor noise in `my_sensor` using the parameters provided.
 
-Start at `k = 0.08`. Find a `k` that bends the path up to the beacon.
+`default_params(k)` gathers `k` and the beacon's other settings into a dictionary called
+`params`. The comments in the code list each setting and how to read it by name, for
+example `params["beacon_cap"]`.
 
-**Paste your k in chat.**""",
+Run the cell to test your sensor and plot the rocket's flight path.
+
+Start with `k = 0.08`, then experiment with different values. Can you find a value that
+makes the rocket take a different route towards the beacon and still reach the landing
+pad? What might explain this change in behaviour?
+
+**Share your `k` value in the workshop chat.**""",
     attempt="""\
 import jax.numpy as jnp
 from cpomdp import Agent, Belief, CallableSensor, LinearGaussianModel, Preference
@@ -270,57 +337,66 @@ print(f"your k = {beacon_gain}")  # paste in chat
 plot_path(flight, my_sensor, params)""",
     bonuses=(
         Bonus(
-            title="change the beacon's other settings",
+            title="What else shapes the route?",
             question="""\
-Under the `params` line in your task 2 cell, add one line that changes another
-setting, then run the cell. Keep `beacon_gain = 0.4` so the routes compare. For
-example:
+You've seen how `k` changes the rocket's route. But `params` holds other settings too.
+Under the `params` line in your Task 2 cell, add a line that changes one of them, then
+run the cell again. Keep `beacon_gain = 0.4` so that you can compare the routes fairly.
+For example:
 
 ```python
 params["beacon_cap"] = 9.0
 ```
 
-Try the cap, the floor (`noise_floor`) and the beacon's position (`beacon`). Which
-ones move the route?""",
+Try the cap, the noise floor (`noise_floor`) and the beacon's position (`beacon`). Which
+of them change the route?""",
             hint="""\
-`params["beacon"] = jnp.array([2.5, 0.0])` puts the beacon on the straight line.
-Change one setting at a time, and delete the line to go back.""",
+`params["beacon"] = jnp.array([2.5, 0.0])` moves the beacon onto the straight line
+between the launch site and the pad. Change one setting at a time, and delete the line
+to go back to the original.""",
             answer="""\
-The cap and the beacon's position move the route. At cap 1 the path barely bends,
-0.35 off the straight line. At cap 9 the rocket stops 1.42 short of the pad. A beacon
-on the straight line, at (2.5, 0), holds it 1.09 short. The floor barely matters. From
-0.01 to 0.5 the route bends just as far and lands in the same place. The route follows
-how the noise differs from place to place. Its overall level barely counts.""",
+The cap and the beacon's position both change the route. With a cap of 1, the path
+barely bends, only 0.35 off the straight line. With a cap of 9, the rocket stops 1.42
+short of the pad. Moving the beacon onto the straight line, at (2.5, 0), holds the
+rocket 1.09 short. The noise floor, on the other hand, barely matters: anywhere from
+0.01 to 0.5, the route bends just as far and lands in the same place. What shapes the
+route is how the noise differs from place to place, not its overall level.""",
         ),
         Bonus(
-            title="how much does the goal matter?",
+            title="How much does the goal matter?",
             question="""\
-The route also depends on how strongly the rocket prefers readings that say it is on
-the pad. That strength is the preference's precision, the `precision=` in
+So far, we've changed the reliability of the rocket's observations. But its behaviour
+also depends on how strongly it prefers observations indicating that it has reached the
+landing pad.
+
+This preference is controlled by a precision parameter, the `precision=` in
 `Preference(PAD, precision=jnp.eye(2))`.
 
-Keep the sensor and `k` fixed. Build several rockets with different precisions, fly
-each one, and compare their routes.
+Keeping the sensor model and `k` fixed, create several rockets with different preference
+precisions. Simulate their flights and compare the resulting trajectories.
 
-Does a higher precision always make the rocket more likely to reach the pad? What
-happens when readings near the pad are particularly noisy?
+Does increasing preference precision always make the rocket more likely to reach the
+landing pad? What happens when observations near the pad are particularly noisy?
 
-For an additional challenge, repeat the comparison at two values of `k`. How do the
-sensor's noise and the preference's precision work together to shape the route?""",
+**For an additional challenge:** Repeat the comparison at two different values of `k`.
+Can you explain how sensor reliability and preference precision interact to influence
+the rocket's behaviour?""",
             hint="""\
-`Preference(PAD, precision=10 * jnp.eye(2))` sets precision 10. A rocket flies only
-once, so build a fresh model, planner and `Agent` for each precision. Try 0.1, 1 and
-10 at `k = 0.4`, then at `k = 0.6`, over several seeds with
+`Preference(PAD, precision=10 * jnp.eye(2))` sets a precision of 10. Each rocket can
+only fly once, so build a fresh model, planner and `Agent` for each precision. Try 0.1,
+1 and 10 at `k = 0.4`, then at `k = 0.6`, and fly each over several seeds with
 `fly(rocket, seed=seed)`.""",
             answer="""\
-Not always. From very loose to normal it helps a lot. At `k = 0.4`, over seeds 0 to 9,
-precision 0.1 lands no rocket and precision 1 lands 8. Above 1 it barely matters: at
-seed 3, precisions 1, 3 and 10 fly the same route. When the pad's readings are noisy,
-at `k = 0.6`, no precision lands the rocket. It lands 0 of 10 at 0.1, at 1 and at 10.
-A higher precision scales the whole expected miss, the reading's noise included, so it
-cannot make a noisy pad read better. A landing here means ending within 0.5 of the
+Not always. Going from a very loose preference to a normal one helps a lot: at `k =
+0.4`, over seeds 0 to 9, a precision of 0.1 lands no rockets, while a precision of 1
+lands 8. Above 1, it barely makes a difference: at seed 3, precisions of 1, 3 and 10 all
+fly the same route. And when observations near the pad are noisy, at `k = 0.6`, no
+precision gets the rocket to land: 0 out of 10 at 0.1, at 1 and at 10. A higher
+precision scales the whole expected miss, including the reading's own noise, so it can't
+make a noisy pad read any better. Here, a landing means finishing within 0.5 of the
 pad.""",
-            code="# Your code here. Start from the flight lines of your task 2 cell.",
+            code="""\
+# Your code here. Start from the flight lines of your task 2 cell.""",
         ),
     ),
     poll="""\
@@ -346,21 +422,30 @@ average. The curious rocket carries no thruster cost, so 4 cannot apply.
 SESSION_3 = Session(
     number=3,
     brief="""\
-## Task 3 · the blackout
+## Task 3 · The blackout
 
-Put a blackout on the flight path. Near its centre the reading is swamped. There is a
-rock in it, and no rocket models the rock.
+In Task 2, we introduced a beacon that provided more reliable observations nearby. Now,
+we'll add a blackout region along the rocket's flight path, where sensor noise increases
+sharply towards its centre. There's also a rock inside the blackout, but importantly,
+**none of the rockets knows the rock is there**.
 
-Write the blackout term into `my_world`. Its height and width are read from `params`
-for you. The slider sets `k` for your rocket.
-`plot_world` flies three rockets past the rock: the 1960 rocket, yours and one at
-`k = 0.20`.
+**Your task:** Complete the two missing lines marked with `...`:
 
-Before the plot, the 1960 rocket runs on a second engine. `one_node` rewrites its
-model as a graph of one node, the form cpomdp uses for branching models.
-`check_backends` flies it on both.
+1. In `my_world`, calculate the additional observation noise caused by the blackout,
+   using its height and width from `params`.
+2. Use `one_node` to represent the original rocket's model as a single-node graph. The
+   `check_backends` function will compare this representation with the original Kalman
+   backend and report the maximum absolute difference between their results.
 
-**Paste max |difference| in chat.**""",
+Once you've completed both lines, run the cell. The `plot_world` function will compare
+three rockets: our original 1960 rocket, your rocket with the selected value of `k`, and
+another with `k = 0.20`.
+
+Experiment with the `k` slider and observe how the trajectories change. Do the rockets
+follow similar paths? What might explain any differences, given that none of them knows
+about the rock?
+
+**Share your `max |difference|` value in the workshop chat.**""",
     attempt="""\
 import jax.numpy as jnp
 from cpomdp import KalmanBackend
@@ -382,32 +467,44 @@ check_backends(KalmanBackend(model), backend)  # paste max |difference| in chat
 plot_world(my_world, (0.0, beacon_gain, 0.20))""",
     bonuses=(
         Bonus(
-            title="is the rocket really avoiding the rock?",
+            title="Is the rocket really avoiding the rock?",
             question="""\
-The curious rockets fly round the rock at seed 3, yet no rocket has the rock in its
-model. Are they avoiding it, or does something else explain it?
+In our simulation, the curious rockets sometimes navigate around the rock without
+colliding. But remember, none of the rockets has any representation of the rock in its
+model.
 
-The cell below flies each rocket on 10 seeds and lists the seeds where it hits the
-rock. Run it with the rock in the blackout. Then move the rock to (4.2, -0.7), where
-readings are clear, and run it again. The world stays the same.
+Does this mean they are avoiding the obstacle, or could their behaviour be explained by
+something else?
 
-- Does moving the rock change the route a rocket flies?
-- How do the hits change between the two places?
-- What does that say about readings and avoiding obstacles?
+**Your challenge:** Investigate what happens when we change the rock's location while
+keeping the sensory environment unchanged.
 
-For an additional challenge, put both results in a small table or figure. What do they
-say about the limits of the rocket's model?""",
+The cell below flies each rocket over 10 random seeds and records the seeds on which it
+collides with the rock. Run it with the rock inside the blackout. Then move the rock to
+(4.2, -0.7), an area with more reliable observations, and run it again.
+
+Consider the following questions:
+
+- Does moving the rock change the rocket's planned trajectory?
+- How does the collision rate change between the two environments?
+- What can we conclude about the relationship between observation uncertainty and
+  obstacle avoidance?
+
+**For an additional challenge:** Present your results as a small table or figure and
+explain what they tell us about the limitations of the rocket's internal model.""",
             hint="""\
-Change `rock_centre` and run the cell again. To check a route, compare `fly(...).path`
-with and without `hazard=rock` on the same seed.""",
+Change `rock_centre` and run the cell again. To check whether a route changes, compare
+`fly(...).path` with and without `hazard=rock`, using the same seed.""",
             answer="""\
-No rocket is avoiding the rock. A rock never changes a route. With or without it, a
-rocket flies the same path until the moment it hits. In the blackout, the `k = 0.08`
-rocket hits on 2 of 10 seeds and the `k = 0.20` rocket on 3, while the 1960 rocket hits
-on all 10. In clear sky at (4.2, -0.7), they hit on 6 and 5 of 10, and the 1960 rocket
-on none. The curious rockets keep away from noisy readings, so a rock is only safe from
-them where the readings are noisy. The seed 3 picture also shows the less common
-route: on 19 of 30 seeds the `k = 0.08` rocket passes below the blackout.""",
+The rockets aren't avoiding the rock at all. A rock never changes a route: with or
+without it, a rocket flies exactly the same path until the moment it collides. Inside
+the blackout, the `k = 0.08` rocket hits the rock on 2 of the 10 seeds and the `k =
+0.20` rocket on 3, while the 1960 rocket hits it every time. Moved into clear sky at
+(4.2, -0.7), the rock is hit on 6 and 5 of the 10 seeds by the curious rockets, and
+never by the 1960 rocket. The curious rockets steer away from noisy readings, so a rock
+is only safe from them where the readings are noisy. The seed 3 picture also shows the
+less common route: on 19 of 30 seeds, the `k = 0.08` rocket passes below the blackout,
+not above it.""",
             code='''\
 from cpomdp_workshop import curious_rocket, fly, the_1960_rocket
 
@@ -434,41 +531,51 @@ for beacon_gain, name in ((0.0, "1960 rocket"), (0.08, "k = 0.08"), (0.2, "k = 0
     print(f"{name:12} hit the rock on {len(found)} of {len(seeds)} seeds: {found}")''',
         ),
         Bonus(
-            title="can you design a more robust rocket?",
+            title="Can we design a more robust rocket?",
             question="""\
-The world stays as it is: the blackout, the rock and the readings. What you can change
-is the rocket, through the `k` it believes the beacon has and its preference
-precision. How much does its behaviour depend on those two choices?
+We've seen that changing observation reliability can influence the rocket's trajectory.
+But how sensitive is its behaviour to the particular parameters we've chosen?
 
-Search a small grid: three values of `k` and three precisions. For each pair, fly 10
-seeds and count how often the rocket lands and how often it hits the rock. Which pair
-lands most reliably with the fewest hits?
+**Your challenge:** Keep the world as it is, with the same blackout, rock and readings,
+and change the rocket instead. Investigate how its behaviour changes when you vary both
+the `k` it believes the beacon has and its preference precision.
 
-Then fly your chosen pair on 20 seeds the search did not use.
+Design a small parameter search that systematically tests different combinations. For
+each combination, simulate several flights and record whether the rocket reaches the
+landing pad and whether it collides with the rock.
 
-- Does the improvement persist?
-- What happens if the rock moves to (4.2, -0.7)?
-- How confident can you be that the result holds beyond the conditions you tested?
+Can you identify a combination that produces relatively reliable landings while reducing
+collisions?
 
-For an additional challenge, draw the landing or hit counts as a heatmap over the
-grid.""",
+Now test your chosen parameters using new random seeds that were not included in your
+initial comparison.
+
+- Does the apparent improvement persist?
+- What happens if the rock is moved to another location, such as (4.2, -0.7)?
+- How confident can we be that the behaviour generalises beyond the conditions we
+  tested?
+
+**For an additional challenge:** Visualise your results using a heatmap showing
+collision rates or landing performance across different parameter combinations.""",
             hint="""\
-A rocket's model and the world can differ. Build the model with
-`model_with(my_world, default_params(k))`, give the rocket
-`Preference(PAD, precision=c * jnp.eye(2))` and `compass_planner(model)`, then fly it
-in the fixed world: `fly(rocket, my_world, default_params(0.08), seed=seed,
-hazard=ROCK)`. A flight lands if it did not crash and ends within 0.5 of the pad. Try
-`k` at 0.02, 0.08 and 0.20, and precision at 0.3, 1 and 3. The grid is 90 flights.""",
+A rocket's model and the world it flies in don't have to match. Build the model with
+`model_with(my_world, default_params(k))`, give the rocket `Preference(PAD, precision=c
+* jnp.eye(2))` and `compass_planner(model)`, then fly it in the fixed world with
+`fly(rocket, my_world, default_params(0.08), seed=seed, hazard=ROCK)`. Count a flight as
+a landing if it didn't crash and finished within 0.5 of the pad. Try `k` at 0.02, 0.08
+and 0.20, and precision at 0.3, 1 and 3. That's 90 flights in total.""",
             answer="""\
-On seeds 0 to 9 the best pairs believe in a weak beacon. `k = 0.02` with precision
-0.3 or 1 lands 9 times and hits the rock once. The default, `k = 0.08` with precision
-1, lands 8 and hits twice. On seeds 10 to 29 the winner lands all 20 and the default
-19, so the lead holds, by one flight each time. That margin is too small to trust from
-30 flights. The seeds matter more than the setting: the same default rocket lands 8 of
-10 on the first seeds and 19 of 20 on the new ones. Move the rock to (4.2, -0.7) and
-every pair hits it on 12 of the 20 new seeds, winner and default alike. The search
+On seeds 0 to 9, the best combinations believe the beacon is weak: `k = 0.02` with a
+precision of 0.3 or 1 lands 9 times and hits the rock once. The default, `k = 0.08` with
+a precision of 1, lands 8 times and hits the rock twice. On the new seeds, 10 to 29, the
+winner lands all 20 times and the default lands 19, so the lead holds, but only by one
+flight each time. That's too small a margin to trust from 30 flights. In fact, the seeds
+matter more than the settings: the same default rocket lands 8 of 10 times on the first
+seeds and 19 of 20 on the new ones. And if you move the rock to (4.2, -0.7), every
+combination hits it on 12 of the 20 new seeds, winner and default alike. The search
 tuned the rocket to one rock in one place.""",
-            code="# Your code here. The hint shows a rocket flown in a fixed world.",
+            code="""\
+# Your code here. The hint shows a rocket flown in a fixed world.""",
         ),
     ),
     poll="""\
@@ -496,13 +603,25 @@ the rock into clear sky where their routes pass, and they hit it far more often.
 SESSIONS = (SESSION_1, SESSION_2, SESSION_3)
 
 CODA_INTRO = """\
-## Coda · what a printed number entitles you to say
+## Coda · What can we conclude from our results?
 
-Every step, the curious rocket scored all nine moves. Its certificate counts them.
-The same search over five moves, seven deep, scores all 78125 plans.
+Before we finish, let's consider what the numbers produced by our models actually tell
+us.
 
-The RxInfer oracle covers the fixed-noise case. Handed the curious model, it refuses
-before Julia starts."""
+At each step, our curious rocket evaluates nine possible actions. The planner's
+`certificate` records that every one of them was scored. But this can quickly become
+expensive: with five possible actions and a planning horizon of seven steps, there are
+**78,125 possible action sequences** to evaluate.
+
+We also need to distinguish between what we've demonstrated and what we've independently
+validated. The RxInfer reference check supports the fixed-noise case, but it cannot be
+applied directly to our curious rocket with location-dependent observation noise. Rather
+than attempting an unsupported comparison, the code makes this limitation explicit.
+
+Run the final cell and examine the outputs.
+
+**Consider:** What do these results establish about the computations performed, and what
+can we not yet conclude about the correctness of our model?"""
 
 CODA = """\
 import cpomdp_workshop as workshop
