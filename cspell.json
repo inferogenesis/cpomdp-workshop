@@ -51,6 +51,7 @@
     "soffice",
     "stdlib",
     "textcoords",
+    "unmodelled",
     "venv",
     "vmap",
     "warrantlib",
