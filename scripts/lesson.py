@@ -372,31 +372,59 @@ landing pad.
 This preference is controlled by a precision parameter, the `precision=` in
 `Preference(PAD, precision=jnp.eye(2))`.
 
-Keeping the sensor model and `k` fixed, create several rockets with different preference
-precisions. Simulate their flights and compare the resulting trajectories.
+The cell below flies rockets with three preference precisions, 0.1, 1 and 10. It flies
+them at two values of `k`: 0.4, and 0.6, where observations near the pad are noisier. A
+rocket counts as landed if it finishes within 0.5 of the pad. Run it and compare the
+results.
 
 Does increasing preference precision always make the rocket more likely to reach the
 landing pad? What happens when observations near the pad are particularly noisy?
 
-**For an additional challenge:** Repeat the comparison at two different values of `k`.
-Can you explain how sensor reliability and preference precision interact to influence
-the rocket's behaviour?""",
+**For an additional challenge:** Each rocket flies once, on seed 3. Change `seeds` to
+`range(10)` to fly each one over ten seeds. Do your conclusions still hold? Can you
+explain how sensor reliability and preference precision interact to influence the
+rocket's behaviour?""",
             hint="""\
-`Preference(PAD, precision=10 * jnp.eye(2))` sets a precision of 10. Each rocket can
-only fly once, so build a fresh model, planner and `Agent` for each precision. Try 0.1,
-1 and 10 at `k = 0.4`, then at `k = 0.6`, and fly each over several seeds with
-`fly(rocket, seed=seed)`.""",
+`landings` builds a new rocket for every seed and every precision, because a rocket can
+only fly once. `flight.distance_to(PAD)` is how far from the pad a flight ended. To try
+another precision, add it to `(0.1, 1, 10)` in the last loop.""",
             answer="""\
-Not always. Going from a very loose preference to a normal one helps a lot: at `k =
-0.4`, over seeds 0 to 9, a precision of 0.1 lands no rockets, while a precision of 1
-lands 8. Above 1, it barely makes a difference: at seed 3, precisions of 1, 3 and 10 all
-fly the same route. And when observations near the pad are noisy, at `k = 0.6`, no
-precision gets the rocket to land: 0 out of 10 at 0.1, at 1 and at 10. A higher
-precision scales the whole expected miss, including the reading's own noise, so it can't
-make a noisy pad read any better. Here, a landing means finishing within 0.5 of the
-pad.""",
-            code="""\
-# Your code here. Start from the flight lines of your task 2 cell.""",
+Not always. On seed 3, at `k = 0.4`, a precision of 0.1 doesn't land, while 1 and 10
+both do. Above 1, it barely makes a difference: on seed 3, precisions of 1 and 10 fly
+exactly the same route. And when observations near the pad are noisy, at `k = 0.6`, no
+precision gets the rocket to land. Over seeds 0 to 9 the picture holds. At `k = 0.4`, a
+precision of 0.1 lands no rockets, 1 lands 8 and 10 lands 9. At `k = 0.6`, none of the
+three lands a single rocket. A higher precision scales the whole expected miss,
+including the reading's own noise, so it can't make a noisy pad read any better.""",
+            code='''\
+import jax.numpy as jnp
+from cpomdp import Agent, Preference
+
+from cpomdp_workshop import PAD, compass_planner, default_params, fly, model_with
+
+seeds = [3]  # one flight per rocket. For the additional challenge, try range(10)
+
+
+def landings(beacon_gain, precision):
+    """On how many seeds a rocket with this k and preference precision lands."""
+    landed = 0
+    for seed in seeds:
+        # A rocket can only fly once, so every flight builds a new one. model_with
+        # builds the same model as your task 2 cell.
+        model = model_with(my_sensor, default_params(beacon_gain))
+        preference = Preference(PAD, precision=precision * jnp.eye(2))
+        rocket = Agent(model, preference, selector=compass_planner(model))
+        flight = fly(rocket, seed=seed)
+        landed += flight.distance_to(PAD) < 0.5
+    return landed
+
+
+print(f"landings on seeds {list(seeds)}")
+for precision in (0.1, 1, 10):
+    print(
+        f"precision {precision:>4}:  k = 0.4 lands {landings(0.4, precision)},  "
+        f"k = 0.6 lands {landings(0.6, precision)}"
+    )''',
         ),
     ),
     poll="""\
@@ -538,33 +566,31 @@ We've seen that changing observation reliability can influence the rocket's traj
 But how sensitive is its behaviour to the particular parameters we've chosen?
 
 **Your challenge:** Keep the world as it is, with the same blackout, rock and readings,
-and change the rocket instead. Investigate how its behaviour changes when you vary both
-the `k` it believes the beacon has and its preference precision.
+and change the rocket instead. The cell below runs a small parameter search over two of
+the rocket's settings: the `k` it believes the beacon has, and its preference precision.
+For each combination, it flies the rocket over seeds 0 to 9 and counts how often it
+lands and how often it hits the rock. A landing means finishing within 0.5 of the pad
+without hitting the rock.
 
-Design a small parameter search that systematically tests different combinations. For
-each combination, simulate several flights and record whether the rocket reaches the
-landing pad and whether it collides with the rock.
+Run it. Can you identify a combination that produces relatively reliable landings while
+reducing collisions?
 
-Can you identify a combination that produces relatively reliable landings while reducing
-collisions?
-
-Now test your chosen parameters using new random seeds that were not included in your
-initial comparison.
+Now test the combinations on new random seeds that weren't in the search, by changing
+`seeds` to `range(10, 30)`.
 
 - Does the apparent improvement persist?
-- What happens if the rock is moved to another location, such as (4.2, -0.7)?
+- On the new seeds, what happens if the rock is moved to (4.2, -0.7)?
 - How confident can we be that the behaviour generalises beyond the conditions we
   tested?
 
-**For an additional challenge:** Visualise your results using a heatmap showing
-collision rates or landing performance across different parameter combinations.""",
+**Take-home challenge:** Visualise your results using a heatmap showing collision rates
+or landing performance across the parameter combinations.""",
             hint="""\
-A rocket's model and the world it flies in don't have to match. Build the model with
-`model_with(my_world, default_params(k))`, give the rocket `Preference(PAD, precision=c
-* jnp.eye(2))` and `compass_planner(model)`, then fly it in the fixed world with
-`fly(rocket, my_world, default_params(0.08), seed=seed, hazard=ROCK)`. Count a flight as
-a landing if it didn't crash and finished within 0.5 of the pad. Try `k` at 0.02, 0.08
-and 0.20, and precision at 0.3, 1 and 3. That's 90 flights in total.""",
+A rocket's model and the world it flies in don't have to match. Each rocket builds its
+model with the `k` it believes in, while `fly` always draws the readings from the
+world's `k = 0.08`. When you compare a combination with the default, `k = 0.08` with a
+precision of 1, count how many flights separate them. Then look at how much the
+default's own count changes from one set of seeds to the next.""",
             answer="""\
 On seeds 0 to 9, the best combinations believe the beacon is weak: `k = 0.02` with a
 precision of 0.3 or 1 lands 9 times and hits the rock once. The default, `k = 0.08` with
@@ -573,10 +599,41 @@ winner lands all 20 times and the default lands 19, so the lead holds, but only 
 flight each time. That's too small a margin to trust from 30 flights. In fact, the seeds
 matter more than the settings: the same default rocket lands 8 of 10 times on the first
 seeds and 19 of 20 on the new ones. And if you move the rock to (4.2, -0.7), every
-combination hits it on 12 of the 20 new seeds, winner and default alike. The search
-tuned the rocket to one rock in one place.""",
-            code="""\
-# Your code here. The hint shows a rocket flown in a fixed world.""",
+combination hits it on 10 to 12 of the 20 new seeds, the winner and the default on 12
+each. The search tuned the rocket to one rock in one place.""",
+            code='''\
+import jax.numpy as jnp
+from cpomdp import Agent, Preference
+
+from cpomdp_workshop import PAD, compass_planner, default_params, fly, model_with
+
+seeds = range(10)  # the search. Then try new seeds, range(10, 30)
+rock_centre = (2.5, 0.0)  # in the blackout. Then try (4.2, -0.7), in clear sky
+rock = (rock_centre, 0.42)
+world_params = default_params(0.08)  # the world's k never changes
+
+
+def tally(believed_gain, precision):
+    """Landings and rock hits over the seeds, for one k and preference precision."""
+    landed = hit = 0
+    for seed in seeds:
+        # A new rocket for every flight. Its model uses the k it believes in.
+        model = model_with(my_world, default_params(believed_gain))
+        preference = Preference(PAD, precision=precision * jnp.eye(2))
+        rocket = Agent(model, preference, selector=compass_planner(model))
+        flight = fly(rocket, my_world, world_params, seed=seed, hazard=rock)
+        hit += flight.crashed
+        landed += not flight.crashed and flight.distance_to(PAD) < 0.5
+    return landed, hit
+
+
+for believed_gain in (0.02, 0.08, 0.20):
+    for precision in (0.3, 1, 3):
+        landed, hit = tally(believed_gain, precision)
+        print(
+            f"k = {believed_gain:.2f}, precision {precision:>3}: landed {landed}, "
+            f"hit the rock {hit}, of {len(seeds)} flights"
+        )''',
         ),
     ),
     poll="""\

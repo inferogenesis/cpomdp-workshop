@@ -160,6 +160,13 @@ def test_bonus_1_of_task_3_starts_from_a_seed_loop():
     assert "for seed in seeds" in code
 
 
+@pytest.mark.parametrize("number", [2, 3])
+def test_bonus_2_of_tasks_2_and_3_comes_with_its_flight_loop(number):
+    code = lesson.SESSIONS[number - 1].bonuses[1].code
+    assert code is not None
+    assert "for seed in seeds" in code
+
+
 @pytest.mark.parametrize("number", [1, 2, 3])
 def test_every_bonus_2_has_a_cell_to_work_in(number):
     assert lesson.SESSIONS[number - 1].bonuses[1].code is not None
