@@ -501,8 +501,9 @@ without it, a rocket flies exactly the same path until the moment it collides. I
 the blackout, the `k = 0.08` rocket hits the rock on 2 of the 10 seeds and the `k =
 0.20` rocket on 3, while the 1960 rocket hits it every time. Moved into clear sky at
 (4.2, -0.7), the rock is hit on 6 and 5 of the 10 seeds by the curious rockets, and
-never by the 1960 rocket. The curious rockets steer away from noisy readings, so a rock
-is only safe from them where the readings are noisy. The seed 3 picture also shows the
+never by the 1960 rocket. The curious rockets steer away from noisy readings, and the
+rock sits where the readings are noisiest. So here the blackout makes them hit it less
+often, although they know nothing about the rock. The seed 3 picture also shows the
 less common route: on 19 of 30 seeds, the `k = 0.08` rocket passes below the blackout,
 not above it.""",
             code='''\
@@ -526,8 +527,8 @@ def hit_seeds(beacon_gain):
     return found
 
 
-for beacon_gain, name in ((0.0, "1960 rocket"), (0.08, "k = 0.08"), (0.2, "k = 0.20")):
-    found = hit_seeds(beacon_gain)
+for rocket_gain, name in ((0.0, "1960 rocket"), (0.08, "k = 0.08"), (0.2, "k = 0.20")):
+    found = hit_seeds(rocket_gain)
     print(f"{name:12} hit the rock on {len(found)} of {len(seeds)} seeds: {found}")''',
         ),
         Bonus(
@@ -595,7 +596,7 @@ Why did the curious rockets clear the rock in the blackout?
 is large, a reading lands far from "on the pad" on average, so moves into the blackout
 score badly. 4 is partly true. Over the first ten seeds the `k = 0.08` rocket clips the
 rock twice and the `k = 0.20` rocket three times. The figure is seed 3. Bonus 1 moves
-the rock into clear sky where their routes pass, and they hit it far more often.
+the rock into clear sky where their routes pass, and they hit it more often.
 
 </details>""",
 )
