@@ -356,7 +356,14 @@ def fly_preferring(beacon_gain, precision, seed=3):
 @pytest.mark.slow
 @pytest.mark.parametrize(
     ("beacon_gain", "precision", "landed"),
-    [(0.4, 0.1, 0), (0.4, 1.0, 8), (0.6, 0.1, 0), (0.6, 1.0, 0), (0.6, 10.0, 0)],
+    [
+        (0.4, 0.1, 0),
+        (0.4, 1.0, 8),
+        (0.4, 10.0, 9),
+        (0.6, 0.1, 0),
+        (0.6, 1.0, 0),
+        (0.6, 10.0, 0),
+    ],
 )
 def test_precision_helps_a_loose_rocket_land_and_never_lands_a_noisy_pad(
     beacon_gain, precision, landed
@@ -368,6 +375,18 @@ def test_precision_helps_a_loose_rocket_land_and_never_lands_a_noisy_pad(
 def test_above_one_precision_leaves_the_route_unchanged():
     paths = [fly_preferring(0.4, precision).path for precision in (1.0, 3.0, 10.0)]
     assert all(np.array_equal(path, paths[0]) for path in paths)
+
+
+@pytest.mark.parametrize(
+    ("beacon_gain", "landed_at_each_precision"),
+    [(0.4, (False, True, True)), (0.6, (False, False, False))],
+)
+def test_on_seed_3_precision_lands_a_loose_rocket_and_never_a_noisy_pad(
+    beacon_gain, landed_at_each_precision
+):
+    ends = [fly_preferring(beacon_gain, precision) for precision in (0.1, 1.0, 10.0)]
+    landed = tuple(flight.distance_to(PAD) < 0.5 for flight in ends)
+    assert landed == landed_at_each_precision
 
 
 def fly_design(k_model, precision, seed, rock):
@@ -383,18 +402,41 @@ def tally(k_model, precision, seeds, rock):
     return landed, sum(f.crashed for f in flights)
 
 
+# What the task 3 search prints for each (k_model, precision): landings and rock hits
+# on seeds 0 to 9, then on the new seeds 10 to 29, then on the new seeds with the rock
+# in clear sky.
+SEARCH = {
+    (0.02, 0.3): ((9, 1), (20, 0), (8, 12)),
+    (0.02, 1.0): ((9, 1), (20, 0), (8, 12)),
+    (0.02, 3.0): ((8, 2), (20, 0), (9, 11)),
+    (0.08, 0.3): ((7, 2), (20, 0), (8, 12)),
+    (0.08, 1.0): ((8, 2), (19, 1), (8, 12)),
+    (0.08, 3.0): ((8, 2), (19, 1), (8, 12)),
+    (0.20, 0.3): ((6, 3), (19, 1), (8, 12)),
+    (0.20, 1.0): ((6, 3), (19, 1), (10, 10)),
+    (0.20, 3.0): ((6, 3), (19, 1), (9, 11)),
+}
+SEARCH_WINNERS = [(0.02, 0.3), (0.02, 1.0)]
+SEARCH_DEFAULT = (0.08, 1.0)
+
+
 @pytest.mark.slow
-@pytest.mark.parametrize(
-    ("k_model", "precision", "searched", "fresh", "fresh_clear_sky"),
-    [
-        (0.02, 0.3, (9, 1), (20, 0), (8, 12)),
-        (0.02, 1.0, (9, 1), (20, 0), (8, 12)),
-        (0.08, 1.0, (8, 2), (19, 1), (8, 12)),
-    ],
-)
-def test_the_searchs_winner_holds_by_one_flight_and_not_when_the_rock_moves(
-    k_model, precision, searched, fresh, fresh_clear_sky
-):
+@pytest.mark.parametrize(("k_model", "precision"), list(SEARCH))
+def test_the_search_prints_these_tallies(k_model, precision):
+    searched, fresh, fresh_clear_sky = SEARCH[(k_model, precision)]
     assert tally(k_model, precision, range(10), ROCK) == searched
     assert tally(k_model, precision, range(10, 30), ROCK) == fresh
     assert tally(k_model, precision, range(10, 30), CLEAR_SKY_ROCK) == fresh_clear_sky
+
+
+def test_the_searchs_winner_holds_by_one_flight_and_not_when_the_rock_moves():
+    searched = {combination: tallies[0] for combination, tallies in SEARCH.items()}
+    assert max(landed for landed, _ in searched.values()) == 9
+    assert min(hit for _, hit in searched.values()) == 1
+    assert [c for c, row in searched.items() if row == (9, 1)] == SEARCH_WINNERS
+    assert searched[SEARCH_DEFAULT] == (8, 2)
+    assert all(SEARCH[winner][1] == (20, 0) for winner in SEARCH_WINNERS)
+    assert SEARCH[SEARCH_DEFAULT][1] == (19, 1)
+    clear_sky_hits = [tallies[2][1] for tallies in SEARCH.values()]
+    assert (min(clear_sky_hits), max(clear_sky_hits)) == (10, 12)
+    assert all(SEARCH[c][2][1] == 12 for c in [*SEARCH_WINNERS, SEARCH_DEFAULT])
