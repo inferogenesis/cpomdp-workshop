@@ -47,6 +47,21 @@ build-backend = "hatchling.build"
 [tool.hatch.build.targets.wheel]
 packages = ["src/cpomdp_workshop"]
 
+# What the public sdist carries: the package, the notebook and what the tests need to
+# run from it. The plan and the delivery notes stay in the repo.
+[tool.hatch.build.targets.sdist]
+only-include = [
+    "src",
+    "tests",
+    "scripts",
+    "notebooks",
+    "assets",
+    "delivery/hints_chat.txt",
+    "README.md",
+    "LICENSE",
+    "pyproject.toml",
+]
+
 [tool.ruff]
 line-length = 88
 target-version = "py311"
