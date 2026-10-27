@@ -76,8 +76,9 @@ convention = "google"
 "tests/**" = ["D", "E741"]
 # Generated teaching cells. An attempt leaves a name unused until its slot is written,
 # a hint cell is one line naming a variable from its attempt, and scaffold comments
-# run long.
-"notebooks/*.ipynb" = ["D103", "E501", "F821", "F841"]
+# run long. A bonus cell imports everything it uses, so it runs from its checkpoint
+# after a restart, which re-imports names an earlier cell already brought in.
+"notebooks/*.ipynb" = ["D103", "E501", "F811", "F821", "F841"]
 
 [tool.ty.environment]
 python-version = "3.11"

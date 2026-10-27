@@ -1,9 +1,23 @@
 Pasted into the chat on the timer. The notebook's hint and reference cells are built
 from this file, so what is pasted and what is in the notebook never differ. A hint is
-one line of code that replaces the line of the same name in the attempt cell.
+one line of code that replaces the line of the same name in the attempt cell. A nudge
+is the step before its hint, pasted first. In the notebook it shows under the hint's
+title, with the hint's line behind Show code.
+
+[session 1, nudge 1]
+`observation_matrix` describes how the rocket's position (x, y) turns into a sensor reading (x, y).
+Here the reading is simply the position itself, so this is the identity matrix.
+In JAX, you can create an n-by-n identity matrix with `jnp.eye(n)`.
+We need n = 2: one dimension for x and one for y.
 
 [session 1, hint 1]
 observation_matrix = jnp.eye(2)
+
+[session 1, nudge 2]
+`observation_noise` (R) describes how far each reading tends to stray from the true position.
+It's a covariance matrix: the variance for each axis sits on the diagonal, with zeros everywhere else.
+In this task, the variance is 0.05 on both axes.
+Multiplying a matrix by a number scales every entry, so `v * jnp.eye(n)` puts v along the diagonal.
 
 [session 1, hint 2]
 observation_noise = 0.05 * jnp.eye(2)
@@ -11,8 +25,20 @@ observation_noise = 0.05 * jnp.eye(2)
 [session 1, reference]
 Reference for task 1: the collapsed cell under hint 2. Run it, then the checkpoint.
 
+[session 2, nudge 1]
+`pull` is the extra noise the beacon adds at position x.
+It's k multiplied by `distance_squared`, with the squared distance capped first so it never goes above the cap.
+`jnp.minimum(a, b)` returns whichever of a and b is smaller, which is a handy way to cap a at b.
+You'll find k in `params["beacon_gain"]` and the cap in `params["beacon_cap"]`.
+
 [session 2, hint 1]
 pull = params["beacon_gain"] * jnp.minimum(distance_squared, params["beacon_cap"])
+
+[session 2, nudge 2]
+`k` controls how quickly the reading gets noisier as the rocket moves away from the beacon.
+With a small k, the path stays nearly straight.
+With a large k, staying near the beacon becomes more appealing than reaching the pad, and the rocket stops short.
+Try raising k from 0.08 in steps of about 0.1 and watch how high the path climbs.
 
 [session 2, hint 2]
 beacon_gain = 0.4
@@ -20,8 +46,21 @@ beacon_gain = 0.4
 [session 2, reference]
 Reference for task 2: the collapsed cell under hint 2. Run it, then the checkpoint.
 
+[session 3, nudge 1]
+`blindness` is the extra noise the blackout adds at position x.
+It's strongest at the centre of the blackout and fades with distance, in a bell shape.
+`jnp.exp(-d / w)` equals 1 when d is 0 and falls towards 0 as d grows, more slowly when w is larger.
+Here, d is `from_blackout`, w is `width`, and `height` sets how strong the peak is.
+
 [session 3, hint 1]
 blindness = height * jnp.exp(-from_blackout / width)
+
+[session 3, nudge 2]
+A backend is the engine that updates the rocket's belief after each reading.
+`KalmanBackend(model)` is the classic Kalman filter.
+cpomdp's other engine passes messages on a graph, the form it uses for models made of several linked parts.
+`one_node` rewrites a model as a graph with just one node, so the same rocket can run on that engine.
+Use `model`, the 1960 rocket's model from Task 1, which the checkpoint has restored for you.
 
 [session 3, hint 2]
 backend = one_node(model)

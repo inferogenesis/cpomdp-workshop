@@ -25,21 +25,23 @@ HINTS = ROOT / "delivery" / "hints_chat.txt"
 NOTEBOOK = ROOT / "notebooks" / "build_a_curious_rocket.ipynb"
 
 SKIP = "skip-execution"
-"""The tag nbclient skips. Attempts hold ``...`` and hints are for copying."""
+"""The tag nbclient skips: attempts hold ``...``, hints are for copying, and bonus code
+is for the learner to run."""
 
 _HEADER = re.compile(
-    r"^\[session (?P<session>\d), (?P<kind>hint 1|hint 2|reference)\]$"
+    r"^\[session (?P<session>\d), (?P<kind>(?:hint|nudge) [12]|reference)\]$"
 )
 _SLOT = re.compile(r"^(?P<indent>\s*)(?P<name>\w+) = \.\.\.(?:\s+#.*)?$")
 
 
 def load_hints(path: Path = HINTS) -> dict[tuple[int, str], str]:
-    """The hint and reference lines, keyed by session and kind.
+    """The hint, nudge and reference lines, keyed by session and kind.
 
     Args:
         path: the hints file. Blocks are headed ``[session N, hint 1]``, ``[session
-            N, hint 2]`` or ``[session N, reference]``. Text before the first header
-            is a note to the presenter and is skipped.
+            N, hint 2]``, ``[session N, nudge 1]``, ``[session N, nudge 2]`` or
+            ``[session N, reference]``. A hint's nudge is optional. Text before the
+            first header is a note to the presenter and is skipped.
 
     Returns:
         Each block's text, stripped.
@@ -112,6 +114,34 @@ def _collapsed(title: str, source: str, *tags: str) -> NotebookNode:
     return cell
 
 
+def _hint(number: int, which: int, hints: dict[tuple[int, str], str]) -> NotebookNode:
+    """A hint cell: its nudge shown under the title, its line behind Show code."""
+    source = hints[(number, f"hint {which}")]
+    nudge = hints.get((number, f"nudge {which}"))
+    if nudge is not None:
+        shown = "\n".join(f"# @markdown {line}" for line in nudge.splitlines())
+        source = f"{shown}\n{source}"
+    return _collapsed(f"Hint {which}", source, "hint", SKIP)
+
+
+def _bonus(which: int, bonus: lesson.Bonus) -> list[NotebookNode]:
+    """A bonus's text cell, and the code cell under it when it has one.
+
+    The text shows the question in full, then a hint and an answer, each folded until
+    opened. Colab needs the blank line after each ``<summary>`` line, or the text
+    inside shows as raw HTML.
+    """
+    text = (
+        f"### Bonus {which} · {bonus.title}\n\n{bonus.question}\n\n"
+        f"<details><summary>Hint</summary>\n\n{bonus.hint}\n\n</details>\n\n"
+        f"<details><summary>Answer</summary>\n\n{bonus.answer}\n\n</details>"
+    )
+    cells = [_markdown(text, "bonus")]
+    if bonus.code is not None:
+        cells.append(_code(bonus.code, "bonus-code", SKIP))
+    return cells
+
+
 def _collapsed_symptoms() -> NotebookNode:
     title, source = lesson.SYMPTOMS.split("\n", 1)
     return _collapsed(title.removeprefix("# @title "), source, "symptoms")
@@ -130,10 +160,12 @@ def build(hints: dict[tuple[int, str], str] | None = None) -> NotebookNode:
     version = metadata.version("cpomdp-workshop")
     cells = [
         _markdown(lesson.TITLE, "title"),
+        _markdown(lesson.GETTING_STARTED, "getting-started"),
         _code(lesson.INSTALL.format(version=version), "install"),
         _markdown(lesson.PREVIEW_INTRO, "preview"),
         _code(lesson.PREVIEW, "preview"),
         _markdown(lesson.PREFLIGHT, "preflight"),
+        _markdown(lesson.HELP, "help"),
         _collapsed_symptoms(),
     ]
     for session in lesson.SESSIONS:
@@ -142,16 +174,24 @@ def build(hints: dict[tuple[int, str], str] | None = None) -> NotebookNode:
             _markdown(session.brief, "brief"),
             _code(session.attempt, "attempt", SKIP),
             _collapsed_symptoms(),
-            _collapsed("Hint 1", hints[(n, "hint 1")], "hint", SKIP),
-            _collapsed("Hint 2", hints[(n, "hint 2")], "hint", SKIP),
+            _hint(n, 1, hints),
+            _hint(n, 2, hints),
             _collapsed(f"Reference: task {n}", reference(session, hints), "reference"),
-            _collapsed(session.bonus_title, session.bonus, "bonus"),
+            *(
+                cell
+                for which, bonus in enumerate(session.bonuses, start=1)
+                for cell in _bonus(which, bonus)
+            ),
             _code(lesson.CHECKPOINT.format(number=n), "checkpoint"),
             _markdown(session.poll, "poll"),
         ]
     cells += [_markdown(lesson.CODA_INTRO, "coda"), _code(lesson.CODA, "coda")]
     cells.append(_markdown(lesson.TAIL_INTRO, "self-guided"))
     cells += [_collapsed(title, source, "self-guided") for title, source in lesson.TAIL]
+    # nbformat draws a random id per cell. A position and a tag keep a rebuild's diff
+    # down to the cells that changed.
+    for index, cell in enumerate(cells):
+        cell["id"] = f"{index:02d}-{cell.metadata['tags'][0]}"
     notebook = nbformat.v4.new_notebook(cells=cells)
     notebook.metadata["kernelspec"] = {
         "name": "python3",
