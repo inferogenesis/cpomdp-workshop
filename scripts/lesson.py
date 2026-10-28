@@ -191,9 +191,12 @@ A bigger number in front of `jnp.eye(2)` means more noise, or more initial uncer
             answer="""\
 It never does. Whatever the noise level, the initial uncertainty or the step size, the
 spread stays at 0.000000. Because the noise is the same everywhere, every movement
-leaves the rocket equally uncertain. Only noise that changes with position can make some
-movements more informative than others. When you're done, run the checkpoint to restore
-the task's original numbers.""",
+leaves the rocket equally uncertain. This is the Koudahl collapse.
+[Koudahl, Kouw and de Vries (2021)](https://doi.org/10.3390/e23121565) proved that when
+a linear Gaussian model's noise is fixed, the expected information gain is the same for
+every action, so curiosity can never change what the rocket does. Only noise that
+changes with position can make some movements more informative than others. When you're
+done, run the checkpoint to restore the task's original numbers.""",
         ),
         Bonus(
             title="Can unequal sensor noise make the rocket curious?",
