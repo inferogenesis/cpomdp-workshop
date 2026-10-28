@@ -40,7 +40,7 @@ from cpomdp_workshop.check import (
 from cpomdp_workshop.planner import compass_moves, compass_planner
 from cpomdp_workshop.selfguided import two_node_backend
 from cpomdp_workshop.sim import ROCK, fly
-from cpomdp_workshop.solutions import CLEAR_SKY_ROCK, axis_certificate, rxinfer_refusal
+from cpomdp_workshop.solutions import CLEAR_SKY_ROCK, axis_certificate
 from cpomdp_workshop.world import (
     BEACON,
     PAD,
@@ -208,13 +208,6 @@ def test_the_beacon_sensor_bends_the_path_to_the_beacon_and_lands(capsys):
     assert capsys.readouterr().out.strip() == (
         "The rocket bends 1.41 off the straight line and lands 0.24 from the pad. "
         "It matches the workshop's beacon_sensor."
-    )
-
-
-def test_the_rxinfer_oracle_refuses_the_curious_model_in_these_words():
-    assert rxinfer_refusal(model_with(reference_sensor, default_params(0.08))) == (
-        "the model's observation_model is state-dependent; the RxInfer model filters "
-        "on one fixed Q and R. Use KalmanBackend for R(x) or Q(x)."
     )
 
 

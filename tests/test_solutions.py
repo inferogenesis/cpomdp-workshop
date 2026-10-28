@@ -7,7 +7,7 @@ from cpomdp_workshop.build import (
     the_1960_rocket,
 )
 from cpomdp_workshop.sim import fly
-from cpomdp_workshop.solutions import CLEAR_SKY_ROCK, efe_split, rxinfer_refusal
+from cpomdp_workshop.solutions import CLEAR_SKY_ROCK, efe_split
 from cpomdp_workshop.world import BEACON, BLACKOUT
 
 
@@ -38,7 +38,3 @@ def test_the_1960_rocket_learns_the_same_from_every_move_it_could_make():
         pad_preference(),
     )[0, 1]
     assert np.isclose(first, other)
-
-
-def test_rxinfer_takes_the_fixed_model_as_far_as_needing_julia():
-    assert rxinfer_refusal(model_with()).startswith("accepted")

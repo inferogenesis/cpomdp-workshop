@@ -664,11 +664,6 @@ At each step, our curious rocket evaluates nine possible actions. The planner's
 expensive: with five possible actions and a planning horizon of seven steps, there are
 **78,125 possible action sequences** to evaluate.
 
-We also need to distinguish between what we've demonstrated and what we've independently
-validated. The RxInfer reference check supports the fixed-noise case, but it cannot be
-applied directly to our curious rocket with location-dependent observation noise. Rather
-than attempting an unsupported comparison, the code makes this limitation explicit.
-
 Run the final cell and examine the outputs.
 
 **Consider:** What do these results establish about the computations performed, and what
@@ -678,8 +673,7 @@ CODA = """\
 import cpomdp_workshop as workshop
 
 print(curious.selector.certificate)
-print(workshop.axis_certificate())
-print(workshop.rxinfer_refusal(curious_model))"""
+print(workshop.axis_certificate())"""
 
 TAIL_INTRO = """\
 ---
