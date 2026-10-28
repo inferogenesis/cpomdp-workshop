@@ -164,7 +164,6 @@ def build(hints: dict[tuple[int, str], str] | None = None) -> NotebookNode:
         _code(lesson.INSTALL.format(version=version), "install"),
         _markdown(lesson.PREVIEW_INTRO, "preview"),
         _code(lesson.PREVIEW, "preview"),
-        _markdown(lesson.PREFLIGHT, "preflight"),
         _markdown(lesson.HELP, "help"),
         _collapsed_symptoms(),
     ]

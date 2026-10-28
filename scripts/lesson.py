@@ -64,13 +64,6 @@ as we progress through the exercises."""
 
 PREVIEW = "workshop.preview()"
 
-PREFLIGHT = """\
-## A quick pre-flight check
-
-If you've already answered the three questions during registration, you're all set. If
-you missed them, please take a moment to complete our short pre-flight form (link to
-come). It should only take around 30 seconds."""
-
 HELP = """\
 ## Need a little help?
 
