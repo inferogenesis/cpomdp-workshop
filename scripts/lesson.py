@@ -143,7 +143,10 @@ its readings. Everything else is already provided.
 Once you've completed the two lines, run the cell. The `check_agent` function will show
 you the rocket you've built and simulate its flight. Next, `probe_model` will evaluate
 how much information the rocket could expect to gain from each possible action, and
-`show_probe` will display the results.
+`show_probe` will display the results. In the theory, this is the epistemic term of
+expected free energy, the term pymdp switches on with `use_states_info_gain`
+([the Active Inference book](https://doi.org/10.7551/mitpress/12441.001.0001), eq. 2.6,
+p. 33).
 
 Pay particular attention to the **spread**, which tells us how much the expected
 information gain varies between the available movements.
@@ -155,7 +158,7 @@ from cpomdp import Agent, Belief, LinearGaussianModel, StateGoal, probe_model
 
 from cpomdp_workshop import LAUNCH, PAD, check_agent, compass_moves, show_probe
 
-observation_matrix = ...  # C (pymdp's A): the reading sees the whole position
+observation_matrix = ...  # pymdp's A, with R below: the reading sees the position
 observation_noise = ...  # R: variance 0.05 on each axis, the same everywhere
 
 model = LinearGaussianModel(
@@ -262,12 +265,16 @@ SESSION_2 = Session(
 In Task 1, the rocket's sensor was equally reliable everywhere. Now, we'll introduce a
 navigation beacon. Observations are more reliable near the beacon and become noisier
 with increasing distance. The parameter `k` (`beacon_gain` in the code) controls how
-quickly this noise increases, up to a maximum value.
+quickly this noise increases, up to a maximum value. In the theory, this noise sets the
+ambiguity in expected free energy (Active Inference book, eq. 2.6, p. 33), and now it
+depends on where the rocket is. With the same noise everywhere, Task 1's spread stayed
+at zero.
 
 We're also introducing a **preference over observations**, rather than states. The
 rocket prefers a sensor reading that indicates it is on the landing pad. At each step,
 its planner evaluates nine possible actions, taking into account the expected
-observations and their uncertainty.
+observations and their uncertainty. Each action is a one-step policy, scored by its
+expected free energy (Active Inference book, section 2.7, p. 32).
 
 **Your task:** Complete the two missing lines marked with `...`:
 
@@ -451,7 +458,9 @@ SESSION_3 = Session(
 In Task 2, we introduced a beacon that provided more reliable observations nearby. Now,
 we'll add a blackout region along the rocket's flight path, where sensor noise increases
 sharply towards its centre. There's also a rock inside the blackout, but importantly,
-**none of the rockets knows the rock is there**.
+**none of the rockets knows the rock is there**. The rock is in the world (the
+generative process) but not in any rocket's generative model (Active Inference book,
+Figure 2.2, p. 23).
 
 **Your task:** Complete the two missing lines marked with `...`:
 
