@@ -1,0 +1,61 @@
+name: publish
+
+on:
+  release:
+    types: [published]
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+      - uses: astral-sh/setup-uv@v8.2.0
+        with:
+          enable-cache: true
+          python-version: "3.12"
+      # PyPI never lets a version be reclaimed, and the notebook's install cell pins the
+      # version it was generated from, so the tag, the metadata and the notebook agree.
+      - name: the tag names the package version
+        run: |
+          version=$(uv version --short)
+          if [ "${{ github.event.release.tag_name }}" != "v$version" ]; then
+            echo "::error::release tag ${{ github.event.release.tag_name }} does not match v$version from pyproject.toml."
+            exit 1
+          fi
+          if ! grep -q "cpomdp-workshop==$version" notebooks/build_a_curious_rocket.ipynb; then
+            echo "::error::the notebook does not install cpomdp-workshop==$version. Rebuild it."
+            exit 1
+          fi
+      - run: uv sync --locked --extra dev --extra nb
+      # Don't ship a red build.
+      - run: uv run --no-sync pytest -q
+      - run: uv build -o dist
+      # What an attendee gets: the wheel and its dependencies resolved fresh from PyPI,
+      # outside the checkout, with no lock.
+      - name: the wheel installs clean and says it is ready
+        run: |
+          uv venv /tmp/attendee -p 3.12
+          VIRTUAL_ENV=/tmp/attendee uv pip install dist/*.whl
+          cd /tmp && /tmp/attendee/bin/python -I -c "import cpomdp_workshop; cpomdp_workshop.hello()"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: dist
+          path: dist/
+
+  publish:
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: pypi
+      url: https://pypi.org/p/cpomdp-workshop
+    permissions:
+      id-token: write # the OIDC token Trusted Publishing exchanges for an upload
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: dist
+          path: dist/
+      - uses: pypa/gh-action-pypi-publish@release/v1

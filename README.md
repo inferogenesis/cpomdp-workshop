@@ -64,6 +64,14 @@ uv run --no-sync python scripts/render_assets.py
 A change to the lesson, the hints or the package means rebuilding the notebook. A stale
 notebook fails a test.
 
+## Releasing
+
+The notebook's first cell installs the exact version it was built from, so bump
+`version` in `pyproject.toml`, rebuild the notebook and merge. Then publish a GitHub
+release tagged `v` plus that version. `.github/workflows/publish.yml` runs the tests,
+installs the wheel into a clean environment and uploads to PyPI through Trusted
+Publishing.
+
 ## Licence
 
 MIT. See `LICENSE`.
