@@ -64,13 +64,6 @@ as we progress through the exercises."""
 
 PREVIEW = "workshop.preview()"
 
-PREFLIGHT = """\
-## A quick pre-flight check
-
-If you've already answered the three questions during registration, you're all set. If
-you missed them, please take a moment to complete our short pre-flight form (link to
-come). It should only take around 30 seconds."""
-
 HELP = """\
 ## Need a little help?
 
@@ -150,7 +143,10 @@ its readings. Everything else is already provided.
 Once you've completed the two lines, run the cell. The `check_agent` function will show
 you the rocket you've built and simulate its flight. Next, `probe_model` will evaluate
 how much information the rocket could expect to gain from each possible action, and
-`show_probe` will display the results.
+`show_probe` will display the results. In the theory, this is the epistemic term of
+expected free energy, the term pymdp switches on with `use_states_info_gain`
+([the Active Inference book](https://doi.org/10.7551/mitpress/12441.001.0001), eq. 2.6,
+p. 33).
 
 Pay particular attention to the **spread**, which tells us how much the expected
 information gain varies between the available movements.
@@ -162,7 +158,7 @@ from cpomdp import Agent, Belief, LinearGaussianModel, StateGoal, probe_model
 
 from cpomdp_workshop import LAUNCH, PAD, check_agent, compass_moves, show_probe
 
-observation_matrix = ...  # C (pymdp's A): the reading sees the whole position
+observation_matrix = ...  # pymdp's A, with R below: the reading sees the position
 observation_noise = ...  # R: variance 0.05 on each axis, the same everywhere
 
 model = LinearGaussianModel(
@@ -198,9 +194,12 @@ A bigger number in front of `jnp.eye(2)` means more noise, or more initial uncer
             answer="""\
 It never does. Whatever the noise level, the initial uncertainty or the step size, the
 spread stays at 0.000000. Because the noise is the same everywhere, every movement
-leaves the rocket equally uncertain. Only noise that changes with position can make some
-movements more informative than others. When you're done, run the checkpoint to restore
-the task's original numbers.""",
+leaves the rocket equally uncertain. This is the Koudahl collapse.
+[Koudahl, Kouw and de Vries (2021)](https://doi.org/10.3390/e23121565) proved that when
+a linear Gaussian model's noise is fixed, the expected information gain is the same for
+every action, so curiosity can never change what the rocket does. Only noise that
+changes with position can make some movements more informative than others. When you're
+done, run the checkpoint to restore the task's original numbers.""",
         ),
         Bonus(
             title="Can unequal sensor noise make the rocket curious?",
@@ -266,12 +265,16 @@ SESSION_2 = Session(
 In Task 1, the rocket's sensor was equally reliable everywhere. Now, we'll introduce a
 navigation beacon. Observations are more reliable near the beacon and become noisier
 with increasing distance. The parameter `k` (`beacon_gain` in the code) controls how
-quickly this noise increases, up to a maximum value.
+quickly this noise increases, up to a maximum value. In the theory, this noise sets the
+ambiguity in expected free energy (Active Inference book, eq. 2.6, p. 33), and now it
+depends on where the rocket is. With the same noise everywhere, Task 1's spread stayed
+at zero.
 
 We're also introducing a **preference over observations**, rather than states. The
 rocket prefers a sensor reading that indicates it is on the landing pad. At each step,
 its planner evaluates nine possible actions, taking into account the expected
-observations and their uncertainty.
+observations and their uncertainty. Each action is a one-step policy, scored by its
+expected free energy (Active Inference book, section 2.7, p. 32).
 
 **Your task:** Complete the two missing lines marked with `...`:
 
@@ -455,7 +458,9 @@ SESSION_3 = Session(
 In Task 2, we introduced a beacon that provided more reliable observations nearby. Now,
 we'll add a blackout region along the rocket's flight path, where sensor noise increases
 sharply towards its centre. There's also a rock inside the blackout, but importantly,
-**none of the rockets knows the rock is there**.
+**none of the rockets knows the rock is there**. The rock is in the world (the
+generative process) but not in any rocket's generative model (Active Inference book,
+Figure 2.2, p. 23).
 
 **Your task:** Complete the two missing lines marked with `...`:
 
@@ -671,11 +676,6 @@ At each step, our curious rocket evaluates nine possible actions. The planner's
 expensive: with five possible actions and a planning horizon of seven steps, there are
 **78,125 possible action sequences** to evaluate.
 
-We also need to distinguish between what we've demonstrated and what we've independently
-validated. The RxInfer reference check supports the fixed-noise case, but it cannot be
-applied directly to our curious rocket with location-dependent observation noise. Rather
-than attempting an unsupported comparison, the code makes this limitation explicit.
-
 Run the final cell and examine the outputs.
 
 **Consider:** What do these results establish about the computations performed, and what
@@ -685,8 +685,7 @@ CODA = """\
 import cpomdp_workshop as workshop
 
 print(curious.selector.certificate)
-print(workshop.axis_certificate())
-print(workshop.rxinfer_refusal(curious_model))"""
+print(workshop.axis_certificate())"""
 
 TAIL_INTRO = """\
 ---

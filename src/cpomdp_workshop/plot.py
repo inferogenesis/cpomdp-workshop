@@ -1,16 +1,26 @@
 """Pictures of the world and the flights through it.
 
-The sensor field is drawn as ``log10 R(x)`` in one muted green ramp, brighter where
-the reading is noisier, so the blackout glows around the rock and the beacon is a dark
-well. The 1960 rocket is a dashed ink line. The curious rockets take amber, then
-blue, in the order given. Text is ink or muted, never a series colour, and a figure
-with more than one rocket carries a legend.
+The sensor field is drawn as ``log10 R(x)`` in one muted green ramp, stronger where
+the reading is noisier, so the blackout stands out around the rock and the beacon sits
+in the quietest patch. The 1960 rocket is a dashed ink line. The curious rockets take
+amber, then blue, in the order given. Text is ink or muted, never a series colour, and
+a figure with more than one rocket carries a legend.
+
+The neutral colours come from a [`Palette`][cpomdp_workshop.plot.Palette]. Figures
+are drawn on [`DARK`][cpomdp_workshop.plot.DARK], the notebook's. The slides draw
+their route frames on [`LIGHT`][cpomdp_workshop.plot.LIGHT]. A rocket keeps its colour
+on either.
 
 Every function returns a figure without showing it. A notebook cell that ends with
 one displays it once.
+
+``plot_route`` draws the slides' build-up. Its frames share one map, so from one frame
+to the next only the field, the rockets and the rock change.
 """
 
-from collections.abc import Mapping, Sequence
+from collections.abc import Callable, Mapping, Sequence
+from dataclasses import dataclass
+from typing import Literal
 
 import jax
 import jax.numpy as jnp
@@ -20,6 +30,7 @@ from matplotlib.axes import Axes
 from matplotlib.colors import LinearSegmentedColormap, Normalize
 from matplotlib.figure import Figure
 from matplotlib.patches import Circle, Ellipse
+from numpy.typing import ArrayLike
 
 from cpomdp_workshop.build import curious_rocket, the_1960_rocket
 from cpomdp_workshop.sim import DEFAULT_SEED, ROCK, Flight, Hazard, fly
@@ -37,10 +48,16 @@ from cpomdp_workshop.world import (
 )
 
 __all__ = [
+    "CURIOUS_COLOURS",
+    "DARK",
     "IMPACT_MARKER",
+    "LIGHT",
+    "ROUTE_STAGES",
+    "Palette",
     "plot_beliefs",
     "plot_flights",
     "plot_path",
+    "plot_route",
     "plot_world",
     "preview",
     "tile_task1",
@@ -49,21 +66,62 @@ __all__ = [
     "world_flights",
 ]
 
-BACKGROUND = "#0C1916"
-PANEL = "#14261F"
-RULE = "#2A3D35"
-INK = "#F3F0E6"
-MUTED = "#8C968F"
+
+@dataclass(frozen=True)
+class Palette:
+    """The neutral colours a figure is drawn in. The rockets' colours never change.
+
+    Attributes:
+        background: around the map.
+        panel: the map where the reading is quietest, and the legend's box.
+        rule: the map's edges and the legend's outline.
+        ink: text, the launch site, the pad and the 1960 rocket.
+        muted: ticks, the scale's labels and the beacon.
+        field: the map where the reading is noisiest.
+    """
+
+    background: str
+    panel: str
+    rule: str
+    ink: str
+    muted: str
+    field: str
+
+    @property
+    def field_ramp(self) -> LinearSegmentedColormap:
+        """The field's colours, from ``panel`` where quiet to ``field`` where noisy."""
+        return LinearSegmentedColormap.from_list(
+            "reading_noise", [self.panel, self.field]
+        )
+
+
+DARK = Palette(
+    background="#0C1916", panel="#14261F", rule="#2A3D35", ink="#F3F0E6",
+    muted="#8C968F", field="#4F7A63",
+)  # fmt: skip
+"""The notebook's palette, and every figure's unless another is given."""
+
+LIGHT = Palette(
+    background="#F3F0E6", panel="#FFFFFF", rule="#D3CEBF", ink="#16241F",
+    muted="#5B6F68", field="#8DB09E",
+)  # fmt: skip
+"""The slides' palette, from the light theme of Inferogenesis's site."""
+
 AMBER = "#C48200"
 BLUE = "#3D8ED4"
 ROCK_FILL = "#5A625D"
-FIELD_RAMP = LinearSegmentedColormap.from_list("reading_noise", [PANEL, "#4F7A63"])
 # One scale for every figure, from the floor to the floor plus the whole blackout, so
 # the same shade means the same noise from tile to tile.
 FIELD_SCALE = Normalize(np.log10(NOISE_FLOOR), np.log10(NOISE_FLOOR + BLACKOUT_GAIN))
 
 IMPACT_MARKER = "*"
 CURIOUS_COLOURS = (AMBER, BLUE)
+
+ROUTE_STAGES = ("straight", "beacon", "blackout", "rock")
+"""The frames of the route build-up, in the order the slides show them."""
+
+_BASELINE = "1960 rocket"
+_ROUTE_LEGEND: Literal["lower left"] = "lower left"  # the corner no route crosses
 
 _EXTENT = ((-0.6, 5.6), (-1.1, 2.5))
 _FIELD_SAMPLES = (125, 73)
@@ -81,18 +139,20 @@ def covariance_ellipse(cov: np.ndarray, *, sigmas: float = 2.0) -> tuple[float, 
     return float(width), float(height), angle
 
 
-def _canvas(title: str, size: tuple[float, float] = (9.0, 5.0)) -> tuple[Figure, Axes]:
-    """An empty map of the world in the workshop's palette."""
-    figure, axes = plt.subplots(figsize=size, facecolor=BACKGROUND)
+def _canvas(
+    title: str, palette: Palette, size: tuple[float, float] = (9.0, 5.0)
+) -> tuple[Figure, Axes]:
+    """An empty map of the world in ``palette``."""
+    figure, axes = plt.subplots(figsize=size, facecolor=palette.background)
     plt.close(figure)  # returned, never shown by pyplot itself
-    axes.set_facecolor(PANEL)
+    axes.set_facecolor(palette.panel)
     axes.set_xlim(*_EXTENT[0])
     axes.set_ylim(*_EXTENT[1])
     axes.set_aspect("equal")
-    axes.set_title(title, color=INK, loc="left", fontsize=12)
-    axes.tick_params(colors=MUTED, labelsize=9)
+    axes.set_title(title, color=palette.ink, loc="left", fontsize=12)
+    axes.tick_params(colors=palette.muted, labelsize=9)
     for spine in axes.spines.values():
-        spine.set_color(RULE)
+        spine.set_color(palette.rule)
         spine.set_linewidth(0.8)
     return figure, axes
 
@@ -115,7 +175,11 @@ def _noise_levels(
 
 
 def _draw_field(
-    figure: Figure, axes: Axes, sensor: NoiseFn, params: SensorParams
+    figure: Figure,
+    axes: Axes,
+    sensor: NoiseFn,
+    params: SensorParams,
+    palette: Palette,
 ) -> None:
     """The sensor field under everything else, with its scale."""
     xs = np.linspace(*_EXTENT[0], _FIELD_SAMPLES[0])
@@ -124,24 +188,25 @@ def _draw_field(
     points = np.column_stack([grid_x.ravel(), grid_y.ravel()])
     levels = _noise_levels(sensor, params, points).reshape(grid_x.shape)
     mesh = axes.pcolormesh(
-        grid_x, grid_y, levels, cmap=FIELD_RAMP, norm=FIELD_SCALE, shading="auto",
+        grid_x, grid_y, levels, cmap=palette.field_ramp, norm=FIELD_SCALE,
+        shading="auto",
         zorder=0,
     )  # fmt: skip
     scale = figure.colorbar(mesh, ax=axes, shrink=0.8, pad=0.02)
-    scale.set_label("reading noise, log10 R", color=MUTED, fontsize=9)
-    scale.ax.tick_params(colors=MUTED, labelsize=8)
-    scale.outline.set_edgecolor(RULE)
+    scale.set_label("reading noise, log10 R", color=palette.muted, fontsize=9)
+    scale.ax.tick_params(colors=palette.muted, labelsize=8)
+    scale.outline.set_edgecolor(palette.rule)
 
 
-def _draw_landmarks(axes: Axes, hazard: Hazard | None) -> None:
+def _draw_landmarks(axes: Axes, hazard: Hazard | None, palette: Palette) -> None:
     """The launch site, the pad, the beacon and, when given, the rock."""
     if hazard is not None:
         centre, radius = hazard
         axes.add_patch(Circle(centre, radius, facecolor=ROCK_FILL, zorder=2))
         axes.annotate(
             "rock", (centre[0], centre[1] - radius), xytext=(0, -4),
-            textcoords="offset points", ha="center", va="top", color=INK, fontsize=9,
-            zorder=6,
+            textcoords="offset points", ha="center", va="top", color=palette.ink,
+            fontsize=9, zorder=6,
         )  # fmt: skip
     # Each name sits on the side no flight path crosses.
     for point, name, offset, align in (
@@ -150,17 +215,26 @@ def _draw_landmarks(axes: Axes, hazard: Hazard | None) -> None:
         (BEACON, "beacon", (9, 0), "left"),
     ):
         axes.plot(
-            *point, marker="o", ms=7, color=INK if name != "beacon" else MUTED,
-            markeredgecolor=PANEL, markeredgewidth=2, zorder=5, linestyle="none",
+            *point, marker="o", ms=7,
+            color=palette.ink if name != "beacon" else palette.muted,
+            markeredgecolor=palette.panel, markeredgewidth=2, zorder=5,
+            linestyle="none",
         )  # fmt: skip
         axes.annotate(
             name, point, xytext=offset, textcoords="offset points", ha=align,
-            va="center", color=INK, fontsize=9, zorder=6,
+            va="center", color=palette.ink, fontsize=9, zorder=6,
         )  # fmt: skip
 
 
 def _draw_flight(
-    axes: Axes, flight: Flight, colour: str, label: str, *, dashed: bool, inline: bool
+    axes: Axes,
+    flight: Flight,
+    colour: str,
+    label: str,
+    palette: Palette,
+    *,
+    dashed: bool,
+    inline: bool,
 ) -> None:
     """One path, ending in an impact star if it crashed.
 
@@ -177,22 +251,28 @@ def _draw_flight(
         return
     x, y = flight.final
     axes.plot(
-        x, y, marker=IMPACT_MARKER, ms=16, color=colour, markeredgecolor=PANEL,
+        x, y, marker=IMPACT_MARKER, ms=16, color=colour,
+        markeredgecolor=palette.panel,
         markeredgewidth=2, linestyle="none", zorder=7,
     )  # fmt: skip
     if inline:
         axes.annotate(
             f"impact, step {flight.impact_step}", (x, y), xytext=(-8, 12),
-            textcoords="offset points", ha="right", color=INK, fontsize=9, zorder=7,
+            textcoords="offset points", ha="right", color=palette.ink, fontsize=9,
+            zorder=7,
         )  # fmt: skip
 
 
-def _legend(axes: Axes) -> None:
-    legend = axes.legend(loc="upper left", frameon=True, fontsize=9)
-    legend.get_frame().set_facecolor(PANEL)
-    legend.get_frame().set_edgecolor(RULE)
+def _legend(
+    axes: Axes,
+    palette: Palette,
+    loc: Literal["upper left", "lower left"] = "upper left",
+) -> None:
+    legend = axes.legend(loc=loc, frameon=True, fontsize=9)
+    legend.get_frame().set_facecolor(palette.panel)
+    legend.get_frame().set_edgecolor(palette.rule)
     for text in legend.get_texts():
-        text.set_color(INK)
+        text.set_color(palette.ink)
 
 
 def world_flights(
@@ -258,26 +338,45 @@ def plot_flights(
         ValueError: for more flights than there are series colours. A third hue
             would not stay distinct, so split the flights across figures.
     """
+    _check_colours(flights, baseline)
+    figure, axes = _canvas(title, DARK)
+    if sensor is not None:
+        _draw_field(figure, axes, sensor, params if params is not None else {}, DARK)
+    _draw_landmarks(axes, hazard, DARK)
+    inline = len(flights) == 1
+    _draw_flights(axes, flights, baseline, DARK, inline=inline)
+    if not inline:
+        _legend(axes, DARK)
+    return figure
+
+
+def _check_colours(flights: Mapping[str, Flight], baseline: str | None) -> None:
+    """Refuse more curious flights than there are series colours."""
     curious = [name for name in flights if name != baseline]
     if len(curious) > len(CURIOUS_COLOURS):
         raise ValueError(
             f"{len(curious)} curious flights. Draw at most {len(CURIOUS_COLOURS)} "
             "per figure."
         )
-    figure, axes = _canvas(title)
-    if sensor is not None:
-        _draw_field(figure, axes, sensor, params if params is not None else {})
-    _draw_landmarks(axes, hazard)
-    inline = len(flights) == 1
+
+
+def _draw_flights(
+    axes: Axes,
+    flights: Mapping[str, Flight],
+    baseline: str | None,
+    palette: Palette,
+    *,
+    inline: bool,
+) -> None:
+    """Each flight in its series style: the baseline dashed ink, the rest in order."""
+    curious = [name for name in flights if name != baseline]
     colours = dict(zip(curious, CURIOUS_COLOURS, strict=False))
     for name, flight in flights.items():
         if name == baseline:
-            _draw_flight(axes, flight, INK, name, dashed=True, inline=inline)
+            colour, dashed = palette.ink, True
         else:
-            _draw_flight(axes, flight, colours[name], name, dashed=False, inline=inline)
-    if not inline:
-        _legend(axes)
-    return figure
+            colour, dashed = colours[name], False
+        _draw_flight(axes, flight, colour, name, palette, dashed=dashed, inline=inline)
 
 
 def plot_path(
@@ -328,15 +427,20 @@ def plot_world(
         The figure.
     """
     flights = world_flights(sensor, tuple(beacon_gains), horizon=horizon, hazard=hazard)
-    named = {
-        ("1960 rocket" if k == 0 else f"k = {k:.2f}"): flight
-        for k, flight in flights.items()
-    }
+    named = _named(flights)
     curious = [k for k in flights if k != 0]
     params = default_params(curious[0] if curious else 0.0)
     return plot_flights(
-        named, sensor, params, baseline="1960 rocket", hazard=hazard, title=title
+        named, sensor, params, baseline=_BASELINE, hazard=hazard, title=title
     )
+
+
+def _named(flights: Mapping[float, Flight]) -> dict[str, Flight]:
+    """Each flight under its legend name: the 1960 rocket, or its k."""
+    return {
+        (_BASELINE if k == 0 else f"k = {k:.2f}"): flight
+        for k, flight in flights.items()
+    }
 
 
 def plot_beliefs(
@@ -355,9 +459,9 @@ def plot_beliefs(
     Returns:
         The figure.
     """
-    figure, axes = _canvas(title, size=(9.0, 4.2))
-    _draw_landmarks(axes, None)
-    _draw_flight(axes, flight, INK, title, dashed=True, inline=True)
+    figure, axes = _canvas(title, DARK, size=(9.0, 4.2))
+    _draw_landmarks(axes, None, DARK)
+    _draw_flight(axes, flight, DARK.ink, title, DARK, dashed=True, inline=True)
     for step in steps:
         width, height, angle = covariance_ellipse(flight.covs[step - 1])
         axes.add_patch(
@@ -368,7 +472,7 @@ def plot_beliefs(
         )  # fmt: skip
         axes.annotate(
             f"after {step}", flight.means[step - 1], xytext=(0, -16),
-            textcoords="offset points", ha="center", color=MUTED, fontsize=8,
+            textcoords="offset points", ha="center", color=DARK.muted, fontsize=8,
         )  # fmt: skip
     return figure
 
@@ -394,3 +498,93 @@ def tile_task2() -> Figure:
 def tile_task3() -> Figure:
     """Task 3's tile: the blackout world, before the rock is put in it."""
     return plot_world(hazard=None, title="the blackout, before the rock")
+
+
+@dataclass(frozen=True)
+class _RouteFrame:
+    """What one frame of the route build-up draws.
+
+    Attributes:
+        sensor: the noise field under the routes, R(x).
+        params: that field's parameters.
+        flights: each rocket's flight, under its legend name.
+        hazard: the rock, or ``None`` before it is put in.
+    """
+
+    sensor: NoiseFn
+    params: SensorParams
+    flights: dict[str, Flight]
+    hazard: Hazard | None
+
+
+def _one_noise_level(x: ArrayLike, params: SensorParams) -> jax.Array:
+    """The 1960 rocket's world: the same reading noise everywhere, R0."""
+    return jnp.eye(2) * NOISE_FLOOR
+
+
+def _straight_frame() -> _RouteFrame:
+    flights = {_BASELINE: fly(the_1960_rocket())}
+    return _RouteFrame(_one_noise_level, {}, flights, None)
+
+
+def _beacon_frame() -> _RouteFrame:
+    beacon_gain = 0.4  # k, the session 2 reference
+    flights = {
+        _BASELINE: fly(the_1960_rocket()),
+        f"k = {beacon_gain:.2f}": fly(curious_rocket(beacon_gain, beacon_sensor)),
+    }
+    return _RouteFrame(beacon_sensor, default_params(beacon_gain), flights, None)
+
+
+def _blackout_frame(hazard: Hazard | None) -> _RouteFrame:
+    beacon_gains = (0.0, 0.08, 0.20)  # k for the 1960 rocket and the two curious
+    flights = world_flights(reference_sensor, beacon_gains, hazard=hazard)
+    params = default_params(beacon_gains[1])
+    return _RouteFrame(reference_sensor, params, _named(flights), hazard)
+
+
+_ROUTE_FRAMES: dict[str, Callable[[], _RouteFrame]] = {
+    "straight": _straight_frame,
+    "beacon": _beacon_frame,
+    "blackout": lambda: _blackout_frame(None),
+    "rock": lambda: _blackout_frame(ROCK),
+}
+
+
+def plot_route(stage: str, *, palette: Palette = DARK) -> Figure:
+    """One frame of the route build-up the slides step through.
+
+    Every frame draws the same map at the same size, with launch, pad and beacon in
+    place and the 1960 rocket dashed, so the eye sees only what the frame adds. All
+    flights use the default seed.
+
+    - ``"straight"``: one noise level everywhere, the 1960 rocket's world. It flies
+      the straight line to the pad.
+    - ``"beacon"``: the beacon's field, and a curious rocket at k = 0.40 bending up
+      toward the beacon.
+    - ``"blackout"``: the blackout added to the field, and curious rockets at
+      k = 0.08 and k = 0.20 flying round it.
+    - ``"rock"``: the rock in the blackout. The 1960 rocket hits it.
+
+    Args:
+        stage: one of [`ROUTE_STAGES`][cpomdp_workshop.plot.ROUTE_STAGES].
+        palette: the neutral colours. The slides pass
+            [`LIGHT`][cpomdp_workshop.plot.LIGHT].
+
+    Returns:
+        The figure, with no title. The slide carries it.
+
+    Raises:
+        ValueError: for a stage that is not one of the four.
+    """
+    if stage not in _ROUTE_FRAMES:
+        raise ValueError(
+            f"no route frame {stage!r}. Pick one of {', '.join(ROUTE_STAGES)}."
+        )
+    frame = _ROUTE_FRAMES[stage]()
+    figure, axes = _canvas("", palette)
+    _draw_field(figure, axes, frame.sensor, frame.params, palette)
+    _draw_landmarks(axes, frame.hazard, palette)
+    _draw_flights(axes, frame.flights, _BASELINE, palette, inline=False)
+    _legend(axes, palette, loc=_ROUTE_LEGEND)
+    return figure

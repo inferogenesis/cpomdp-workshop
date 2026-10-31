@@ -11,7 +11,6 @@ from cpomdp import LinearGaussianModel, Preference
 from cpomdp_workshop._seams import (
     CompletenessCertificate,
     EnumeratedEFESearch,
-    RxInferBackend,
     policy_efe_trace,
 )
 from cpomdp_workshop.build import model_with, pad_preference
@@ -24,7 +23,6 @@ __all__ = [
     "CODA_HORIZON",
     "axis_certificate",
     "efe_split",
-    "rxinfer_refusal",
 ]
 
 CODA_HORIZON = 7
@@ -74,24 +72,3 @@ def efe_split(
         trace = policy_efe_trace(model, belief, move[None, :], preference)
         rows.append([float(trace.pragmatic[0]), float(trace.epistemic[0])])
     return np.asarray(rows)
-
-
-def rxinfer_refusal(model: LinearGaussianModel) -> str:
-    """What the RxInfer oracle says when handed ``model``, or that it took it.
-
-    The refusal of a state-dependent noise comes before Julia starts, so this runs
-    on a machine without Julia.
-
-    Args:
-        model: a rocket's model.
-
-    Returns:
-        The refusal message, or a line saying the model was accepted.
-    """
-    try:
-        RxInferBackend(model)
-    except ValueError as refusal:
-        return str(refusal)
-    except ImportError as missing:  # a fixed model gets as far as needing Julia
-        return f"accepted. Running it needs the rxinfer extra ({missing})"
-    return "accepted"

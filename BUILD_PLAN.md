@@ -15,12 +15,12 @@ Dates. Symposium 12–14 Nov 2026. Freeze 2026-11-09. Today 2026-10-16.
 | Watching code emerge beats slides. Software Carpentry, 400+ workshops, 12,000 learners: "watching code emerge on the screen is much more convincing than looking at pre-made slides", and learners rated seeing instructors' mistakes and fixes highest. | DanBoringName still writes no code live. One reveal per session opens from a real error (papercut 1's `TypeError`), read aloud and fixed. A `symptoms` cell ships the top five errors with their fixes. |
 | The whole game first. fast.ai: a working result "within the first 30 minutes", then dig down. David Perkins's "elementitis" is what loses people. | Cell 2 is `workshop.preview()`: the finished three-rocket plot with the asteroid, rendered from the package in under a minute, before anyone builds anything. The session then rebuilds that picture in three steps. |
 | Setup is the first failure. Django Girls runs an "installation party" the evening before and says attendees' machines being ready is the most important thing. Carpentries sends setup days ahead and opens early. | Colab link and `pip install` on the speaker slide at 0:00. A 30-minute drop-in on the cpomdp Discord channel the evening before. The uv README a week ahead. Zoom opens 15 minutes early for triage. |
-| Attention has a ceiling. Carpentry's week-long format failed because "by the last two days, attendees' brains are full". Its two-day format with ~50% hands-on is what scaled. SciPy asks for "at least 50% of the time for hands-on exercises". | Two hours, hands-on from 0:10, three builds. The buffer at 0:56 is called a break. The Inferogenesis tail is capped at five minutes. |
+| Attention has a ceiling. Carpentry's week-long format failed because "by the last two days, attendees' brains are full". Its two-day format with ~50% hands-on is what scaled. SciPy asks for "at least 50% of the time for hands-on exercises". | Two hours: an hour of talk, 45 minutes of code in three 15-minute builds, and 15 minutes left open at the end. No scheduled break. The closing section on why cpomdp matters runs 12 minutes. |
 | Formative checks every 10–15 minutes, from every learner, acted on at once. Wilson 2019. Carpentry's red/green sticky notes. | One diagnostic multiple-choice poll at each task boundary, 60 s, wrong answers targeting real misconceptions. Each task closes with "paste one number in chat" (`spread`, your `k`, `max \|difference\|`), so progress is visible without anyone composing a sentence. Zoom ✅/✋ for the quiet signal. |
 | Helpers at 1:8, coaches at 1:3 for novices. Carpentry aims for "at least one helper for every eight learners". Django Girls recommends 3:1 attendee to coach. | Two presenters cover sixteen. Above that, recruit one helper per eight from the Discord channel, briefed on the symptoms cell only, answering in chat. Above forty, the reference cell carries the overflow and the notebook says so. |
 | Faded examples and scaffolds, with the reference path legitimate. Wilson's worked-example fading. Carpentries' "the reference cell is not failure". | Unchanged: `arg = ...` scaffolds, two code hints on a timer, collapsed reference cell, loud checkpoint. |
-| Pre-assessment sorts the room. Carpentry streams learners by a pre-workshop questionnaire. | Three questions at registration: used pymdp, used RxInfer or SPM, written a Kalman filter. The results pick which gloss lines go in the task-1 scaffold and whether the RxInfer beat is three minutes or one. |
-| Materials outlive the session. NeurIPS wants notebooks that stay useful. Carpentry's MOOC and video attempts failed on maintenance cost. | The notebook is built from the package by a script, runs from the recording with no hints on a timer, and the package is on PyPI. No videos except the 60-second RxInfer insurance clip. |
+| Pre-assessment sorts the room. Carpentry streams learners by a pre-workshop questionnaire. | Not adopted. Registration asks no questions: a questionnaire is invasive and the workshop does not need one. The task-1 scaffold keeps the gloss lines it has. |
+| Materials outlive the session. NeurIPS wants notebooks that stay useful. Carpentry's MOOC and video attempts failed on maintenance cost. | The notebook is built from the package by a script, runs from the recording with no hints on a timer, and the package is on PyPI. No videos. |
 | Anonymous channels get the questions the chat does not. Carpentry's minute cards. The virtual-course rule set's living Q&A document. | One anonymous form linked from the notebook header and every task slide. One-up-one-down at the break and at the close. The survey link on the last slide while the room is still in it. |
 
 ## 1. Standing rules
@@ -31,7 +31,7 @@ Dates. Symposium 12–14 Nov 2026. Freeze 2026-11-09. Today 2026-10-16.
 - Do not guess the API. Field names, constructor forms and report fields changed in 0.5.0 and section 3 lists what changed. Read `docs/api/` and the installed package before writing a line that touches cpomdp. Slide 3 tells the room a model guessing this API produced papercut 1. The build must not produce papercut 12.
 - `cpomdp._lab` is private (ADR-069). The self-guided p\* cell imports from it, says so in its first line, and is the only place that does.
 - Prose in the notebook, README and hints follows the repo `CLAUDE.md` prose rules. Hints are code, never prose.
-- The deck's generator source is gone. The `.pptx` (25 slides, 2026-09-09) is the source. Edits via `python-pptx` with a render check. Section 8 lists the edits 0.5.0 forces. Make those and no others.
+- The deck is generated by `scripts/build_deck.py` and never edited by hand. Section 8 describes it. After a change, render it in PowerPoint or LibreOffice and look at every slide that changed.
 
 ## 2. Repo layout
 
@@ -60,7 +60,7 @@ Every row was wrong or missing in the September plan. The right-hand column is w
 | Compass planner | `RecedingHorizonSelector(EnumeratedEfeSearch(model, actions, horizon=1))` | The classes are `EnumeratedEFESearch`, `ChunkedEFESearch`, `ExhaustiveEFESearch` and `FFGEFESelector`, upper-case EFE. The changelog prose spells them otherwise and the code wins. `EnumeratedEFESearch(model, action_set, horizon=1)`, `RecedingHorizonSelector(search)`, `search.evaluate(belief, preference)`. Measured: 36 steps at nine policies in 0.4 s, three rockets in about 1.5 s. The progress bar goes. Horizon 2 runs six steps in 0.8 s and `ChunkedEFESearch` at horizon 3 the same, so the trapped-agent-escapes bonus is a live beat. |
 | Backend swap | `CouplingGraphBackend(one_node(model))` passed to `Agent(..., backend=)` | `backend=` is gone. `CouplingGraph(dims=[2], couplings=[], observation_models={0: FixedSensor(I, observation_noise=0.05·I)})`, then `CouplingGraphBackend(graph, [GaussianTransition(I, dynamics_noise=1e-3·I)], prior=prior, control_matrix=I)`, then `Agent.from_backend(backend, goal)`. `infer_states(observation, prior, action)` on both backends. Measured agreement with `KalmanBackend` on one step: 7e-16 on mean and covariance. `infer_root(readings, prior)` and `stack_observations` exist on the graph path. |
 | Probe | `SensorReport` with `flattens`, `epistemic_varies`, `epistemic_range`, `noise_spread` | `probe_model(model, belief, actions)` → `ProbeReport` with fields `observation_noise_varies`, `observation_noise_spread`, `dynamics_noise_varies`, `dynamics_noise_spread`, `epistemic_varies`, `epistemic_range`, plus `flattens` as a property and `summary()` as a method. The deck's `spread = 0.000000 nats` is `max − min` of `epistemic_range`. The 1960 rocket measures (4.3947, 4.3947), the k = 0.08 rocket (2.4490, 2.4692). |
-| RxInfer beat | any model | `cpomdp.backends.rxinfer.RxInferBackend` imports without Julia present and refuses a state-dependent `R(x)` or `Q(x)` before Julia starts. The beat uses the session-1 model only. One sentence on the slide: the oracle covers the fixed case. |
+| RxInfer beat | any model | Dropped. The workshop shows cpomdp, so nothing runs or prints RxInfer. Slide 18 may name it in a footnote. |
 | Agent introspection | none | `print(agent)` gives `Agent(objective=StateGoal, selector=LQRSelector(controller=LQRController(gain=[[0.0951, 0.0], [0.0, 0.0951]])), backend=KalmanBackend)`. `check_agent` prints it. `agent.selector.cost_per_cycle` reads 9 at horizon 1 and 162 at horizon 2. |
 | Model mutation | checkpoints rebuilt agents by assignment | `agent.model`, `backend.model` are read-only. Checkpoints build fresh objects. |
 | Python | ≥ 3.10 | ≥ 3.11, `jax >= 0.4.36`. Installs clean on 3.13 with jax 0.11.2. Cell 1 asserts both and prints them. Check the Colab default runtime at build time. |
@@ -98,11 +98,10 @@ Generated by `scripts/build_notebook.py` with `nbformat`. Cells, in order:
 
 1. Install and assert: pin, Python ≥ 3.11, `jax` version, `workshop.hello()`. Nothing else.
 2. `workshop.preview()`. The finished picture. One markdown line above it: *this is what you will have built by 1:32.*
-3. Pre-flight poll link (the three-question form, for latecomers who missed registration).
-4. Per session, the six-cell rhythm: brief, attempt (`arg = ...`, goal and planner pre-filled with one comment each), hint 1, hint 2, reference, bonus, checkpoint. The attempt cell ends with the one number to paste in chat.
-5. After each checkpoint, the poll cell: a markdown cell with the question and four answers, and the Zoom poll mirrors it.
-6. `workshop.symptoms()` as a collapsed cell under each session, and once in the header.
-7. Self-guided tail below the last checkpoint, fenced.
+3. Per session, the six-cell rhythm: brief, attempt (`arg = ...`, goal and planner pre-filled with one comment each), hint 1, hint 2, reference, bonus, checkpoint. The attempt cell ends with the one number to paste in chat.
+4. After each checkpoint, the poll cell: a markdown cell with the question and four answers, and the Zoom poll mirrors it.
+5. `workshop.symptoms()` as a collapsed cell under each session, and once in the header.
+6. Self-guided tail below the last checkpoint, fenced.
 
 Session 3's `k` is a `# @param` slider, 0 to 0.4 in steps of 0.02, default 0.08. The notebook runs as a script under uv with sliders inert. Pre-run with outputs saved. Shared from GitHub through Colab.
 
@@ -112,30 +111,30 @@ Session 3's `k` is a `# @param` slider, 0 to 0.4 in steps of 0.02, default 0.08.
 
 CI: `pinned` job on the SHA or version, required. `main` job tracking cpomdp `main` nightly, allowed to fail, posting the measured-claims diff.
 
-## 8. Deck edits forced by this spec
+## 8. The deck
 
-| Slide | Edit |
-| --- | --- |
-| 1, 6, 24 | `0.4.4` → `0.5.0` in the pin line, the setup cell and the closing caption. |
-| 2 | Colab link and `pip install` line added under the speaker cards, said at 0:00. |
-| 4 | AI-use panel: caption becomes "today's notebook pins 0.5.0. Some of its src was written by Claude Code under the review described." Notes: the Q&A answer for the running release is "some of it". |
-| 6 | pymdp name map corrected: `A → observation_matrix`, `B → dynamics_matrix, control_matrix`, `C → StateGoal / Preference`, `D → prior`. Code block uses the 0.5.0 field names. |
-| 8, 10, 13 | Scaffold code blocks use `observation_model=`, `Preference(...)` with `selector=`. |
-| 9 | Terminal block: `epistemic_varies = False`, `flattens = True`, spread from `epistemic_range`. Notes: drop the 0.5 s per step line and the progress bar. Three rockets take about 1.5 s. |
-| 13, 19 | Certificate strings become `PROVED (set compass-9, \|A\|^H = 9^1 = 9, visited 9)` and the coda's `PROVED (set <name>, \|A\|^H = 5^7 = 78125, visited 78125)`, read from a run. |
-| 8 | Scaffold adds `effort=100 * jnp.eye(2)` to the pre-filled `StateGoal` with the comment `# thruster cost`. |
-| 15 | Notes: the horizon-2 bonus is fast enough to show live (six steps in 0.8 s). |
-| 18 | Three-backends block uses `Agent.from_backend` and names the RxInfer fixed-noise refusal in one sentence. |
-| 14 | Notes: the symptoms reveal opens from the papercut-1 refusal, now a named error. |
-| 23 | Unchanged content. The "scoped, starts after p\*" status stays. |
+Remade on 2026-10-28 from the 0.5.0 deck, on the light theme of Inferogenesis's site. `scripts/build_deck.py` builds it from the package, `lesson.py` and the route frames, and one agenda table in it times every slide. `tests/test_deck.py` fails if the committed `.pptx` is not what the script builds. 31 slides:
 
-Edits still DanBoringName's: slide 2 photos and bios, slide 24 email, slide 25 Zenodo DOI of 0.5.0 once minted.
+| Part | Starts, length | Slides |
+| --- | --- | --- |
+| Welcome | 0:00, 12 min | 1 title, 2 who we are, 3 disclosure, 4 the two hours, 5 how we'll work, 6 get set up (Colab or local Python), 7 where we're heading |
+| Task 1 | 0:12, 27 min | 8 brief with pymdp's letters, 9 code, 10 timer, 11 the straight line, 12 under a fixed sensor EFE is LQR |
+| Task 2 | 0:39, 27 min | 13 brief, 14 code, 15 timer, 16 the beacon bends the route, 17 what steers the route |
+| Task 3 | 1:06, 27 min | 18 brief, 19 code, 20 timer, 21 the blackout, 22 the rock, 23 a rock never changes a route, 24 one rocket on two engines |
+| Why it matters | 1:33, 12 min | 25 certificates, 26 a working model is the beginning, 27 what makes cpomdp different, 28 already built on cpomdp, 29 where the research goes next |
+| Questions | 1:45, 15 min | 30 keep going, 31 thank you |
+
+Each task is a 4-minute brief, 15 minutes of code and 8 minutes of discussion. The timer slide stays up while the room codes: its bar fills over 15 minutes from when the slide shows, with no click, and then tells the room to run the checkpoint. Leaving the slide restarts the bar.
+
+RxInfer is named once, on slide 27, as a neighbour. Nothing runs it. The reveal of papercut 1 has no slide. The timer slides point at `workshop.symptoms()`.
+
+Edits still DanBoringName's: slide 2 photos and bios, slide 3 the AI-use panel, slide 29 The Individuating Membrane (I found no source for it), slide 30 the Zenodo DOI of 0.5.0 once minted, slide 31 the survey link and email. The lost deck's "What comes next" slide carried the status "scoped, starts after p*". Slide 29's notes ask which programme it belongs to.
 
 ## 9. Delivery, before, during, after
 
-Before. Registration form with the three pre-assessment questions. The uv README and Colab link a week ahead on the cpomdp Discord channel, with the no-generative-AI request in the same message. A 30-minute install drop-in on Discord the evening before. Helpers recruited at one per eight registered above sixteen, briefed on `symptoms` only. Zoom open 15 minutes early.
+Before. The uv README and Colab link a week ahead on the cpomdp Discord channel, with the no-generative-AI request in the same message. A 30-minute install drop-in on Discord the evening before. Helpers recruited at one per eight registered above sixteen, briefed on `symptoms` only. Zoom open 15 minutes early.
 
-During. Install at 0:00 while Kev frames. Preview at 0:10. Hands-on from 0:12. Hints pasted on the timer from `hints_chat.txt`. One number in chat at each task close. One poll at each boundary, 60 s, Kev reads the split. Break at 0:56, six minutes, cameras off. Anonymous form watched by whoever is not presenting. No breakout rooms. No individual debugging from the front.
+During. Install at 0:00 while Kev frames. Task 1 at 0:12, task 2 at 0:39, task 3 at 1:06, each with its timer slide up for the 15 minutes of code. Hints pasted on the timer from `hints_chat.txt`. One number in chat at each task close. One poll at each boundary, 60 s, Kev reads the split. Why it matters at 1:33. Questions from 1:45, and anyone may leave early. No scheduled break. If the room needs one, it comes out of the open time. Anonymous form watched by whoever is not presenting. No breakout rooms. No individual debugging from the front.
 
 After. Survey link on slide 25 while the room is in it. Recording, notebook, package, slides and notes posted to the Discord channel and the README within 48 hours. One-up-one-down answers read into the next revision of the notebook.
 
@@ -154,7 +153,7 @@ After. Survey link on slide 25 while the room is in it. Recording, notebook, pac
 | 19 Oct | Repo, pin `cpomdp==0.5.0`, `world`, `planner`, `build`, `sim`. `test_api_contract.py` and `test_measured_claims.py` green on the pin | tests |
 | 23 Oct | `check`, `plot`, `preview`, `symptoms`, checkpoints. Figures regenerated | figures match the deck's |
 | 27 Oct | Notebook generated, runs on Colab and under uv. README. Hints file. Deck edits from section 8 | `test_notebook.py`, render check |
-| 30 Oct | Self-guided tail. Delivery artefacts. Pre-assessment form. RxInfer clip (DanBoringName) | clip exists |
+| 30 Oct | Self-guided tail. Delivery artefacts | `test_notebook.py` runs the tail |
 | 2 Nov | Dry run 1, solo, timed | timings written down |
 | 5–8 Nov | Dry runs 2 and 3, one with live handoffs. Kev has run the notebook once. Helpers briefed | handoff token agreed |
 | 9 Nov | Freeze. Typo fixes only | tag `v2026.11` |

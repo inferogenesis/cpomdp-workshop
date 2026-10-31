@@ -151,8 +151,3 @@ def test_the_probe_report_carries_the_fields_the_notebook_reads():
     } <= names
     assert isinstance(ProbeReport.flattens, property)
     assert callable(ProbeReport.summary)
-
-
-def test_the_rxinfer_backend_refuses_a_state_dependent_sensor_before_julia_starts():
-    with pytest.raises(ValueError, match="observation_model is state-dependent"):
-        _seams.RxInferBackend(a_sensed_model())

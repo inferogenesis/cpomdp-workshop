@@ -55,7 +55,6 @@ from cpomdp_workshop.solutions import (
     CLEAR_SKY_ROCK,
     axis_certificate,
     efe_split,
-    rxinfer_refusal,
 )
 from cpomdp_workshop.symptoms import symptoms
 from cpomdp_workshop.world import (
@@ -111,7 +110,6 @@ __all__ = [
     "preview",
     "probe",
     "reference_sensor",
-    "rxinfer_refusal",
     "show_probe",
     "symptoms",
     "the_1960_rocket",
