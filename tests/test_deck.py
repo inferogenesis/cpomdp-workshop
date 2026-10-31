@@ -36,7 +36,6 @@ from cpomdp_workshop import (
 )
 from cpomdp_workshop.check import backend_differences
 from cpomdp_workshop.solutions import CLEAR_SKY_ROCK
-from deck_kit import without_imports
 
 PROSE = ("title", "text", "card", "pill", "placeholder")
 DRAWING = "http://schemas.openxmlformats.org/drawingml/2006/main"
@@ -120,8 +119,8 @@ def pictures(slide):
 
 
 @pytest.mark.slow
-def test_the_deck_has_thirty_one_slides_each_with_notes(deck):
-    assert len(deck.slides) == 31
+def test_the_deck_has_twenty_eight_slides_each_with_notes(deck):
+    assert len(deck.slides) == 28
     for slide in deck.slides:
         assert slide.notes_slide.notes_text_frame.text.strip()
 
@@ -135,8 +134,14 @@ def minutes_of(kind):
     )
 
 
-def test_the_two_hours_are_an_hour_of_talk_45_of_code_and_15_open():
-    assert (minutes_of("talk"), minutes_of("code"), minutes_of("open")) == (60, 45, 15)
+def test_the_two_hours_are_65_minutes_of_talk_45_of_code_and_10_open():
+    assert (minutes_of("talk"), minutes_of("code"), minutes_of("open")) == (65, 45, 10)
+
+
+def test_every_part_of_the_agenda_is_a_whole_number_of_five_minutes():
+    parts = [part for block in build_deck.AGENDA for part in block.parts]
+    assert all(part.minutes % 5 == 0 for part in parts)
+    assert sum(part.minutes for part in parts) == 120
 
 
 def test_each_task_codes_for_as_long_as_its_timer_runs():
@@ -147,23 +152,33 @@ def test_each_task_codes_for_as_long_as_its_timer_runs():
         assert block.parts[1].minutes == build_deck.TASK_MINUTES == 15
 
 
-def test_the_clock_reads_each_start_off_the_agenda():
-    assert build_deck.clock("Welcome") == "0:00"
-    assert build_deck.clock("Task 1", 1) == "0:16"
-    assert build_deck.clock("Questions") == "1:45"
+def test_the_clock_reads_each_utc_start_off_the_agenda():
+    assert build_deck.clock("Welcome") == "17:00"
+    assert build_deck.clock("Task 1") == "17:10"
+    assert build_deck.clock("Task 1", 1) == "17:15"
+    assert build_deck.clock("Task 1", 1, after=build_deck.TASK_MINUTES) == "17:30"
+    assert build_deck.clock("Questions") == "18:50"
+    assert build_deck.span(build_deck.AGENDA[-1]) == "18:50–19:00"
     with pytest.raises(ValueError, match="no block called 'Break'"):
         build_deck.clock("Break")
 
 
 @pytest.mark.slow
-def test_the_agenda_names_every_block_and_prints_no_clock_times(deck):
+def test_the_agenda_names_every_part_with_a_tasks_minutes_and_each_rows_times(deck):
     slide = slide_of(deck, build_deck.agenda)
     blocks = [shape.text_frame.text for shape in slide.shapes if shape.name == "block"]
-    assert blocks == [part.name for block in build_deck.AGENDA for part in block.parts]
-    assert blocks[1:4] == ["brief", "you code", "discussion"]
-    assert all(blocks)
-    texts = [shape.text_frame.text for shape in slide.shapes if shape.has_text_frame]
-    assert not [text for text in texts if CLOCK.search(text)]
+    expected = [
+        f"{part.name}\n{part.minutes} minutes" if len(block.parts) > 1 else part.name
+        for block in build_deck.AGENDA
+        for part in block.parts
+    ]
+    assert blocks == expected
+    assert blocks[1:4] == ["brief\n5 minutes", "you code\n15 minutes",
+                           "discussion\n10 minutes"]  # fmt: skip
+    texts = [shape.text_frame.text for shape in slide.shapes if shape.name == "text"]
+    for block in build_deck.AGENDA:
+        assert any(text.endswith(build_deck.span(block)) for text in texts)
+    assert any(text.startswith("All times UTC.") for text in texts)
 
 
 @pytest.mark.slow
@@ -223,28 +238,6 @@ def test_the_route_frames_build_up_in_one_place(deck):
         assert picture.name.endswith(f"_{stage}.png")
         places.add((picture.left, picture.top, picture.width, picture.height))
     assert len(places) == 1
-
-
-@pytest.mark.slow
-@pytest.mark.parametrize(
-    ("slide", "session"),
-    [
-        (build_deck.task_1_code, lesson.SESSION_1),
-        (build_deck.task_2_code, lesson.SESSION_2),
-        (build_deck.task_3_code, lesson.SESSION_3),
-    ],
-)
-def test_a_task_slide_shows_the_lessons_own_code_with_both_lines_to_write(
-    deck, slide, session
-):
-    codes = [s for s in slide_of(deck, slide).shapes if s.name == "code"]
-    shown = codes[0].text_frame.text.replace("\v", "\n").splitlines()
-    shown = [line.rstrip() for line in shown]
-    cell = without_imports(session.attempt).splitlines()
-    assert shown == cell[: len(shown)]
-    slots = [line for line in cell if re.match(r"^\s*\w+ = \.\.\.", line)]
-    assert len(slots) == 2
-    assert all(slot in shown for slot in slots)
 
 
 def test_the_graph_slide_code_flies_the_same_beliefs_as_the_kalman_filter():
@@ -360,6 +353,36 @@ def test_who_we_are_introduces_cpomdp_without_the_mark_or_warrantlib(deck):
     assert any(text.startswith("cpomdp\n") for text in texts)
     said = " ".join([*texts, slide.notes_slide.notes_text_frame.text])
     assert "warrantlib" not in said
+
+
+@pytest.mark.slow
+@pytest.mark.parametrize(
+    "timer",
+    [build_deck.task_1_timer, build_deck.task_2_timer, build_deck.task_3_timer],
+)
+def test_a_timer_slide_says_how_the_notebook_marks_the_lines_and_where_hints_are(
+    deck, timer
+):
+    slide = slide_of(deck, timer)
+    texts = [shape.text_frame.text for shape in slide.shapes if shape.name == "text"]
+    assert any("Fill in the two lines marked ..." in text for text in texts)
+    assert any("Open Hint 1, Hint 2 or the Reference below the cell." in text
+               for text in texts)  # fmt: skip
+    said = " ".join(texts)
+    assert "amber" not in said
+    assert not [s for s in slide.shapes if s.name == "code"]
+
+
+@pytest.mark.slow
+def test_the_setup_slide_gives_the_local_route_that_runs_and_the_question_form(deck):
+    slide = slide_of(deck, build_deck.setup)
+    code = " ".join(s.text_frame.text for s in slide.shapes if s.name == "code")
+    assert "git clone" in code
+    assert "python -m venv .venv" in code
+    assert '"cpomdp-workshop[nb]==' in code
+    links = [s.text_frame.text for s in slide.shapes if s.name == "link"]
+    assert build_deck.QUESTIONS_FORM.removeprefix("https://") in links
+    assert build_deck.QUESTIONS_FORM in lesson.TITLE
 
 
 @pytest.mark.slow

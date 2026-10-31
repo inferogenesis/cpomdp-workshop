@@ -4,14 +4,15 @@
     uv run --no-sync python scripts/build_deck.py
 
 The two hours run as an introduction, three tasks and a closing section on why cpomdp
-matters, then time left open for questions. Each task is a brief, the code, a slide
-that stays up with a fifteen-minute bar while the room works, and a discussion of
-what the room built. ``AGENDA`` holds the plan, and every clock time in the notes is
-read from it.
+matters, then time left open for questions. Each task is a brief, a slide that stays
+up with a fifteen-minute bar while the room works, and a discussion of what the room
+built. The room reads the code on its own screen, so no slide repeats it. ``AGENDA``
+holds the plan on 5-minute steps from ``START``, and every clock time on the agenda
+slide and in the notes is read from it, in UTC.
 
-The slides carry the route figures, the code the room writes and what the cells
-print. Code comes from ``lesson.py``, printed output from running the package on the
-pinned release, figures from ``assets/``. Every number in the prose and the notes is
+The slides carry the route figures and what the cells print. Polls come from
+``lesson.py``, printed output from running the package on the pinned release, figures
+from ``assets/``. Every number in the prose and the notes is
 asserted in ``tests/test_measured_claims.py`` or named in the deck test as set. The
 build refuses to write a deck whose shapes run off a slide, overlap or overflow.
 
@@ -65,7 +66,6 @@ from deck_kit import (
     Run,
     code_height,
     code_size,
-    without_imports,
 )
 from deck_layout import fit_problems, layout_problems, metrics
 
@@ -90,9 +90,6 @@ FULL_WIDTH = RIGHT - MARGIN
 # Every route slide puts its figure here, so only the route changes between them.
 ROUTE_FIGURE = (MARGIN, 1.4, 8.4)  # x, y, width
 ROUTE_COLUMN = 9.3  # where the callouts beside a route frame start
-TASK_CODE_BOTTOM = 6.0  # a task's code ends above the strip of instructions
-TASK_STRIP = 6.2  # where that strip starts
-UNDER_CODE = 0.45  # what a task's code leaves for the line under it
 PHOTO_SIDE = 1.6  # a presenter's photo frame is square
 CARD_TEXT = (PHOTO_SIDE + 0.25, 4.0)  # a presenter's name and bio: x from the card, w
 
@@ -137,32 +134,46 @@ TASK_MINUTES = 15
 """How long the room codes on each task, and the length of each timer's bar."""
 
 TASK_PARTS = (
-    Part("brief", "talk", 4),
+    Part("brief", "talk", 5),
     Part("you code", "code", TASK_MINUTES),
-    Part("discussion", "talk", 8),
+    Part("discussion", "talk", 10),
 )
 """Every task's parts."""
 
 AGENDA = (
-    Block("Welcome", (Part("introductions and setup", "talk", 12),)),
+    Block("Welcome", (Part("introductions and setup", "talk", 10),)),
     Block("Task 1", TASK_PARTS, "the 1960 rocket"),
     Block("Task 2", TASK_PARTS, "the beacon"),
     Block("Task 3", TASK_PARTS, "the blackout"),
-    Block("Why it matters", (Part("what cpomdp adds, and what's next", "talk", 12),)),
-    Block("Questions", (Part("questions, or leave early", "open", 15),)),
+    Block("Why it matters", (Part("what cpomdp adds, and what's next", "talk", 10),)),
+    Block("Questions", (Part("questions, or leave early", "open", 10),)),
 )
-"""The two hours: an hour of talk, 45 minutes of code and 15 left open."""
+"""The two hours: 65 minutes of talk, 45 of code and 10 left open, on 5-minute steps."""
+
+START = 17 * 60
+"""When the session starts, in minutes after midnight UTC."""
+
+QUESTIONS_FORM = "https://docs.google.com/forms/d/e/1FAIpQLSf7mgwxYEFpnDAkqaYolxWzP1sesG6L5Rf_5pVswE3UwtkcwA/viewform"
+"""The question form. Anonymous unless the asker leaves an email for a reply."""
 
 
-def clock(label: str, part: int = 0) -> str:
-    """When part ``part`` of the block called ``label`` starts, as ``h:mm``."""
-    elapsed = 0
+def clock(label: str, part: int = 0, *, after: int = 0) -> str:
+    """When part ``part`` of the block called ``label`` starts, as UTC ``hh:mm``.
+
+    ``after`` adds minutes, so ``after=TASK_MINUTES`` on a coding part is its end.
+    """
+    elapsed = START + after
     for block in AGENDA:
         if block.label == label:
             elapsed += sum(earlier.minutes for earlier in block.parts[:part])
             return f"{elapsed // 60}:{elapsed % 60:02d}"
         elapsed += block.minutes
     raise ValueError(f"no block called {label!r} in the agenda")
+
+
+def span(block: Block) -> str:
+    """When ``block`` runs, as ``hh:mm–hh:mm``."""
+    return f"{clock(block.label)}–{clock(block.label, after=block.minutes)}"
 
 
 GRAPH_CODE = """\
@@ -291,60 +302,32 @@ def paste_card(
     )  # fmt: skip
 
 
-def shown(attempt: str, through: str | None = None) -> str:
-    """The part of an attempt cell a task slide shows.
-
-    The imports are cut. With ``through``, so is everything after the first line that
-    starts with it, so a long cell keeps a size the room can read.
-    """
-    lines = without_imports(attempt).splitlines()
-    if through is not None:
-        last = next(i for i, line in enumerate(lines) if line.startswith(through))
-        lines = lines[: last + 1]
-    return "\n".join(lines)
-
-
-def task_page(
-    deck: Deck, title: str, segment: str, source: str, paste: str, *, below: str
-) -> Page:
-    """A task's code, a line under it, and a strip of what to do.
-
-    The lines to write are amber. The code takes the room the line under it leaves.
-    """
-    page = deck.page(title, segment)
-    bottom = TASK_CODE_BOTTOM - UNDER_CODE
-    size = code_size(source, FULL_WIDTH, bottom - CONTENT_TOP)
-    height = code_height(source, size)
-    page.code(MARGIN, CONTENT_TOP, FULL_WIDTH, height, source, size=size)
-    top = CONTENT_TOP + height + 0.15
-    page.text(MARGIN, top, FULL_WIDTH, TASK_STRIP - top - 0.05, [below], colour=MUTED)
-    left, write, hints = MARGIN, 3.5, 3.7
-    page.card(
-        left, TASK_STRIP, write, 0.75,
-        [[Run("Write the two amber lines", colour=AMBER, bold=True)]],
-        size=17, anchor=MSO_ANCHOR.MIDDLE,
-    )  # fmt: skip
-    left += write + 0.3
-    page.card(
-        left, TASK_STRIP, hints, 0.75, ["Hints are below the cell"], size=17,
-        anchor=MSO_ANCHOR.MIDDLE,
-    )  # fmt: skip
-    left += hints + 0.3
-    paste_card(page, left, TASK_STRIP, RIGHT - left, 0.75, paste, stacked=False)
-    return page
+FILL_IN = "Fill in the two lines marked "
+"""How a timer slide's first step opens. The notebook marks the lines with ``...``."""
 
 
 def timer_page(deck: Deck, number: int, steps: tuple[str, ...]) -> Page:
-    """The slide that stays up while the room works: what to do, and the bar."""
+    """The slide that stays up while the room works: what to do, and the bar.
+
+    The room has the code on its own screen, so the slide carries the steps and the
+    bar. A step that opens with ``FILL_IN`` gets the notebook's ``...`` in amber.
+    """
     page = deck.page(f"Task {number} · Over to you", f"task {number}")
+    paragraphs: list[Paragraph] = []
+    for index, step in enumerate(steps, start=1):
+        runs = [Run(f"{index}   ", colour=AMBER, bold=True)]
+        if step.startswith(FILL_IN):
+            runs += [
+                Run(FILL_IN),
+                Run("...", font=CODE_FONT, colour=AMBER, bold=True),
+                Run(step.removeprefix(FILL_IN)),
+            ]
+        else:
+            runs.append(Run(step))
+        paragraphs.append(runs)
     page.text(
-        MARGIN, CONTENT_TOP + 0.1, FULL_WIDTH, 2.5,
-        [
-            [Run(f"{index}   ", colour=AMBER, bold=True), Run(step)]
-            for index, step in enumerate(steps, start=1)
-        ],
-        size=24, space_after=14,
-    )  # fmt: skip
+        MARGIN, CONTENT_TOP + 0.1, FULL_WIDTH, 2.6, paragraphs, size=22, space_after=12
+    )
     page.countdown(
         MARGIN, 4.3, FULL_WIDTH, TASK_MINUTES,
         then=[
@@ -355,31 +338,44 @@ def timer_page(deck: Deck, number: int, steps: tuple[str, ...]) -> Page:
         ],
     )  # fmt: skip
     page.text(
-        MARGIN, 6.55, FULL_WIDTH, 0.45,
+        MARGIN, 6.45, FULL_WIDTH, 0.75,
         [
             [
-                Run("Stuck on an error?  "),
+                Run("Stuck? Open "),
+                Run("Hint 1", bold=True),
+                Run(", "),
+                Run("Hint 2", bold=True),
+                Run(" or the "),
+                Run("Reference", bold=True),
+                Run(" below the cell."),
+            ],
+            [
+                Run("An error?  "),
                 Run("workshop.symptoms()", font=CODE_FONT),
-                Run("  lists the five most common, with their fixes."),
-            ]
+                Run("  lists the five most common."),
+            ],
         ],
-        size=16, colour=MUTED,
+        size=16, colour=MUTED, space_after=2,
     )  # fmt: skip
     return page
 
 
 def timer_notes(number: int, *paragraphs: str) -> str:
-    """A timer slide's notes: when it starts, how the bar runs, then ``paragraphs``."""
+    """A timer slide's notes: when it runs, ``paragraphs``, then how the bar runs."""
+    task = f"Task {number}"
     return notes(
-        f"Planned at {clock(f'Task {number}', 1)}. Keyboard. Leave this slide up "
-        f"for the whole {TASK_MINUTES} minutes. The bar starts when the slide "
-        "appears and needs no click. It starts again if you leave the slide and "
-        "come back, so share the notebook from another window if you need to.",
-        "Nobody pastes hints. Each person opens the collapsed hint and reference "
-        "cells when they like. Whoever isn't at the keyboard watches the chat and the "
-        "anonymous form. We don't debug anyone's code from the front. Point people "
-        "at the hints, the reference cell and workshop.symptoms().",
+        f"Planned at {clock(task, 1)}, until {clock(task, 1, after=TASK_MINUTES)}. "
+        "Keyboard.",
         *paragraphs,
+        f"Leave this slide up for the whole {TASK_MINUTES} minutes. The bar starts "
+        "when the slide appears and needs no click. It starts again if you leave the "
+        "slide and come back, so share the notebook from another window if you need "
+        "to.",
+        "Nobody pastes hints. Each person opens the collapsed hint and reference "
+        "cells when they like. Paste the question form link in the chat again as the "
+        f"bar starts: {QUESTIONS_FORM}. Whoever isn't at the keyboard watches the "
+        "chat and the form's responses. We don't debug anyone's code from the front. "
+        "Point people at the hints, the reference cell and workshop.symptoms().",
         f"When the bar fills, the line under it appears. Read it out. Checkpoint "
         f"{number} restores the reference setup the next part needs.",
     )
@@ -483,8 +479,9 @@ def title(deck: Deck) -> None:
         page.pill(MARGIN + index * 4.1, 5.9, 3.8, 0.7, label, colour=colour, size=20)
     page.notes(
         notes(
-            f"Planned at {clock('Welcome')}. Keyboard shares the screen with this "
-            "slide up and pastes the Colab link in the chat. Kev opens.",
+            f"Planned at {clock('Welcome')} UTC. Keyboard shares the screen with this "
+            "slide up and pastes the Colab link and the question form in the chat. "
+            "Kev opens.",
             "Welcome, everyone. Over the next two hours, we'll build three rockets and "
             "watch how each one decides where to fly. Do open the notebook now, even "
             "while we're talking. The next few slides say how, and the installs can "
@@ -549,7 +546,11 @@ def disclosure(deck: Deck) -> None:
 
 
 def agenda(deck: Deck) -> None:
-    """The two hours, one row per block, each part named and as wide as its minutes."""
+    """The two hours, one row per block, each part named and as wide as its minutes.
+
+    Each row's heading carries its UTC times. A part in a block of several carries its
+    minutes under its name, so a task shows its brief, code and discussion lengths.
+    """
     page = deck.page("Two hours, three tasks", "welcome")
     bars = MARGIN + 3.4  # where every row's parts start
     inch = (RIGHT - bars) / max(block.minutes for block in AGENDA)  # per minute
@@ -560,30 +561,48 @@ def agenda(deck: Deck) -> None:
         if block.subject:
             heading.append(Run(f"  {block.subject}", colour=MUTED, size=16))
         page.text(
-            MARGIN, top, bars - MARGIN - 0.2, height, [heading], size=20,
-            anchor=MSO_ANCHOR.MIDDLE, space_after=0,
+            MARGIN, top, bars - MARGIN - 0.2, height,
+            [heading, [Run(span(block), colour=MUTED, size=14)]],
+            size=20, anchor=MSO_ANCHOR.MIDDLE, space_after=0,
         )  # fmt: skip
         left = bars
         for part in block.parts:
+            lines: list[Paragraph] = [part.name]
+            if len(block.parts) > 1:
+                lines.append([Run(f"{part.minutes} minutes", size=13)])
             page.block(
                 left + gap / 2, top, part.minutes * inch - gap, height, part.kind,
-                label=part.name, size=16,
+                label=lines, size=16,
             )  # fmt: skip
             left += part.minutes * inch
     page.text(
         MARGIN, CONTENT_TOP + 0.15 + len(AGENDA) * pitch + 0.15, FULL_WIDTH, 0.5,
-        [f"While you code, a {TASK_MINUTES}-minute timer stays on the screen."],
+        [
+            f"All times UTC. While you code, a {TASK_MINUTES}-minute timer stays on "
+            "the screen."
+        ],
         size=19, colour=MUTED, space_after=0,
     )  # fmt: skip
+    brief, code, discussion = TASK_PARTS
+    windows = ", ".join(
+        f"{clock(label, 1)}–{clock(label, 1, after=TASK_MINUTES)}"
+        for label in ("Task 1", "Task 2", "Task 3")
+    )
     page.notes(
         notes(
-            "Kev. We present for an hour in all, and you code for 45 minutes, "
-            f"{TASK_MINUTES} on each task. The last {AGENDA[-1].minutes} minutes are "
-            "left open for questions and discussion, and you're welcome to leave "
-            "early.",
-            f"Planned: Task 1 at {clock('Task 1')}, Task 2 at {clock('Task 2')}, "
-            f"Task 3 at {clock('Task 3')}, why it matters at "
-            f"{clock('Why it matters')}, questions from {clock('Questions')}.",
+            "Kev. Each task has a short brief, then you code for "
+            f"{TASK_MINUTES} minutes, then we discuss what you built. That's 45 "
+            f"minutes of coding across the three tasks. The last {AGENDA[-1].minutes} "
+            "minutes are left open for questions and discussion, and you're welcome "
+            "to leave early.",
+            f"Planned, UTC: welcome {clock('Welcome')}, Task 1 at {clock('Task 1')}, "
+            f"Task 2 at {clock('Task 2')}, Task 3 at {clock('Task 3')}, why it "
+            f"matters at {clock('Why it matters')}, questions from "
+            f"{clock('Questions')}, close at "
+            f"{clock('Questions', after=AGENDA[-1].minutes)}. Each task is a "
+            f"{brief.minutes}-minute brief, {code.minutes} minutes of code and "
+            f"{discussion.minutes} minutes of discussion. The coding windows are "
+            f"{windows}.",
             "There's no break in the plan. If the room needs one, take it from the "
             "open time at the end.",
         )
@@ -658,13 +677,29 @@ def how_we_work(deck: Deck) -> None:
     )
 
 
+LOCAL_STEPS = (
+    ("Get the notebook.", f"git clone {REPOSITORY}\ncd cpomdp-workshop"),
+    (
+        "Make an environment, then install the workshop with Jupyter.",
+        "python -m venv .venv\n"
+        "source .venv/bin/activate  # Windows: .venv\\Scripts\\activate\n"
+        'pip install "cpomdp-workshop[nb]=={version}"',
+    ),
+    (
+        "Open notebooks/build_a_curious_rocket.ipynb in VS Code, or run jupyter lab. "
+        "Pick .venv as the kernel and run cell 1.",
+        "",
+    ),
+)
+"""The local route, step by step. The wheel carries no notebook and no Jupyter."""
+
+
 def setup(deck: Deck) -> None:
-    """Google Colab, or the room's own Python."""
+    """Google Colab, or the room's own Python in three steps, then the two links."""
     page = deck.page("Get set up", "welcome")
-    column = (FULL_WIDTH - 0.6) / 2
-    version = metadata.version("cpomdp-workshop")
+    colab = 3.6
     page.text(
-        MARGIN, CONTENT_TOP, column, 2.6,
+        MARGIN, CONTENT_TOP, colab, 3.4,
         [
             [Run("Google Colab", bold=True, size=26, colour=AMBER)],
             [Run("Recommended", colour=MUTED)],
@@ -672,42 +707,76 @@ def setup(deck: Deck) -> None:
             "Open the notebook link below, then run cell 1. It installs the "
             "workshop and checks it's ready.",
         ],
-        size=19, space_after=8,
+        size=18, space_after=8,
     )  # fmt: skip
-    right = MARGIN + column + 0.6
+    right = MARGIN + colab + 0.5
+    width = RIGHT - right
     page.text(
-        right, CONTENT_TOP, column, 1.85,
+        right, CONTENT_TOP, width, 0.5,
         [
-            [Run("Your own Python", bold=True, size=26, colour=BLUE)],
-            [Run("VS Code or Jupyter", colour=MUTED)],
-            "Python 3.11 or newer, then install the workshop:",
+            [
+                Run("Your own Python", bold=True, size=26, colour=BLUE),
+                Run("   Python 3.11 or newer", colour=MUTED),
+            ]
         ],
-        size=19, space_after=8,
+        size=18, space_after=0,
     )  # fmt: skip
-    page.code(
-        right, CONTENT_TOP + 1.95, column, 0.55,
-        f"pip install cpomdp-workshop=={version}", size=15,
-    )  # fmt: skip
-    page.text(
-        right, CONTENT_TOP + 2.65, column, 0.9,
-        ["Open the notebook from the repository below and run cell 1."],
-        size=19,
-    )  # fmt: skip
-    top = 5.1
-    for label, url in (("notebook in Colab", COLAB), ("repository", REPOSITORY)):
-        page.text(MARGIN, top, 4.0, 0.35, [label], size=15, colour=MUTED)
-        page.link(MARGIN, top + 0.36, FULL_WIDTH, 0.35, url, size=12)
-        top += 0.85
+    version = metadata.version("cpomdp-workshop")
+    top = CONTENT_TOP + 0.6
+    for index, (step, commands) in enumerate(LOCAL_STEPS, start=1):
+        lines = 2 if len(step) > 70 else 1
+        page.text(
+            right, top, width, 0.33 * lines,
+            [[Run(f"{index}  ", colour=BLUE, bold=True), Run(step)]],
+            size=17, space_after=0,
+        )  # fmt: skip
+        top += 0.33 * lines + 0.06
+        if commands:
+            source = commands.format(version=version)
+            height = code_height(source, 13)
+            page.code(right, top, width, height, source, size=13)
+            top += height + 0.1
+    top = 5.55
+    for label, url in (
+        ("notebook in Colab", COLAB),
+        ("questions, anonymous unless you leave an email", QUESTIONS_FORM),
+    ):
+        page.text(MARGIN, top, 6.0, 0.33, [label], size=15, colour=MUTED)
+        page.link(MARGIN, top + 0.34, FULL_WIDTH, 0.33, url, size=12)
+        top += 0.75
     page.notes(
         notes(
-            "Keyboard. We recommend Colab. It runs the notebook in your browser, so "
-            "nothing needs installing. Open the link from the chat, then run cell 1, "
-            "which installs the workshop from PyPI.",
-            "If you'd rather work locally, that's fine too. You'll need Python 3.11 "
-            "or newer and the pip line, or uv as the README shows. Then open "
-            "notebooks/build_a_curious_rocket.ipynb from the repository.",
+            "Keyboard. Paste two links into the Zoom chat together: the Colab "
+            "notebook and the question form. Ask people to open both and keep the "
+            "form in a tab of its own.",
+            "We recommend Colab. It runs the notebook in your browser, so nothing "
+            "needs installing. Open the link from the chat, then run cell 1, which "
+            "installs the workshop from PyPI. Everyone gets their own copy on their "
+            "own Colab machine, so nothing you type reaches anyone else or the "
+            "repository.",
+            "Say these out loud when you paste the link. Sign in with a Google "
+            "account, since without one you can read the notebook but not run it. "
+            "The first time you run a cell, Colab warns the notebook wasn't authored "
+            "by Google: click Run anyway. Your edits disappear when you close the "
+            "tab, so use File, Save a copy in Drive to keep them. If Colab "
+            "disconnects after a quiet spell, run cell 1 again, then the latest "
+            "checkpoint cell.",
+            "The link follows the repository's main branch. Don't merge anything "
+            "into main while the workshop is running.",
+            "If you'd rather work locally, that's fine too, with Python 3.11 or "
+            "newer. Clone the repository, which is where the notebook lives: the pip "
+            "package carries the code and not the notebook. Make a virtual "
+            "environment and install with the nb extra, which brings Jupyter and the "
+            "kernel VS Code needs. The quotes round the package name stop zsh, the "
+            "Mac shell, from reading the square brackets. Then open the notebook and "
+            "pick .venv as its kernel.",
+            "VS Code needs its Python and Jupyter extensions. If cell 1 says it "
+            "can't import cpomdp_workshop, the kernel is a different Python from the "
+            "one you installed into. Pick .venv in the kernel menu at the top right.",
             f"Either way, cell 1 stops if cpomdp isn't {WORKSHOP_CPOMDP_VERSION} or "
-            "Python is older than 3.11, and it prints what it found.",
+            "Python is older than 3.11, and it prints what it found. The README has "
+            "the same steps with uv.",
+            f"The two links to paste: {COLAB} and {QUESTIONS_FORM}",
         )
     )
 
@@ -785,37 +854,28 @@ def task_1_brief(deck: Deck) -> None:
     )
 
 
-def task_1_code(deck: Deck) -> None:
-    """Task 1's code."""
-    source = shown(lesson.SESSION_1.attempt)
-    page = task_page(
-        deck, "Task 1 · Two lines to write", "task 1", source, "spread",
-        below="Then the bonuses. Can you make the spread move?",
+def task_1_timer(deck: Deck) -> None:
+    """Task 1's fifteen minutes."""
+    page = timer_page(
+        deck, 1,
+        (
+            f"{FILL_IN} and run the cell.",
+            "Paste your spread in the chat.",
+            "Finished early? Try the two bonuses below the cell.",
+        ),
     )  # fmt: skip
     page.notes(
-        notes(
-            "Keyboard. Two lines to write: what the sensor observes and how noisy "
-            "its readings are. The rest is written, the thruster cost included. The "
-            "imports sit at the top of the cell.",
+        timer_notes(
+            1,
+            "Two lines to write: what the sensor observes and how noisy its readings "
+            "are. The rest is written, the thruster cost included. The imports sit at "
+            "the top of the cell.",
             "Run it, and check_agent prints the rocket and where it lands. probe_model "
             "then evaluates how much information the rocket could expect to gain "
             "from each of the nine moves. The spread is the difference between the "
             "most and the least. That's the number for the chat.",
         )
     )
-
-
-def task_1_timer(deck: Deck) -> None:
-    """Task 1's fifteen minutes."""
-    page = timer_page(
-        deck, 1,
-        (
-            "Write the two amber lines and run the cell.",
-            "Paste your spread in the chat.",
-            "Finished early? Try the two bonuses.",
-        ),
-    )  # fmt: skip
-    page.notes(timer_notes(1))
 
 
 def task_1_result(deck: Deck) -> None:
@@ -956,36 +1016,27 @@ def task_2_brief(deck: Deck) -> None:
     )
 
 
-def task_2_code(deck: Deck) -> None:
-    """Task 2's code."""
-    source = shown(lesson.SESSION_2.attempt, through="check_my_sensor(")
-    page = task_page(
-        deck, "Task 2 · Two lines to write", "task 2", source, "your k",
-        below="Below this, the cell builds a curious rocket on your sensor, flies it "
-        "and plots its route.",
-    )  # fmt: skip
-    page.notes(
-        notes(
-            "Keyboard. Two lines again: k itself, and the beacon's extra noise inside "
-            "my_sensor. params holds the beacon's settings, and the comments say how "
-            "to read each one by name.",
-            "Start at k = 0.08, then raise it. Can you find a k that changes the "
-            "route and still lands?",
-        )
-    )
-
-
 def task_2_timer(deck: Deck) -> None:
     """Task 2's fifteen minutes."""
     page = timer_page(
         deck, 2,
         (
-            "Write the two amber lines. Start with k = 0.08.",
-            "Raise k until the route changes. Paste your k in the chat.",
-            "Finished early? Try the two bonuses.",
+            f"{FILL_IN} and start with k = 0.08.",
+            "Raise k until the route bends and still lands. Paste your k in the chat.",
+            "Finished early? Try the two bonuses below the cell.",
         ),
     )  # fmt: skip
-    page.notes(timer_notes(2, "Hint 1 gives k = 0.4."))
+    page.notes(
+        timer_notes(
+            2,
+            "Two lines again: k itself, and the beacon's extra noise inside "
+            "my_sensor. params holds the beacon's settings, and the comments say how "
+            "to read each one by name. Below them, the cell builds a curious rocket "
+            "on your sensor, flies it and plots its route.",
+            "Start at k = 0.08, then raise it. Can you find a k that changes the "
+            "route and still lands? Hint 1 gives k = 0.4.",
+        )
+    )
 
 
 def task_2_result(deck: Deck) -> None:
@@ -1122,37 +1173,28 @@ def task_3_brief(deck: Deck) -> None:
     )
 
 
-def task_3_code(deck: Deck) -> None:
-    """Task 3's code."""
-    source = shown(lesson.SESSION_3.attempt)
-    page = task_page(
-        deck, "Task 3 · Two lines to write", "task 3", source, "max |difference|",
-        below="There's a rock in the blackout. None of the rockets knows.",
-    )  # fmt: skip
-    page.notes(
-        notes(
-            "Keyboard. Two lines again: the blackout's extra noise in my_world, and "
-            "the 1960 rocket's model as a graph of one node. The slider sets k for "
-            "your rocket.",
-            "plot_world flies three rockets past the rock. check_backends flies the "
-            "1960 rocket on the Kalman filter and on the graph, and prints the "
-            "largest difference between them. That's the number for the chat.",
-        )
-    )
-
-
 def task_3_timer(deck: Deck) -> None:
     """Task 3's fifteen minutes."""
     page = timer_page(
         deck, 3,
         (
-            "Write the two amber lines and run the cell.",
-            "Move the k slider and watch the routes. Paste max |difference| in the "
-            "chat.",
-            "Finished early? Try the two bonuses.",
+            f"{FILL_IN} and run the cell.",
+            "Paste max |difference| in the chat.",
+            "Then move the k slider and watch the routes. Finished early? Try the "
+            "bonuses.",
         ),
     )  # fmt: skip
-    page.notes(timer_notes(3))
+    page.notes(
+        timer_notes(
+            3,
+            "Two lines again: the blackout's extra noise in my_world, and the 1960 "
+            "rocket's model as a graph of one node. The slider sets k for your "
+            "rocket. There's a rock in the blackout, and none of the rockets knows.",
+            "plot_world flies three rockets past the rock. check_backends flies the "
+            "1960 rocket on the Kalman filter and on the graph, and prints the "
+            "largest difference between them. That's the number for the chat.",
+        )
+    )
 
 
 def task_3_blackout(deck: Deck) -> None:
@@ -1682,17 +1724,14 @@ SLIDES: tuple[Callable[[Deck], None], ...] = (
     setup,
     preview,
     task_1_brief,
-    task_1_code,
     task_1_timer,
     task_1_result,
     task_1_meaning,
     task_2_brief,
-    task_2_code,
     task_2_timer,
     task_2_result,
     task_2_meaning,
     task_3_brief,
-    task_3_code,
     task_3_timer,
     task_3_blackout,
     task_3_rock,
