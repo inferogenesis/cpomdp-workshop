@@ -43,9 +43,9 @@ follows points nowhere near the cause.
 | `src/cpomdp_workshop/` | The package the notebook imports: the world, the two rockets, the flight loop, the checks, the figures |
 | `notebooks/` | The notebook, generated and run by `scripts/build_notebook.py`. Never edited by hand |
 | `scripts/lesson.py` | What the notebook says, cell by cell |
-| `delivery/hints_chat.txt` | The hint lines pasted into chat. The notebook's hint and reference cells are built from it |
+| `delivery/hints_chat.txt` | The hint and reference lines. The notebook's collapsed hint and reference cells are built from it |
 | `assets/` | Figures, regenerated from the package by `scripts/render_assets.py` |
-| `deck/` | The slides, built from the package, the lesson and the figures by `scripts/build_deck.py` |
+| `deck/` | The slides, built from the package, the lesson and the figures by `scripts/build_deck.py`. The committed deck has an empty frame for each presenter's photo. With the photos in `deck/photos/`, the build also writes a presenting copy that holds them. Git ignores both |
 | `tests/test_measured_claims.py` | One test per number the notebook or the deck shows |
 | `tests/test_api_contract.py` | The cpomdp forms the workshop is written against |
 

@@ -6,17 +6,21 @@ in a filled panel, printed output in an outlined one. A placeholder the owner ha
 fill is drawn dashed in amber, so it cannot pass for finished content.
 
 Shapes are named by kind (``title``, ``code``, ``printed``, ``text``, ``picture``,
-``placeholder``, ``card``, ``pill``, ``mark``, ``track``, ``bar``). The layout check
-and the deck test read the names, so a number inside program output is told apart
-from a number in prose.
+``photo``, ``qr``, ``placeholder``, ``card``, ``pill``, ``mark``, ``track``, ``bar``).
+The layout check and the deck test read the names, so a number inside program output
+is told apart from a number in prose.
+
+A photo frame is an empty panel named after the photo it holds. The committed deck
+keeps it empty, and only a local presenting copy puts the photo in.
 """
 
 import math
 import re
-from collections.abc import Sequence
+from collections.abc import Iterator, Sequence
 from dataclasses import dataclass
 from pathlib import Path
 
+import segno
 from pptx import Presentation
 from pptx.dml.color import RGBColor
 from pptx.enum.dml import MSO_LINE_DASH_STYLE
@@ -382,6 +386,39 @@ class Page:
         shape.name = f"picture {path.name}"
         return Emu(shape.height).inches
 
+    def photo_frame(self, x: float, y: float, side: float, photo: str) -> None:
+        """A square panel where the photo file ``photo`` goes in the presenting copy."""
+        self._panel(x, y, side, side, f"photo {photo}", fill=PANEL, line=RULE)
+
+    def qr(self, url: str, x: float, y: float, side: float) -> None:
+        """A QR code for ``url``, ``side`` inches square, in ink.
+
+        It is one vector shape, a rectangle per run of dark modules along a row, so
+        it stays sharp at any size and builds the same bytes every time. A scanner
+        needs four modules of clear background round it, which the caller leaves.
+        """
+        matrix = segno.make_qr(url).matrix
+        runs = [
+            (row, start, end)
+            for row, line in enumerate(matrix)
+            for start, end in _dark_runs(line)
+        ]
+        builder = self.slide.shapes.build_freeform(
+            runs[0][1], runs[0][0], scale=Inches(side) / len(matrix)
+        )
+        for index, (row, start, end) in enumerate(runs):
+            if index:
+                builder.move_to(start, row)
+            builder.add_line_segments(
+                [(end, row), (end, row + 1), (start, row + 1)], close=True
+            )
+        shape = builder.convert_to_shape(Inches(x), Inches(y))
+        shape.name = f"qr {url}"
+        shape.shadow.inherit = False
+        shape.fill.solid()
+        shape.fill.fore_color.rgb = _rgb(INK)
+        shape.line.fill.background()
+
     def link(self, x: float, y: float, w: float, h: float, url: str, *, size: float):
         """A URL in the code face that opens when clicked."""
         frame = self._box(x, y, w, h, "link")
@@ -394,9 +431,17 @@ class Page:
         run.hyperlink.address = url
 
     def block(
-        self, x: float, y: float, w: float, h: float, kind: str, *, label: str = ""
+        self,
+        x: float,
+        y: float,
+        w: float,
+        h: float,
+        kind: str,
+        *,
+        label: str = "",
+        size: float = 14,
     ) -> None:
-        """One stretch of the agenda's bar.
+        """One part of the agenda, as wide as its minutes.
 
         ``"talk"`` is a plain panel, ``"code"`` is filled in the mark's amber and
         ``"open"`` is dashed, like time not yet given to anything.
@@ -413,7 +458,7 @@ class Page:
         shape.text_frame.margin_left = shape.text_frame.margin_right = Inches(0.02)
         if label:
             self._fill(
-                shape.text_frame, [label], size=14, colour=INK, font=TEXT_FONT,
+                shape.text_frame, [label], size=size, colour=INK, font=TEXT_FONT,
                 align=PP_ALIGN.CENTER,
             )  # fmt: skip
 
@@ -580,6 +625,17 @@ def _timing(effects: Sequence[_Effect]):
     )
 
 
+def _dark_runs(line: Sequence[int]) -> Iterator[tuple[int, int]]:
+    """The first and one-past-last column of each run of dark modules in a QR row."""
+    start = None
+    for column, module in enumerate([*line, 0]):
+        if module and start is None:
+            start = column
+        elif not module and start is not None:
+            yield start, column
+            start = None
+
+
 def _glyph_runs(text: str, face: str) -> list[tuple[str, bool]]:
     """``text`` split where ``face`` lacks a glyph, each piece flagged if it does."""
     if face != CODE_FONT:
@@ -641,6 +697,27 @@ class Deck:
         if title is not None:
             page.title(title, segment)
         return page
+
+    def fill_photo_frames(self, folder: Path) -> None:
+        """Put each photo frame's photo, read from ``folder``, over the frame.
+
+        Raises:
+            FileNotFoundError: before any photo goes in, if one is missing.
+        """
+        frames = [
+            (slide, shape, folder / shape.name.removeprefix("photo "))
+            for slide in self.presentation.slides
+            for shape in slide.shapes
+            if shape.name.startswith("photo ")
+        ]
+        missing = [path.name for _, _, path in frames if not path.is_file()]
+        if missing:
+            raise FileNotFoundError(f"no {', '.join(missing)} in {folder}")
+        for slide, frame, path in frames:
+            photo = slide.shapes.add_picture(
+                str(path), frame.left, frame.top, frame.width, frame.height
+            )
+            photo.name = f"picture {path.name}"
 
     def save(self, path: Path) -> None:
         """Write the deck to ``path``."""

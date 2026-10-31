@@ -8,7 +8,9 @@ import jax.numpy as jnp
 import pytest
 
 pytest.importorskip("pptx", reason="the deck extra builds the slides")
+pytest.importorskip("segno", reason="the deck extra draws the QR codes")
 
+import segno
 from cpomdp import (
     Agent,
     Belief,
@@ -18,6 +20,7 @@ from cpomdp import (
     GaussianTransition,
     KalmanBackend,
 )
+from PIL import Image
 from pptx import Presentation
 from pptx.opc.constants import RELATIONSHIP_TYPE
 
@@ -90,6 +93,7 @@ SET = {
     "2.2": "a figure number in the Active Inference book",
     "2.6": "an equation number in the Active Inference book",
     "3.11": "the oldest Python the workshop runs on",
+    "2607.20306": "the arXiv number of presenter 1's paper",
 }
 """Numbers the deck sets or names rather than measures."""
 
@@ -124,10 +128,10 @@ def test_the_deck_has_thirty_one_slides_each_with_notes(deck):
 
 def minutes_of(kind):
     return sum(
-        length
+        part.minutes
         for block in build_deck.AGENDA
-        for part, length in block.parts
-        if part == kind
+        for part in block.parts
+        if part.kind == kind
     )
 
 
@@ -139,8 +143,8 @@ def test_each_task_codes_for_as_long_as_its_timer_runs():
     tasks = [block for block in build_deck.AGENDA if block.label.startswith("Task")]
     assert [block.label for block in tasks] == ["Task 1", "Task 2", "Task 3"]
     for block in tasks:
-        assert [kind for kind, _ in block.parts] == ["talk", "code", "talk"]
-        assert block.parts[1][1] == build_deck.TASK_MINUTES == 15
+        assert [part.kind for part in block.parts] == ["talk", "code", "talk"]
+        assert block.parts[1].minutes == build_deck.TASK_MINUTES == 15
 
 
 def test_the_clock_reads_each_start_off_the_agenda():
@@ -149,6 +153,17 @@ def test_the_clock_reads_each_start_off_the_agenda():
     assert build_deck.clock("Questions") == "1:45"
     with pytest.raises(ValueError, match="no block called 'Break'"):
         build_deck.clock("Break")
+
+
+@pytest.mark.slow
+def test_the_agenda_names_every_block_and_prints_no_clock_times(deck):
+    slide = slide_of(deck, build_deck.agenda)
+    blocks = [shape.text_frame.text for shape in slide.shapes if shape.name == "block"]
+    assert blocks == [part.name for block in build_deck.AGENDA for part in block.parts]
+    assert blocks[1:4] == ["brief", "you code", "discussion"]
+    assert all(blocks)
+    texts = [shape.text_frame.text for shape in slide.shapes if shape.has_text_frame]
+    assert not [text for text in texts if CLOCK.search(text)]
 
 
 @pytest.mark.slow
@@ -282,8 +297,6 @@ def test_the_owners_placeholders_are_visible(deck):
         if shape.name == "placeholder"
     ]
     for owed in (
-        "[photo]",
-        "[bio]",
         "[email]",
         "[survey link]",
         "[Zenodo DOI",
@@ -291,6 +304,108 @@ def test_the_owners_placeholders_are_visible(deck):
         "[owner: one line on The Individuating Membrane",
     ):
         assert any(text.startswith(owed) for text in placeholders), owed
+
+
+def photo_frames(slide):
+    return [shape for shape in slide.shapes if shape.name.startswith("photo ")]
+
+
+@pytest.mark.slow
+def test_each_presenters_card_has_a_photo_frame_and_their_bio(deck):
+    slide = slide_of(deck, build_deck.who_we_are)
+    assert not pictures(slide), "the committed deck carries no photos"
+    frames = photo_frames(slide)
+    assert [frame.name for frame in frames] == [
+        "photo presenter_1.jpg",
+        "photo presenter_2.jpg",
+    ]
+    assert all(frame.width == frame.height for frame in frames)
+    texts = [shape.text_frame.text for shape in slide.shapes if shape.name == "text"]
+    assert "Kevin (concepts)" in texts
+    for bio, opening in (
+        (build_deck.PRESENTER_1_BIO, "Independent research software engineer, UK."),
+        (build_deck.PRESENTER_2_BIO, "Kevin Backhouse is a PhD researcher"),
+    ):
+        assert bio.startswith(opening)
+        assert bio in texts
+    assert not [shape for shape in slide.shapes if shape.name == "placeholder"]
+
+
+@pytest.mark.slow
+def test_the_presenting_copy_puts_each_photo_in_its_frame(tmp_path):
+    deck = build_deck.build()
+    missing = re.escape("no presenter_1.jpg, presenter_2.jpg")
+    with pytest.raises(FileNotFoundError, match=missing):
+        deck.fill_photo_frames(tmp_path)
+    slide = slide_of(deck.presentation, build_deck.who_we_are)
+    assert not pictures(slide), "a missing photo stops the copy before any goes in"
+    for name in ("presenter_1.jpg", "presenter_2.jpg"):
+        Image.new("RGB", (8, 8), "grey").save(tmp_path / name)
+    deck.fill_photo_frames(tmp_path)
+    photos = pictures(slide)
+    assert [photo.name for photo in photos] == [
+        "picture presenter_1.jpg",
+        "picture presenter_2.jpg",
+    ]
+    assert [(p.left, p.top, p.width, p.height) for p in photos] == [
+        (f.left, f.top, f.width, f.height) for f in photo_frames(slide)
+    ]
+
+
+@pytest.mark.slow
+def test_who_we_are_introduces_cpomdp_without_the_mark_or_warrantlib(deck):
+    slide = slide_of(deck, build_deck.who_we_are)
+    assert "mark" not in [shape.name for shape in slide.shapes]
+    texts = [shape.text_frame.text for shape in slide.shapes if shape.has_text_frame]
+    assert any(text.startswith("cpomdp\n") for text in texts)
+    said = " ".join([*texts, slide.notes_slide.notes_text_frame.text])
+    assert "warrantlib" not in said
+
+
+@pytest.mark.slow
+def test_each_learner_opens_the_hints_and_nobody_pastes_them(deck):
+    said = " ".join(prose_and_notes(deck))
+    assert "on a timer" not in said
+    assert "Paste the nudges" not in said
+    slide = slide_of(deck, build_deck.how_we_work)
+    cards = [shape.text_frame.text for shape in slide.shapes if shape.name == "card"]
+    assert any("collapsed" in card for card in cards)
+    assert any("bonus exercises" in card for card in cards)
+
+
+def drawn_modules(shape):
+    """The dark modules a QR shape draws, one rectangle per run along a row."""
+    corners = [
+        (int(point.get("x")), int(point.get("y")))
+        for point in shape._element.iter(f"{{{DRAWING}}}pt")
+    ]
+    dark = set()
+    for start in range(0, len(corners), 4):
+        (left, row), (right, _) = corners[start : start + 2]
+        dark.update((row, column) for column in range(left, right))
+    return dark
+
+
+@pytest.mark.slow
+@pytest.mark.parametrize(
+    "url",
+    [
+        "https://www.linkedin.com/in/kevin-backhouse-112554253",
+        "https://inferogenesis.com/",
+    ],
+)
+def test_the_thanks_slide_draws_each_qr_module_for_module(deck, url):
+    slide = slide_of(deck, build_deck.thanks)
+    (code,) = [shape for shape in slide.shapes if shape.name == f"qr {url}"]
+    assert code.width == code.height
+    matrix = segno.make_qr(url).matrix
+    expected = {
+        (row, column)
+        for row, line in enumerate(matrix)
+        for column, module in enumerate(line)
+        if module
+    }
+    assert drawn_modules(code) == expected
 
 
 @pytest.mark.slow
