@@ -88,12 +88,15 @@ SET = {
     "60": "a poll's length in seconds",
     "48": "the hours before the recording is posted",
     "1960": "the year of the controller",
+    "2007": "the year of the cited Franklin arm-stiffness study",
     "2021": "the year of the reduction to LQR",
     "2026": "the year of the symposium",
     "2.2": "a figure number in the Active Inference book",
+    "2.3": "the related-work section of the cited Corva paper",
     "2.6": "an equation number in the Active Inference book",
     "3.11": "the oldest Python the workshop runs on",
     "2607.20306": "the arXiv number of presenter 1's paper",
+    "10.3390": "the DOI registrant prefix of the cited Koudahl paper",
 }
 """Numbers the deck sets or names rather than measures."""
 
@@ -369,7 +372,7 @@ def test_each_learner_opens_the_hints_and_nobody_pastes_them(deck):
     assert "Paste the nudges" not in said
     slide = slide_of(deck, build_deck.how_we_work)
     cards = [shape.text_frame.text for shape in slide.shapes if shape.name == "card"]
-    assert any("collapsed" in card for card in cards)
+    assert any("Click to open them whenever you like" in card for card in cards)
     assert any("bonus exercises" in card for card in cards)
 
 

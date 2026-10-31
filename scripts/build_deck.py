@@ -37,15 +37,11 @@ from cpomdp_workshop import (
     WORKSHOP_CPOMDP_VERSION,
     after_session_3,
     beacon_sensor,
-    check_agent,
     check_backends,
     check_my_sensor,
     default_params,
     model_with,
     one_node,
-    probe,
-    show_probe,
-    the_1960_rocket,
 )
 from deck_kit import (
     AMBER,
@@ -592,37 +588,36 @@ def agenda(deck: Deck) -> None:
 
 def how_we_work(deck: Deck) -> None:
     """The ways of working: two lines, hints, checkpoints, one number."""
-    page = deck.page("How we'll work", "welcome")
+    page = deck.page("How we will work", "welcome")
     width, height, gap = (FULL_WIDTH - 0.3) / 2, 1.95, 0.3
     cards = (
         headed(
-            "Two lines per task",
+            "Two lines to complete",
             [
-                Run("Each task has two lines marked "),
+                Run("In each task, you will fill in two lines marked "),
                 Run("...", font=CODE_FONT, colour=AMBER, bold=True),
                 Run(
-                    " for you to write. We've written the rest, so you can focus on "
-                    "the key concepts without worrying about the Python. Some bonus "
-                    "exercises ask you to write your own."
+                    ". We have written the rest so you can focus on the ideas. Some "
+                    "bonus exercises give you a chance to write more of your own code."
                 ),
             ],
             colour=AMBER,
         ),
         headed(
-            "Hints when you need them",
-            "Each task has two hints and a reference solution, collapsed below the "
-            "code cell. Open them whenever you like, and using them is absolutely "
-            "fine.",
+            "Help whenever you need it",
+            "You will find two hints and a worked solution below each task’s code "
+            "cell. Click to open them whenever you like. They are there to help, "
+            "so use them freely.",
         ),
         headed(
             "Run the checkpoint",
-            "Run the checkpoint cell at the end of every task, even if everything "
-            "worked. It restores the setup the next task needs.",
+            "At the end of each task, run the checkpoint cell, even if your code "
+            "worked. This gives everyone the same starting point for the next task.",
         ),
         headed(
-            "One number in the chat",
-            "Each task ends with one number to paste in the chat, then a "
-            "60-second poll.",
+            "Share your result",
+            "Paste the number requested at the end of the task into the chat. "
+            "We will then take a one-minute poll.",
         ),
     )
     for index, paragraphs in enumerate(cards):
@@ -634,25 +629,24 @@ def how_we_work(deck: Deck) -> None:
     page.text(
         MARGIN, CONTENT_TOP + 2 * (height + gap) + 0.1, FULL_WIDTH, 0.9,
         [
-            "The aim is to explore the ideas behind the code, rather than test your "
-            "programming skills. Questions are welcome any time, in the chat or on "
-            "the anonymous form."
+            "The focus is on understanding the ideas behind the code. Questions "
+            "are welcome throughout, in the chat or through the anonymous form."
         ],
         size=18, colour=MUTED,
     )  # fmt: skip
     page.notes(
         notes(
-            "Keyboard. Each task has two lines to write, and we've written the rest "
+            "Keyboard. Each task has two lines to write, and we have written the rest "
             "of the code, so the Python stays out of the way. Some of the bonus "
             "exercises ask you to write your own.",
             "Each task has two hints and a reference solution, collapsed below the "
             "cell. A hint shows its nudge first, and the line itself is behind Show "
-            "code. Open them whenever you like, and using them isn't failing.",
+            "code. Open them whenever you like, and using them is not failing.",
             "At the end of every task, run the checkpoint cell, even if everything "
             "worked. It puts the reference names back, so the next task starts from "
             "the same place for everyone.",
             "Each task closes with one number in the chat. It lets us see how the "
-            "room is doing without anyone writing a sentence. Then there's a "
+            "room is doing without anyone writing a sentence. Then there is a "
             "one-minute poll.",
         )
     )
@@ -714,13 +708,18 @@ def setup(deck: Deck) -> None:
 
 def preview(deck: Deck) -> None:
     """Cell 2's picture, the whole game first."""
-    page = route_page(deck, "Where we're heading", "welcome", "route_4_rock.png")
+    page = route_page(deck, "What we will build", "welcome", "route_4_rock.png")
     page.text(
-        ROUTE_COLUMN, CONTENT_TOP, RIGHT - ROUTE_COLUMN, 3.6,
+        ROUTE_COLUMN, CONTENT_TOP, RIGHT - ROUTE_COLUMN, 4.7,
         [
-            "By the end of Task 3, we'll have built this picture.",
-            "Three rockets, one rock. The dashed line is the 1960 rocket.",
-            [Run("Cell 2 draws it. "), Run("workshop.preview()", font=CODE_FONT)],
+            "By the end of Task 3, we will have built the models that produce these "
+            "three rocket paths.",
+            "The dashed line shows the 1960 rocket. The coloured lines show two "
+            "versions of the curious rocket.",
+            [
+                Run("Run the second code cell to see the preview: "),
+                Run("workshop.preview()", font=CODE_FONT),
+            ],
         ],
         size=19, space_after=14,
     )  # fmt: skip
@@ -729,12 +728,13 @@ def preview(deck: Deck) -> None:
     )
     page.notes(
         notes(
-            "Kev. Before we build anything, here's where we're heading. Run cell 2 "
-            "and you'll see this picture.",
+            "Kev. Introduce the preview before beginning the tasks. Run the second "
+            "code cell, then ask: What makes these rockets take different routes?",
             "The dashed line is the 1960 rocket. It hits the rock on step 6. The two "
             "solid lines are curious rockets, and on seed 3 both fly round the rock.",
-            "Don't worry if you can't explain it yet. Neither rocket knows the rock is "
-            "there, and working out what's going on is what the three tasks are for.",
+            "Do not worry if you cannot explain it yet. Neither rocket knows the "
+            "rock is there, and working out what is going on is what the three "
+            "tasks are for.",
         )
     )
 
@@ -748,13 +748,30 @@ def task_1_brief(deck: Deck) -> None:
     page.text(
         MARGIN, CONTENT_TOP, FULL_WIDTH, 1.65,
         [
-            "A Kalman filter estimates where the rocket is from noisy sensor readings, "
-            "and a linear quadratic regulator (LQR) steers it to the landing pad.",
-            "The sensor is equally reliable wherever the rocket flies.",
+            [
+                Run("A "),
+                Run("Kalman filter", bold=True),
+                Run(" estimates the rocket’s position from noisy sensor readings."),
+            ],
+            [
+                Run("A "),
+                Run("linear quadratic regulator (LQR)", bold=True),
+                Run(" steers the rocket towards the landing pad."),
+            ],
+            "The sensor has the same level of noise wherever the rocket flies.",
         ],
         size=21, space_after=12,
     )  # fmt: skip
-    question(page, 3.2, "Does that make every move equally informative?")
+    page.text(
+        MARGIN, 3.2, FULL_WIDTH, 0.55,
+        [[Run("Are all possible moves equally informative?", colour=AMBER, bold=True)]],
+        size=22,
+    )  # fmt: skip
+    page.text(
+        MARGIN, 3.9, FULL_WIDTH, 0.3,
+        ["pymdp notation and the corresponding cpomdp fields"],
+        size=15, colour=MUTED,
+    )  # fmt: skip
     width = (FULL_WIDTH - 0.9) / 4
     for index, (letter, meaning, names) in enumerate(PYMDP_MAP):
         page.card(
@@ -771,15 +788,15 @@ def task_1_brief(deck: Deck) -> None:
             f"Planned at {clock('Task 1')}. Kev.",
             "Our first rocket is the classic one. A Kalman filter estimates its "
             "position from noisy readings, and a linear quadratic regulator steers it "
-            "to the pad. Its sensor is equally reliable everywhere. So does every "
-            "move give the rocket the same amount of information? Hold that question.",
+            "to the pad. Its sensor has the same level of noise everywhere. "
+            "Are all possible moves equally informative? Hold that question.",
             "If you know pymdp, the cards map its letters onto cpomdp's fields. A is "
-            "the observation likelihood. In cpomdp that's the observation_matrix "
+            "the observation likelihood. In cpomdp that is the observation_matrix "
             "together with the observation_noise, R, because the noise is part of "
             "what a reading says about the state. B is the transition, so "
             "dynamics_matrix, with control_matrix for where a move enters. C is the "
             "preference, which we meet in Task 2 as Preference. D is the prior.",
-            "The 1960 rocket's StateGoal has no pymdp letter. It's a goal over states "
+            "The 1960 rocket's StateGoal has no pymdp letter. It is a goal over states "
             "with a thruster cost, which is what makes it an LQR controller.",
         )
     )
@@ -819,94 +836,151 @@ def task_1_timer(deck: Deck) -> None:
 
 
 def task_1_result(deck: Deck) -> None:
-    """The first route frame, and what task 1 printed."""
+    """The reference route and spread, with prompts for the task 1 discussion."""
     page = route_page(
         deck,
-        "The 1960 rocket flies the straight line",
+        "Task 1 · Discussion",
         "task 1",
         "route_1_straight.png",
     )
-    landing = captured(check_agent, the_1960_rocket())
-    route_strip(page, output=f"{landing}\n{captured(show_probe, probe(model_with()))}")
-    callout(
-        page, "spread", Run("0.000000", font=CODE_FONT, bold=True, size=36),
-        "nats between the most and the least informative move",
+    width = RIGHT - ROUTE_COLUMN
+    page.text(
+        ROUTE_COLUMN, CONTENT_TOP, width, 0.35, ["Reference result"],
+        size=15, colour=MUTED,
     )  # fmt: skip
-    task_close(page, "spread", 1)
+    page.text(
+        ROUTE_COLUMN, 1.88, width, 0.5, ["spread = 0.000000 nats"],
+        size=18, font=CODE_FONT, bold=True,
+    )  # fmt: skip
+    page.text(
+        ROUTE_COLUMN, 2.5, width, 1.15,
+        ["The difference between the highest and lowest expected information "
+         "gain across the possible moves."],
+        size=17, colour=MUTED,
+    )  # fmt: skip
+    page.text(
+        ROUTE_COLUMN, 3.9, width, 0.75,
+        ["What does a spread of zero tell us?"], size=20, bold=True,
+    )  # fmt: skip
+    page.text(
+        ROUTE_COLUMN, 4.85, width, 1.4,
+        ["If you tried the bonus exercises, what changed and what stayed the same?"],
+        size=19, bold=True,
+    )  # fmt: skip
+    page.text(
+        ROUTE_COLUMN, 6.65, width, 0.35, ["Poll 1 · 60 seconds"],
+        size=16, colour=AMBER,
+    )  # fmt: skip
     page.notes(
         notes(
-            f"Planned at {clock('Task 1', 2)}. Keyboard shows what the cell printed. "
-            "The rocket is LQR, and lands 0.13 from the pad.",
+            f"Planned at {clock('Task 1', 2)}. Kev invites participants to compare "
+            "their results with the reference route and spread. The rocket is LQR, "
+            "and lands 0.13 from the pad.",
+            "Ask what a spread of zero tells us. Then ask those who tried the bonus "
+            "exercises what changed and what stayed the same. Give participants "
+            "time to discuss before explaining the result.",
             "The probe compares the information each of the nine compass moves is "
             "expected to give. spread = 0.000000 nats, so no move gives more than any "
-            "other. Every spread in the chat should read zero, whatever the bonuses "
-            "changed.",
-            "Then poll 1 for 60 s. Kev reads the split.",
+            "other. Zero spread does not mean zero information gain. The bonus "
+            "changes can alter the amount of information gained, while the spread "
+            "remains zero.",
+            "Then poll 1 for 60 seconds. Kev reads the split. Use the following "
+            "slide to introduce how position-dependent sensor noise can make "
+            "expected information gain differ between moves.",
+            "After the poll, connect the result to what we call the Koudahl "
+            "collapse. Koudahl, Kouw and de Vries (2021) show that, for the linear "
+            "Gaussian models and full expected free energy (EFE) objective they "
+            "analyse, EFE reduces to the KL-control objective plus a constant "
+            "determined by observation noise. Minimising EFE therefore supplies "
+            "no purposeful exploratory (epistemic) drive in that setting.",
+            "Here, with fixed sensor noise and additive controls, every candidate "
+            "move has the same expected information gain. The epistemic "
+            "contribution cannot favour one move over another, which is why spread "
+            "is zero. Zero spread does not mean zero information gain.",
+            "Reference: Koudahl, M. T., Kouw, W. M. and de Vries, B. (2021). "
+            "On Epistemics in Expected Free Energy for Linear Gaussian State "
+            "Space Models. Entropy. https://doi.org/10.3390/e23121565",
             plain(lesson.SESSION_1.poll),
         )
     )
 
 
 def task_1_meaning(deck: Deck) -> None:
-    """Why a fixed sensor gives the 1960 controller."""
-    page = deck.page("Under a fixed sensor, expected free energy is LQR", "task 1")
-    width = (FULL_WIDTH - 0.4) / 2
-    for index, (glyph, colour, who, lines) in enumerate(
-        (
-            (
-                "R", INK, "the 1960 rocket",
-                (
-                    "The sensor noise is the same everywhere.",
-                    "So every move leaves the rocket equally uncertain.",
-                    "Expected free energy reduces to LQR.",
-                ),
-            ),
-            (
-                "R(x)", AMBER, "a curious rocket",
-                (
-                    "The sensor noise depends on where the rocket is.",
-                    "So where a move lands changes how informative the next "
-                    "reading is.",
-                    "Tasks 2 and 3 build it.",
-                ),
-            ),
-        )
-    ):  # fmt: skip
-        page.card(
-            MARGIN + index * (width + 0.4), CONTENT_TOP, width, 3.6,
-            [
-                [Run(glyph, colour=colour, font=CODE_FONT, bold=True, size=44)],
-                [Run(who, colour=MUTED)],
-                *([Run(line)] for line in lines),
-            ],
-            size=20, space_after=10,
-        )  # fmt: skip
+    """How position-dependent sensor noise connects movement to learning."""
+    page = deck.page("Making information gain depend on the action", "task 1")
     page.text(
-        MARGIN, 5.35, FULL_WIDTH, 1.4,
-        [
-            "With fixed noise in a linear Gaussian model, the expected information "
-            "gain is the same for every action, so curiosity can't change what the "
-            "rocket does.",
-            [Run("Koudahl, Kouw & de Vries, 2021", colour=MUTED, size=16)],
-        ],
-        size=20, space_after=10,
+        MARGIN, CONTENT_TOP, FULL_WIDTH, 0.7,
+        ["In cpomdp, sensor noise can depend on the rocket’s position: R(x)."],
+        size=22,
+    )  # fmt: skip
+    for index, label in enumerate(
+        (
+            "Where the rocket moves",
+            "How reliable its next reading is",
+            "How much it expects to learn",
+        )
+    ):
+        top = 2.5 + 1.2 * index
+        page.text(
+            MARGIN, top, FULL_WIDTH, 0.5, [label],
+            size=24, bold=True, align=PP_ALIGN.CENTER,
+        )  # fmt: skip
+        if index < 2:
+            page.text(
+                MARGIN, top + 0.6, FULL_WIDTH, 0.4, ["↓"],
+                size=24, colour=MUTED, align=PP_ALIGN.CENTER,
+            )  # fmt: skip
+    page.text(
+        MARGIN, 6.35, FULL_WIDTH, 0.55,
+        ["Some moves can now offer more information than others."],
+        size=22, colour=AMBER, bold=True,
     )  # fmt: skip
     page.notes(
         notes(
-            "Kev. If you've built a continuous active inference agent and watched it "
-            "behave like a controller, you didn't do anything wrong.",
-            "The Kalman filter's uncertainty after a reading depends on the noise and "
-            "the uncertainty before it, never on the move or the position. With the "
-            "same noise everywhere, every move leaves the rocket equally uncertain, "
-            "so the information term is the same for all of them. What's left of "
-            "expected free energy is LQR. Koudahl, Kouw and de Vries published that "
-            "result in 2021.",
-            "Bonus 2 asked whether unequal noise across the axes would change that. "
-            "It changes how much each reading tells the rocket, but not the spread "
-            "between moves, because the noise is still fixed in place. That's the "
-            "bridge to Task 2.",
-            "The rest of the session changes one thing. The noise depends on where "
-            "the rocket is.",
+            "R describes the noise in the sensor readings. Writing R(x) means that "
+            "this noise depends on the rocket’s position.",
+            "Near the beacon, readings are clearer. By moving towards it, the "
+            "rocket can obtain a more informative measurement and reduce its "
+            "uncertainty about where it is. Movement can therefore affect both "
+            "progress towards the goal and what the rocket learns.",
+            "This expected reduction in uncertainty is called epistemic value. "
+            "With our sensor model, some moves can offer more information than "
+            "others.",
+            "State-dependent sensory precision has a history in active inference. "
+            "Dan’s contribution establishes conditions under which it makes "
+            "epistemic value depend on action and rules out an equivalent fixed "
+            "linear-Gaussian filter.",
+            "The mean dynamics and observation map remain linear, and the "
+            "conditional noise distributions remain Gaussian. However, the joint "
+            "model is no longer fully Gaussian.",
+            "Tasks 2 and 3 explore this mechanism. Whether it changes the chosen "
+            "route also depends on the objective and planning horizon.",
+            "R(x) is one route to action-dependent information gain. Another "
+            "modelling choice is multiplicative control, where an action selects "
+            "the dynamics governing how the state evolves. Koudahl, Kouw and de "
+            "Vries show that this can produce exploration when the epistemic term "
+            "is optimised on its own. Their full EFE objective still reduces to "
+            "KL control plus a constant, so these results concern different "
+            "objective choices.",
+            "A biological illustration of actions changing dynamics is muscle "
+            "co-contraction. Activating opposing muscles together can increase "
+            "joint stiffness with little change in net torque. The limb then "
+            "responds differently to the same disturbance. In a simplified model, "
+            "muscle activation changes the stiffness multiplying the displacement, "
+            "which can be represented using multiplicative control. This illustrates "
+            "a change in dynamics; it does not by itself demonstrate "
+            "information-seeking behaviour. We use R(x) in the workshop because "
+            "the beacon and blackout change the reliability of observations "
+            "across locations.",
+            "Reference: Corva, D. (2026). State-Dependent Observation Noise "
+            "Reintroduces Epistemic Value in Linear-Gaussian Active Inference. "
+            "Sections 2.3 and 3, Theorem 1. https://arxiv.org/abs/2607.20306",
+            "Further references: Koudahl, M. T., Kouw, W. M. and de Vries, B. "
+            "(2021). On Epistemics in Expected Free Energy for Linear Gaussian "
+            "State Space Models. https://doi.org/10.3390/e23121565",
+            "Franklin, D. W. et al. (2007). Endpoint Stiffness of the Arm Is "
+            "Directionally Tuned to Instability in the Environment. "
+            "https://pmc.ncbi.nlm.nih.gov/articles/PMC6672883/",
         )
     )
 
