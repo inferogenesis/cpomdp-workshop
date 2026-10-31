@@ -7,3 +7,9 @@ __pycache__/
 
 .claude/
 artifacts/
+
+# The presenters' photos and the deck built with them stay local. So do PowerPoint's
+# lock files, which carry the name of whoever has the deck open.
+deck/photos/
+deck/*_presenting.pptx
+~$*

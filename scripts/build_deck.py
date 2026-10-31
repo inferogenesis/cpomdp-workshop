@@ -14,6 +14,10 @@ print. Code comes from ``lesson.py``, printed output from running the package on
 pinned release, figures from ``assets/``. Every number in the prose and the notes is
 asserted in ``tests/test_measured_claims.py`` or named in the deck test as set. The
 build refuses to write a deck whose shapes run off a slide, overlap or overflow.
+
+The presenters' photos are never committed. The committed deck shows an empty frame
+for each. When ``deck/photos/`` holds them, the build also writes a presenting copy
+with each photo in its frame, and git ignores both the photos and that copy.
 """
 
 import contextlib
@@ -68,6 +72,8 @@ from deck_layout import fit_problems, layout_problems, metrics
 ROOT = Path(__file__).resolve().parents[1]
 ASSETS = ROOT / "assets"
 DECK = ROOT / "deck" / "cpomdp_symposium_2026.pptx"
+PHOTOS = ROOT / "deck" / "photos"
+PRESENTING = ROOT / "deck" / "cpomdp_symposium_2026_presenting.pptx"
 
 REPOSITORY = "https://github.com/inferogenesis/cpomdp-workshop"
 COLAB = (
@@ -77,6 +83,7 @@ COLAB = (
 PYPI = "https://pypi.org/project/cpomdp/"
 SITE = "https://inferogenesis.com/"
 CPOMDP_DOCS = "https://cpomdp.inferogenesis.com/"
+PRESENTER_2_LINKEDIN = "https://www.linkedin.com/in/kevin-backhouse-112554253"
 
 RIGHT = SLIDE_WIDTH - MARGIN  # the right edge of the content
 FULL_WIDTH = RIGHT - MARGIN
@@ -86,6 +93,24 @@ ROUTE_COLUMN = 9.3  # where the callouts beside a route frame start
 TASK_CODE_BOTTOM = 6.0  # a task's code ends above the strip of instructions
 TASK_STRIP = 6.2  # where that strip starts
 UNDER_CODE = 0.45  # what a task's code leaves for the line under it
+PHOTO_SIDE = 1.6  # a presenter's photo frame is square
+CARD_TEXT = (PHOTO_SIDE + 0.25, 4.0)  # a presenter's name and bio: x from the card, w
+
+
+@dataclass(frozen=True)
+class Part:
+    """One stretch of a block.
+
+    Attributes:
+        name: what the agenda slide writes on it.
+        kind: ``"talk"`` when we present, ``"code"`` when the room works and
+            ``"open"`` for the time left for questions.
+        minutes: how long it runs.
+    """
+
+    name: str
+    kind: str
+    minutes: int
 
 
 @dataclass(frozen=True)
@@ -94,30 +119,37 @@ class Block:
 
     Attributes:
         label: what the agenda slide calls it.
-        parts: each part's kind and length in minutes. A kind is ``"talk"`` when we
-            present, ``"code"`` when the room works and ``"open"`` for the time left
-            for questions.
+        parts: what happens in it, in order.
+        subject: what a task builds, or empty.
     """
 
     label: str
-    parts: tuple[tuple[str, int], ...]
+    parts: tuple[Part, ...]
+    subject: str = ""
 
     @property
     def minutes(self) -> int:
         """How long the block runs."""
-        return sum(length for _, length in self.parts)
+        return sum(part.minutes for part in self.parts)
 
 
 TASK_MINUTES = 15
 """How long the room codes on each task, and the length of each timer's bar."""
 
+TASK_PARTS = (
+    Part("brief", "talk", 4),
+    Part("you code", "code", TASK_MINUTES),
+    Part("discussion", "talk", 8),
+)
+"""Every task's parts."""
+
 AGENDA = (
-    Block("Welcome", (("talk", 12),)),
-    Block("Task 1", (("talk", 4), ("code", TASK_MINUTES), ("talk", 8))),
-    Block("Task 2", (("talk", 4), ("code", TASK_MINUTES), ("talk", 8))),
-    Block("Task 3", (("talk", 4), ("code", TASK_MINUTES), ("talk", 8))),
-    Block("Why it matters", (("talk", 12),)),
-    Block("Questions", (("open", 15),)),
+    Block("Welcome", (Part("introductions and setup", "talk", 12),)),
+    Block("Task 1", TASK_PARTS, "the 1960 rocket"),
+    Block("Task 2", TASK_PARTS, "the beacon"),
+    Block("Task 3", TASK_PARTS, "the blackout"),
+    Block("Why it matters", (Part("what cpomdp adds, and what's next", "talk", 12),)),
+    Block("Questions", (Part("questions, or leave early", "open", 15),)),
 )
 """The two hours: an hour of talk, 45 minutes of code and 15 left open."""
 
@@ -127,7 +159,7 @@ def clock(label: str, part: int = 0) -> str:
     elapsed = 0
     for block in AGENDA:
         if block.label == label:
-            elapsed += sum(length for _, length in block.parts[:part])
+            elapsed += sum(earlier.minutes for earlier in block.parts[:part])
             return f"{elapsed // 60}:{elapsed % 60:02d}"
         elapsed += block.minutes
     raise ValueError(f"no block called {label!r} in the agenda")
@@ -158,6 +190,46 @@ DISCLOSURE = (
     "Claude Code under the review described."
 )
 """The disclosure slide's caption, the owner's words."""
+
+
+@dataclass(frozen=True)
+class Presenter:
+    """One card on the who-we-are slide.
+
+    Attributes:
+        name: the card's heading.
+        photo: the photo's file name in ``deck/photos/``, which only the presenting
+            copy reads.
+        bio: the presenter's own words.
+    """
+
+    name: str
+    photo: str
+    bio: str
+
+
+PRESENTER_1_BIO = (
+    "Independent research software engineer, UK. Builds cpomdp, a JAX-native "
+    "continuous-state active inference toolbox and the continuous sibling to pymdp, "
+    "under Inferogenesis. Background in numerical general relativity and event-driven "
+    "orchestration of RL models at scale. Author of State-Dependent Observation Noise "
+    "Reintroduces Epistemic Value in Linear-Gaussian Active Inference "
+    "(arXiv:2607.20306). Co-leads the Certifiable Active Inference programme."
+)
+"""Presenter 1's bio, the owner's words."""
+
+PRESENTER_2_BIO = (
+    "Kevin Backhouse is a PhD researcher in Cognitive Neuroscience at Durham "
+    "University. His research examines how reward and expectation shape awareness, "
+    "attention and memory. He also collaborates on CPOMDP, developing and evaluating "
+    "artificial agents within the active inference framework."
+)
+"""Presenter 2's bio, as the owner gave it. Kevin on a slide, Kev in the notes."""
+
+PRESENTERS = (
+    Presenter("Presenter 1 (keyboard)", "presenter_1.jpg", PRESENTER_1_BIO),
+    Presenter("Kevin (concepts)", "presenter_2.jpg", PRESENTER_2_BIO),
+)
 
 
 def captured(function: Callable[..., object], *args: object) -> str:
@@ -254,7 +326,7 @@ def task_page(
     )  # fmt: skip
     left += write + 0.3
     page.card(
-        left, TASK_STRIP, hints, 0.75, ["Hints come in chat on a timer"], size=17,
+        left, TASK_STRIP, hints, 0.75, ["Hints are below the cell"], size=17,
         anchor=MSO_ANCHOR.MIDDLE,
     )  # fmt: skip
     left += hints + 0.3
@@ -303,8 +375,8 @@ def timer_notes(number: int, *paragraphs: str) -> str:
         f"for the whole {TASK_MINUTES} minutes. The bar starts when the slide "
         "appears and needs no click. It starts again if you leave the slide and "
         "come back, so share the notebook from another window if you need to.",
-        "Paste the nudges and hints from hints_chat.txt as the bar fills, a nudge "
-        "before each hint. Whoever isn't at the keyboard watches the chat and the "
+        "Nobody pastes hints. Each person opens the collapsed hint and reference "
+        "cells when they like. Whoever isn't at the keyboard watches the chat and the "
         "anonymous form. We don't debug anyone's code from the front. Point people "
         "at the hints, the reference cell and workshop.symptoms().",
         *paragraphs,
@@ -421,38 +493,40 @@ def title(deck: Deck) -> None:
     )
 
 
-def who_we_are(deck: Deck) -> None:
-    """The two presenters, and Inferogenesis."""
-    page = deck.page("Who we are", "welcome")
-    for index, name in enumerate(("Presenter 1 (keyboard)", "Kev (concepts)")):
-        left = MARGIN + index * 6.2
-        page.placeholder(left, CONTENT_TOP, 1.9, 1.9, "[photo]")
-        page.text(left + 2.2, CONTENT_TOP, 3.7, 0.5, [name], size=22, bold=True)
-        page.placeholder(left + 2.2, CONTENT_TOP + 0.65, 3.7, 1.25, "[bio]")
-    page.mark(MARGIN + 0.1, 4.25, 1.35)
+def presenter_card(page: Page, left: float, presenter: Presenter) -> None:
+    """A presenter's photo frame, then their name over their bio."""
+    page.photo_frame(left, CONTENT_TOP, PHOTO_SIDE, presenter.photo)
+    offset, width = CARD_TEXT
     page.text(
-        MARGIN + 1.0, 4.15, FULL_WIDTH - 1.0, 2.6,
+        left + offset, CONTENT_TOP, width, 0.5, [presenter.name], size=22, bold=True
+    )
+    page.text(left + offset, CONTENT_TOP + 0.6, width, 2.4, [presenter.bio], size=14)
+
+
+def who_we_are(deck: Deck) -> None:
+    """The two presenters, and the library the room uses."""
+    page = deck.page("Who we are", "welcome")
+    for index, presenter in enumerate(PRESENTERS):
+        presenter_card(page, MARGIN + index * 6.2, presenter)
+    page.text(
+        MARGIN, 4.7, FULL_WIDTH, 2.2,
         [
-            [Run("Inferogenesis", bold=True, size=24)],
-            "We build open-source software for continuous active inference, and the "
-            "research that tests it.",
-            [
-                Run("cpomdp", font=CODE_FONT),
-                Run(" is the library. "),
-                Run("warrantlib", font=CODE_FONT),
-                Run(" is the vocabulary its checks report in."),
-            ],
-            [linked(SITE, size=16)],
+            [Run("cpomdp", bold=True, size=24, font=CODE_FONT)],
+            "The open-source library we'll use today, for active inference with "
+            "continuous states.",
+            "It's written in Python on JAX, and it's the continuous-state sibling of "
+            "pymdp.",
+            [linked(CPOMDP_DOCS, size=16)],
         ],
         size=20, space_after=8,
     )  # fmt: skip
     page.notes(
         notes(
             "Kev introduces us both while the installs run.",
-            "Inferogenesis builds cpomdp, the library we'll use today, and warrantlib, "
-            "which labels each of cpomdp's checks by how well it's warranted, apart "
-            "from whether it held. We'll come back to both at the end.",
-            "TODO owner: photos and bios on the cards.",
+            "cpomdp is the library we'll use today. It does active inference with "
+            "continuous states, which makes it the continuous-state sibling of pymdp. "
+            "If you've used pymdp, its agent runs the same loop of perceiving and then "
+            "acting. We'll come back to what it adds at the end.",
         )
     )
 
@@ -475,57 +549,31 @@ def disclosure(deck: Deck) -> None:
 
 
 def agenda(deck: Deck) -> None:
-    """The two hours as a bar: talk, code and the open time at the end."""
+    """The two hours, one row per block, each part named and as wide as its minutes."""
     page = deck.page("Two hours, three tasks", "welcome")
-    total = sum(block.minutes for block in AGENDA)
-    inch = FULL_WIDTH / total  # per minute
-    top, height, gap = 2.45, 0.85, 0.04
-    left, elapsed = MARGIN, 0
-    for block in AGENDA:
-        width = block.minutes * inch
+    bars = MARGIN + 3.4  # where every row's parts start
+    inch = (RIGHT - bars) / max(block.minutes for block in AGENDA)  # per minute
+    pitch, height, gap = 0.78, 0.6, 0.04
+    for index, block in enumerate(AGENDA):
+        top = CONTENT_TOP + 0.15 + index * pitch
+        heading = [Run(block.label, bold=True)]
+        if block.subject:
+            heading.append(Run(f"  {block.subject}", colour=MUTED, size=16))
         page.text(
-            left + gap, top - 0.75, width - 2 * gap, 0.65, [block.label], size=15,
-            bold=True,
-            align=PP_ALIGN.CENTER, anchor=MSO_ANCHOR.BOTTOM, space_after=0,
+            MARGIN, top, bars - MARGIN - 0.2, height, [heading], size=20,
+            anchor=MSO_ANCHOR.MIDDLE, space_after=0,
         )  # fmt: skip
-        part_left = left
-        for kind, length in block.parts:
+        left = bars
+        for part in block.parts:
             page.block(
-                part_left + gap / 2,
-                top,
-                length * inch - gap,
-                height,
-                kind,
-                label="code" if kind == "code" else "",
-            )
-            part_left += length * inch
-        stamp = f"{elapsed // 60}:{elapsed % 60:02d}"
-        page.text(
-            left - (0 if elapsed == 0 else 0.35), top + height + 0.1, 0.7, 0.4,
-            [stamp], size=14, colour=MUTED, space_after=0,
-            align=PP_ALIGN.LEFT if elapsed == 0 else PP_ALIGN.CENTER,
-        )  # fmt: skip
-        left += width
-        elapsed += block.minutes
+                left + gap / 2, top, part.minutes * inch - gap, height, part.kind,
+                label=part.name, size=16,
+            )  # fmt: skip
+            left += part.minutes * inch
     page.text(
-        RIGHT - 0.7, top + height + 0.1, 0.7, 0.4,
-        [f"{elapsed // 60}:{elapsed % 60:02d}"], size=14, colour=MUTED,
-        space_after=0, align=PP_ALIGN.RIGHT,
-    )  # fmt: skip
-    key = (("talk", "we present"), ("code", "you code"), ("open", "yours"))
-    for index, (kind, label) in enumerate(key):
-        x = MARGIN + index * 3.0
-        page.block(x, 4.15, 0.5, 0.35, kind)
-        page.text(x + 0.65, 4.12, 2.2, 0.4, [label], size=16, space_after=0)
-    page.text(
-        MARGIN, 4.95, FULL_WIDTH, 1.6,
-        [
-            "Each task opens with a short brief. Then the room codes for "
-            f"{TASK_MINUTES} minutes while a timer runs, and we finish by "
-            "discussing what we've just built.",
-            "The last part is yours: questions, discussion, or leave early.",
-        ],
-        size=19, space_after=10,
+        MARGIN, CONTENT_TOP + 0.15 + len(AGENDA) * pitch + 0.15, FULL_WIDTH, 0.5,
+        [f"While you code, a {TASK_MINUTES}-minute timer stays on the screen."],
+        size=19, colour=MUTED, space_after=0,
     )  # fmt: skip
     page.notes(
         notes(
@@ -545,21 +593,26 @@ def agenda(deck: Deck) -> None:
 def how_we_work(deck: Deck) -> None:
     """The ways of working: two lines, hints, checkpoints, one number."""
     page = deck.page("How we'll work", "welcome")
-    width, height, gap = (FULL_WIDTH - 0.3) / 2, 1.85, 0.3
+    width, height, gap = (FULL_WIDTH - 0.3) / 2, 1.95, 0.3
     cards = (
         headed(
             "Two lines per task",
             [
                 Run("Each task has two lines marked "),
                 Run("...", font=CODE_FONT, colour=AMBER, bold=True),
-                Run(" for you to write. Everything else is already written."),
+                Run(
+                    " for you to write. We've written the rest, so you can focus on "
+                    "the key concepts without worrying about the Python. Some bonus "
+                    "exercises ask you to write your own."
+                ),
             ],
             colour=AMBER,
         ),
         headed(
-            "Hints on a timer",
-            "Hints arrive in the chat as the timer runs. The reference solution sits "
-            "collapsed under them, and using it is absolutely fine.",
+            "Hints when you need them",
+            "Each task has two hints and a reference solution, collapsed below the "
+            "code cell. Open them whenever you like, and using them is absolutely "
+            "fine.",
         ),
         headed(
             "Run the checkpoint",
@@ -589,10 +642,12 @@ def how_we_work(deck: Deck) -> None:
     )  # fmt: skip
     page.notes(
         notes(
-            "Keyboard. Each task has two lines to write. Everything else in the cell "
-            "is written for you. If you're stuck, the hints come in the chat on a "
-            "timer, a nudge first and then the line itself. The reference cell is "
-            "collapsed under the hints, and using it isn't failing.",
+            "Keyboard. Each task has two lines to write, and we've written the rest "
+            "of the code, so the Python stays out of the way. Some of the bonus "
+            "exercises ask you to write your own.",
+            "Each task has two hints and a reference solution, collapsed below the "
+            "cell. A hint shows its nudge first, and the line itself is behind Show "
+            "code. Open them whenever you like, and using them isn't failing.",
             "At the end of every task, run the checkpoint cell, even if everything "
             "worked. It puts the reference names back, so the next task starts from "
             "the same place for everyone.",
@@ -1577,29 +1632,42 @@ def keep_going(deck: Deck) -> None:
 
 
 def thanks(deck: Deck) -> None:
-    """Thanks, questions, and the survey while the room is still here."""
+    """Thanks, questions, the survey while the room is still here, and two QR codes."""
     page = deck.page()
     page.mark(MARGIN, 0.55, 0.85)
-    page.text(MARGIN, 1.6, 11.5, 1.2, ["Thank you"], size=60, bold=True)
+    side, gap, top = 1.9, 0.4, 1.75  # each QR code, the clear space between, its top
+    codes = RIGHT - 2 * side - gap  # where the QR codes start
+    column = codes - gap - MARGIN  # the width the words take, left of the codes
+    page.text(MARGIN, 1.6, column, 1.2, ["Thank you"], size=60, bold=True)
     page.text(
-        MARGIN, 2.95, 11.5, 1.2,
+        MARGIN, 2.95, column, 1.2,
         ["Questions now, or on the anonymous form.", "One up, one down before you go."],
         size=24, colour=MUTED, space_after=10,
     )  # fmt: skip
-    width = (FULL_WIDTH - 0.4) / 2
+    width = (column - 0.4) / 2
     page.placeholder(MARGIN, 4.45, width, 0.8, "[survey link]")
     page.placeholder(MARGIN + width + 0.4, 4.45, width, 0.8, "[email]")
     page.text(
-        MARGIN, 5.9, 11.5, 0.6,
+        MARGIN, 5.9, column, 0.6,
         [f"Everything shown runs on cpomdp {WORKSHOP_CPOMDP_VERSION} from PyPI."],
         size=18, colour=MUTED,
     )  # fmt: skip
+    for index, (url, caption) in enumerate(
+        ((PRESENTER_2_LINKEDIN, "Kevin on LinkedIn"), (SITE, "inferogenesis.com"))
+    ):
+        left = codes + index * (side + gap)
+        page.qr(url, left, top, side)
+        page.text(
+            left, top + side + 0.15, side, 0.4, [caption], size=15, colour=MUTED,
+            align=PP_ALIGN.CENTER, space_after=0,
+        )  # fmt: skip
     page.notes(
         notes(
             "Leave this up through the questions. The survey link goes in the chat as "
             "well, while the room is still here. One up, one down: one thing that "
             "worked and one that didn't.",
             f"Everything shown runs on cpomdp {WORKSHOP_CPOMDP_VERSION} from PyPI.",
+            "The QR codes open Kev's LinkedIn and inferogenesis.com.",
             "TODO owner: the survey link and the email.",
         )
     )
@@ -1664,7 +1732,7 @@ def problems(deck: Deck) -> list[str]:
 
 
 def main() -> None:
-    """Build the deck, check its layout and write it."""
+    """Build the deck, check its layout and write it, then the presenting copy."""
     deck = build()
     found = problems(deck)
     if found:
@@ -1672,6 +1740,12 @@ def main() -> None:
         sys.exit(1)
     deck.save(DECK)
     print(f"wrote {DECK.relative_to(ROOT)}, {len(SLIDES)} slides")
+    if not PHOTOS.is_dir():
+        print(f"no {PHOTOS.relative_to(ROOT)}/, so no presenting copy")
+        return
+    deck.fill_photo_frames(PHOTOS)
+    deck.save(PRESENTING)
+    print(f"wrote {PRESENTING.relative_to(ROOT)}, with the presenters' photos")
 
 
 if __name__ == "__main__":

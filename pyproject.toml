@@ -32,7 +32,10 @@ Repository = "https://github.com/inferogenesis/cpomdp-workshop"
 # Local Jupyter. Colab supplies all of this, so it is never installed there.
 nb = ["ipykernel>=6.29", "jupyter>=1.1"]
 # Builds the slide deck from scripts/build_deck.py.
-deck = ["python-pptx>=1.0"]
+deck = [
+    "python-pptx>=1.0",
+    "segno>=1.6",
+]
 dev = [
     "nbclient>=0.10",
     "nbformat>=5.10",
