@@ -1,4 +1,4 @@
-"""Drawing primitives for the workshop deck, in the figures' palette.
+"""Drawing primitives for the workshop deck, in the light palette of the route frames.
 
 Every position and size is in inches on a 16:9 slide, 13.333 wide and 7.5 high. A
 page is one slide with its title in the same place as every other page's. Code sits
@@ -6,8 +6,9 @@ in a filled panel, printed output in an outlined one. A placeholder the owner ha
 fill is drawn dashed in amber, so it cannot pass for finished content.
 
 Shapes are named by kind (``title``, ``code``, ``printed``, ``text``, ``picture``,
-``placeholder``, ``card``, ``pill``). The layout check and the deck test read the
-names, so a number inside program output is told apart from a number in prose.
+``placeholder``, ``card``, ``pill``, ``mark``, ``track``, ``bar``). The layout check
+and the deck test read the names, so a number inside program output is told apart
+from a number in prose.
 """
 
 import math
@@ -22,6 +23,7 @@ from pptx.enum.dml import MSO_LINE_DASH_STYLE
 from pptx.enum.shapes import MSO_SHAPE
 from pptx.enum.text import MSO_ANCHOR, PP_ALIGN
 from pptx.opc.constants import RELATIONSHIP_TYPE
+from pptx.oxml import parse_xml
 from pptx.shapes.autoshape import Shape
 from pptx.slide import Slide
 from pptx.text.text import TextFrame
@@ -31,10 +33,12 @@ from cpomdp_workshop import plot
 
 __all__ = [
     "AMBER",
+    "AMBER_MARK",
     "BACKGROUND",
     "BLUE",
     "CODE_FONT",
     "CONTENT_TOP",
+    "GREEN",
     "INK",
     "MARGIN",
     "MATH_FONT",
@@ -46,21 +50,26 @@ __all__ = [
     "TEXT_FONT",
     "Deck",
     "Page",
+    "Paragraph",
     "Run",
     "code_height",
     "code_size",
     "without_imports",
 ]
 
-# The figures' palette, so a slide and the figure on it agree. Amber is the one
-# departure: slides use the brighter #E69F00 where the figures use #C48200.
-BACKGROUND = plot.BACKGROUND.lstrip("#")
-PANEL = plot.PANEL.lstrip("#")
-RULE = plot.RULE.lstrip("#")
-INK = plot.INK.lstrip("#")
-MUTED = plot.MUTED.lstrip("#")
-BLUE = plot.BLUE.lstrip("#")
-AMBER = "E69F00"
+# The route frames' palette, so a slide and the figure on it agree. The accents are
+# the light theme of Inferogenesis's site: a darker amber, blue and green for text,
+# which the lighter figure colours would leave too faint, and the bright amber of its
+# mark for outlines and the timer's bar.
+BACKGROUND = plot.LIGHT.background.lstrip("#")
+PANEL = plot.LIGHT.panel.lstrip("#")
+RULE = plot.LIGHT.rule.lstrip("#")
+INK = plot.LIGHT.ink.lstrip("#")
+MUTED = plot.LIGHT.muted.lstrip("#")
+AMBER = "8A6000"
+AMBER_MARK = "E69F00"
+BLUE = "005F94"
+GREEN = "007A5A"
 
 TEXT_FONT = "Calibri"
 CODE_FONT = "Courier New"
@@ -79,7 +88,7 @@ _TITLE = (MARGIN, 0.42, 10.2, 0.8)  # x, y, w, h
 _SEGMENT = (11.03, 0.58, 1.7, 0.42)
 _PANEL_INSET = 0.18
 _CODE_ADVANCE = 0.6  # Courier New sets every glyph 0.6 em wide
-_CODE_LINE = 1.133  # and a line 1.133 em high
+_CODE_LINE = 1.2  # and PowerPoint sets its lines 1.2 em apart, measured on a render
 _SLOT = re.compile(r"^\s*\w+ = \.\.\.")
 
 
@@ -93,6 +102,7 @@ class Run:
         bold: whether it is bold.
         font: the typeface, or ``None`` for the paragraph's.
         size: the size in points, or ``None`` for the paragraph's.
+        link: a URL the text opens when clicked, or ``None``.
     """
 
     text: str
@@ -100,6 +110,7 @@ class Run:
     bold: bool = False
     font: str | None = None
     size: float | None = None
+    link: str | None = None
 
 
 Paragraph = str | Sequence[Run]
@@ -238,6 +249,8 @@ class Page:
                     run.font.name = MATH_FONT if fallback else face
                     run.font.bold = piece.bold or bold
                     run.font.color.rgb = _rgb(piece.colour or colour)
+                    if piece.link is not None:
+                        run.hyperlink.address = piece.link
 
     def title(self, text: str, segment: str) -> None:
         """The slide's title, and the part of the session it belongs to, top right."""
@@ -330,7 +343,7 @@ class Page:
     ) -> None:
         """A dashed amber box naming what the owner still has to put here."""
         shape = self._panel(
-            x, y, w, h, "placeholder", fill=None, line=AMBER, dashed=True
+            x, y, w, h, "placeholder", fill=None, line=AMBER_MARK, dashed=True
         )
         shape.text_frame.vertical_anchor = MSO_ANCHOR.MIDDLE
         self._fill(
@@ -380,12 +393,191 @@ class Page:
         run.font.color.rgb = _rgb(INK)
         run.hyperlink.address = url
 
+    def block(
+        self, x: float, y: float, w: float, h: float, kind: str, *, label: str = ""
+    ) -> None:
+        """One stretch of the agenda's bar.
+
+        ``"talk"`` is a plain panel, ``"code"`` is filled in the mark's amber and
+        ``"open"`` is dashed, like time not yet given to anything.
+        """
+        fill, line = {
+            "talk": (PANEL, RULE),
+            "code": (AMBER_MARK, None),
+            "open": (None, MUTED),
+        }[kind]
+        shape = self._panel(
+            x, y, w, h, "block", fill=fill, line=line, dashed=kind == "open"
+        )
+        shape.text_frame.vertical_anchor = MSO_ANCHOR.MIDDLE
+        shape.text_frame.margin_left = shape.text_frame.margin_right = Inches(0.02)
+        if label:
+            self._fill(
+                shape.text_frame, [label], size=14, colour=INK, font=TEXT_FONT,
+                align=PP_ALIGN.CENTER,
+            )  # fmt: skip
+
+    def mark(self, x: float, y: float, height: float) -> None:
+        """Inferogenesis's mark: an amber ring round a dot, over a stem.
+
+        Drawn from the site's 100 by 100 SVG, so it scales without an image file.
+        """
+        unit = height / 80  # the mark spans y = 8 to 88 of its 100
+        group = self.slide.shapes.add_group_shape()
+        group.name = "mark"
+        ring = 6.5 * unit
+        parts = (
+            (MSO_SHAPE.OVAL, 35, 11, 30, 30, None, AMBER_MARK),
+            (MSO_SHAPE.OVAL, 45.5, 21.5, 9, 9, INK, None),
+            (MSO_SHAPE.ROUNDED_RECTANGLE, 43.5, 44, 13, 44, INK, None),
+        )
+        for kind, left, top, width, tall, fill, line in parts:
+            shape = group.shapes.add_shape(
+                kind,
+                Inches(x + (left - 32) * unit), Inches(y + (top - 8) * unit),
+                Inches(width * unit), Inches(tall * unit),
+            )  # fmt: skip
+            shape.shadow.inherit = False
+            if fill is None:
+                shape.fill.background()
+            else:
+                shape.fill.solid()
+                shape.fill.fore_color.rgb = _rgb(fill)
+            if line is None:
+                shape.line.fill.background()
+            else:
+                shape.line.color.rgb = _rgb(line)
+                shape.line.width = Inches(ring)
+            if kind == MSO_SHAPE.ROUNDED_RECTANGLE:
+                shape.adjustments[0] = 0.5
+
+    def countdown(
+        self,
+        x: float,
+        y: float,
+        w: float,
+        minutes: int,
+        *,
+        then: Sequence[Paragraph],
+        size: float = 22,
+    ) -> None:
+        """A bar that fills over ``minutes`` from when the slide shows, then ``then``.
+
+        The bar fills left to right with no click, marked every five minutes. When it
+        is full, ``then`` appears under the marks. Leaving the slide starts the bar
+        again on return, so the slide stays up while the room works.
+        """
+        track = self._panel(x, y, w, 0.7, "track", fill=PANEL, line=RULE)
+        track.adjustments[0] = 0.5
+        bar = self.slide.shapes.add_shape(
+            MSO_SHAPE.ROUNDED_RECTANGLE,
+            Inches(x + 0.06), Inches(y + 0.06), Inches(w - 0.12), Inches(0.58),
+        )  # fmt: skip
+        bar.name = "bar"
+        bar.adjustments[0] = 0.5
+        bar.shadow.inherit = False
+        bar.fill.solid()
+        bar.fill.fore_color.rgb = _rgb(AMBER_MARK)
+        bar.line.fill.background()
+        marks = range(0, minutes + 1, 5)
+        for minute in marks:
+            label = f"{minute} min" if minute == minutes else str(minute)
+            centre = x + w * minute / minutes
+            self.text(
+                min(max(centre - 0.6, x), x + w - 1.2), y + 0.85, 1.2, 0.45, [label],
+                size=16, colour=MUTED, space_after=0,
+                align=PP_ALIGN.LEFT if minute == 0 else
+                PP_ALIGN.RIGHT if minute == minutes else PP_ALIGN.CENTER,
+            )  # fmt: skip
+        self.text(x, y + 1.5, w, 0.6, then, size=size, bold=True, space_after=0)
+        reveal = self.slide.shapes[-1]
+        self.slide._element.append(
+            _timing(
+                (
+                    _Effect(bar.shape_id, "wipe", minutes * 60_000),
+                    _Effect(reveal.shape_id, "appear", 1),
+                )
+            )
+        )
+
     def notes(self, text: str) -> None:
         """The speaker notes."""
         frame = self.slide.notes_slide.notes_text_frame
         if frame is None:  # the default notes master always has a body
             raise ValueError("this slide's notes page has no body to write in")
         frame.text = text
+
+
+@dataclass(frozen=True)
+class _Effect:
+    """One entrance in a slide's timeline.
+
+    Attributes:
+        shape_id: the shape it brings in.
+        kind: ``"wipe"`` from the left, or ``"appear"`` at once.
+        duration: how long it takes, in milliseconds.
+    """
+
+    shape_id: int
+    kind: str
+    duration: int
+
+
+_PRESENTATION = "http://schemas.openxmlformats.org/presentationml/2006/main"
+_PRESETS = {"wipe": ("22", "8"), "appear": ("1", "0")}  # PowerPoint's ID, subtype
+
+
+def _timing(effects: Sequence[_Effect]):
+    """A slide's ``p:timing``: each effect after the last, the first with the slide.
+
+    PowerPoint writes "after previous" this way: one group the slide's start
+    triggers, holding one delayed step per effect.
+    """
+    ids = iter(range(4, 1000))
+    steps, start = [], 0
+    for effect in effects:
+        preset, subtype = _PRESETS[effect.kind]
+        target = f'<p:tgtEl><p:spTgt spid="{effect.shape_id}"/></p:tgtEl>'
+        wipe = (
+            f'<p:animEffect transition="in" filter="wipe(left)"><p:cBhvr>'
+            f'<p:cTn id="{next(ids)}" dur="{effect.duration}"/>{target}'
+            "</p:cBhvr></p:animEffect>"
+            if effect.kind == "wipe"
+            else ""
+        )
+        step, node, shown = next(ids), next(ids), next(ids)
+        steps.append(
+            f'<p:par><p:cTn id="{step}" fill="hold"><p:stCondLst>'
+            f'<p:cond delay="{start}"/></p:stCondLst><p:childTnLst>'
+            f'<p:par><p:cTn id="{node}" presetID="{preset}" presetClass="entr" '
+            f'presetSubtype="{subtype}" fill="hold" grpId="0" nodeType="afterEffect">'
+            '<p:stCondLst><p:cond delay="0"/></p:stCondLst><p:childTnLst>'
+            f'<p:set><p:cBhvr><p:cTn id="{shown}" dur="1" fill="hold"><p:stCondLst>'
+            f'<p:cond delay="0"/></p:stCondLst></p:cTn>{target}<p:attrNameLst>'
+            "<p:attrName>style.visibility</p:attrName></p:attrNameLst></p:cBhvr>"
+            '<p:to><p:strVal val="visible"/></p:to></p:set>'
+            f"{wipe}</p:childTnLst></p:cTn></p:par></p:childTnLst></p:cTn></p:par>"
+        )
+        start += effect.duration
+    builds = "".join(
+        f'<p:bldP spid="{effect.shape_id}" grpId="0" animBg="1"/>' for effect in effects
+    )
+    return parse_xml(
+        f'<p:timing xmlns:p="{_PRESENTATION}"><p:tnLst><p:par>'
+        '<p:cTn id="1" dur="indefinite" restart="never" nodeType="tmRoot">'
+        '<p:childTnLst><p:seq concurrent="1" nextAc="seek">'
+        '<p:cTn id="2" dur="indefinite" nodeType="mainSeq"><p:childTnLst>'
+        '<p:par><p:cTn id="3" fill="hold"><p:stCondLst><p:cond delay="indefinite"/>'
+        '<p:cond evt="onBegin" delay="0"><p:tn val="2"/></p:cond></p:stCondLst>'
+        f"<p:childTnLst>{''.join(steps)}</p:childTnLst></p:cTn></p:par>"
+        "</p:childTnLst></p:cTn>"
+        '<p:prevCondLst><p:cond evt="onPrev" delay="0"><p:tgtEl><p:sldTgt/>'
+        "</p:tgtEl></p:cond></p:prevCondLst>"
+        '<p:nextCondLst><p:cond evt="onNext" delay="0"><p:tgtEl><p:sldTgt/>'
+        "</p:tgtEl></p:cond></p:nextCondLst>"
+        "</p:seq></p:childTnLst></p:cTn></p:par></p:tnLst>"
+        f"<p:bldLst>{builds}</p:bldLst></p:timing>"
+    )
 
 
 def _glyph_runs(text: str, face: str) -> list[tuple[str, bool]]:
@@ -412,7 +604,8 @@ def _theme_links_in(presentation, colour: str) -> None:
     """Set the theme's link colours, visited or not, to ``colour``.
 
     PowerPoint draws a hyperlink in the theme's link colour whatever its run says.
-    The blank template's is a dark blue that vanishes on the dark background.
+    The deck draws its links in ink, as it did on the dark background where the blank
+    template's dark blue vanished.
     """
     theme = presentation.slide_master.part.part_related_by(RELATIONSHIP_TYPE.THEME)
     blob = theme.blob
@@ -426,7 +619,7 @@ def _theme_links_in(presentation, colour: str) -> None:
 
 
 class Deck:
-    """A 16:9 deck on the workshop's dark background."""
+    """A 16:9 deck on the light background of Inferogenesis's site."""
 
     def __init__(self, title: str, author: str) -> None:
         self.presentation = Presentation()

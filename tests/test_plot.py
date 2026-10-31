@@ -4,12 +4,16 @@ from pathlib import Path
 
 import numpy as np
 import pytest
+from matplotlib.colors import to_hex
 from matplotlib.figure import Figure
 from matplotlib.patches import Circle
 
 from cpomdp_workshop.build import curious_rocket, the_1960_rocket
 from cpomdp_workshop.plot import (
+    CURIOUS_COLOURS,
+    DARK,
     IMPACT_MARKER,
+    LIGHT,
     ROUTE_STAGES,
     plot_beliefs,
     plot_flights,
@@ -187,3 +191,27 @@ def test_the_1960_route_is_the_same_line_until_the_rock(route):
 def test_an_unknown_route_frame_is_refused():
     with pytest.raises(ValueError, match="straight, beacon, blackout, rock"):
         plot_route("moon")
+
+
+def test_figures_are_dark_unless_a_palette_is_given(route):
+    assert to_hex(route["rock"].get_facecolor()) == DARK.background.lower()
+    assert to_hex(preview().get_facecolor()) == DARK.background.lower()
+
+
+def test_a_light_route_frame_draws_the_same_map_on_the_light_palette(route):
+    light = plot_route("rock", palette=LIGHT)
+    axes = light.axes[0]
+    assert to_hex(light.get_facecolor()) == LIGHT.background.lower()
+    assert to_hex(axes.get_facecolor()) == LIGHT.panel.lower()
+    assert map_of(light) == map_of(route["rock"])
+    assert legend_texts(light) == legend_texts(route["rock"])
+
+
+def test_the_rockets_keep_their_colours_on_either_palette(route):
+    def colours(figure):
+        return [to_hex(line.get_color()) for line in figure.axes[0].get_lines()]
+
+    dark, light = colours(route["rock"]), colours(plot_route("rock", palette=LIGHT))
+    curious = [to_hex(c) for c in CURIOUS_COLOURS]
+    assert [c for c in dark if c in curious] == [c for c in light if c in curious]
+    assert [c for c in light if c in curious]

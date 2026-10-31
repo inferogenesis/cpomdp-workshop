@@ -3,7 +3,8 @@
     uv run --no-sync python scripts/render_assets.py
 
 Each figure has one generating function in ``cpomdp_workshop.plot``. Nothing here
-draws anything itself.
+draws anything itself. The route frames are the slides' and take the light palette.
+The rest show what the notebook draws, on the dark one.
 """
 
 import os
@@ -23,7 +24,9 @@ FIGURES = {
     "tile_task2.png": plot.tile_task2,
     "tile_task3.png": plot.tile_task3,
     **{
-        f"route_{number}_{stage}.png": partial(plot.plot_route, stage)
+        f"route_{number}_{stage}.png": partial(
+            plot.plot_route, stage, palette=plot.LIGHT
+        )
         for number, stage in enumerate(plot.ROUTE_STAGES, start=1)
     },
 }

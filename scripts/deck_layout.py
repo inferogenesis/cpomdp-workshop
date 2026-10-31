@@ -49,8 +49,9 @@ _FILES = {
     ("Cambria", True): ("cambriab.ttf", 0),
 }
 # Single line spacing as a multiple of the font size, from each face's ascent, descent
-# and line gap. A line mixing faces takes the tallest.
-_LINE_HEIGHT = {"Calibri": 1.22, "Courier New": 1.133, "Cambria": 1.172}
+# and line gap. A line mixing faces takes the tallest. Courier New's metrics give
+# 1.133, but PowerPoint sets it 1.2 apart, measured on a render.
+_LINE_HEIGHT = {"Calibri": 1.22, "Courier New": 1.2, "Cambria": 1.172}
 _SLACK = 0.02  # inches, for rounding in the renderer
 _MEASURE_SIZE = 1000  # points, so widths come out in thousandths of an em
 
