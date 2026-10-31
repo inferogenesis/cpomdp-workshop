@@ -128,7 +128,7 @@ Each task is a 4-minute brief, 15 minutes of code and 8 minutes of discussion. T
 
 RxInfer is named once, on slide 27, as a neighbour. Nothing runs it. The reveal of papercut 1 has no slide. The timer slides point at `workshop.symptoms()`.
 
-Edits still DanBoringName's: slide 2 photos and bios, slide 3 the AI-use panel, slide 29 The Individuating Membrane (I found no source for it), slide 30 the Zenodo DOI of 0.5.0 once minted, slide 31 the survey link and email. The lost deck's "What comes next" slide carried the status "scoped, starts after p*". Slide 29's notes ask which programme it belongs to.
+Edits still DanBoringName's: slide 2 photos and bios, slide 3 the AI-use panel, slide 29 The Individuating Membrane (I found no source for it), slide 30 the Zenodo DOI of 0.5.1 once minted, slide 31 the survey link and email. The lost deck's "What comes next" slide carried the status "scoped, starts after p*". Slide 29's notes ask which programme it belongs to.
 
 ## 9. Delivery, before, during, after
 
