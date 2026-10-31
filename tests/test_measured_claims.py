@@ -122,6 +122,15 @@ def test_a_second_step_of_lookahead_costs_eighteen_times_as_much():
     assert compass_planner(planner.model, horizon=2).cost_per_cycle == 162
 
 
+def test_two_moves_ahead_scores_eighty_one_plans_a_step():
+    model = model_with(reference_sensor, default_params(0.08))
+    planner = compass_planner(model, horizon=2)
+    planner.select(model.prior, pad_preference())
+    assert str(planner.certificate) == (
+        "PROVED (set compass-9, |A|^H = 9^2 = 81, visited 81)"
+    )
+
+
 def test_the_coda_certificate_covers_every_seven_step_axis_plan():
     assert str(axis_certificate()) == (
         "PROVED (set axis-5, |A|^H = 5^7 = 78125, visited 78125)"
