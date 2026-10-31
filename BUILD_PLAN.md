@@ -1,6 +1,6 @@
-# Build a curious rocket · build spec v2, on cpomdp 0.5.0
+# Build a curious rocket · build spec v2, on cpomdp 0.5.1
 
-Supersedes `aii_symposium_build_plan.md` (2026-09-14). Written 2026-10-16 against `main`, re-verified 2026-10-17 against `cpomdp==0.5.0` installed from PyPI: every signature in section 3 was read with `inspect` and every number in section 4 was re-measured. Where the two disagree, this one wins.
+Supersedes `aii_symposium_build_plan.md` (2026-09-14). Written 2026-10-16 against `main`, re-verified 2026-10-17 against `cpomdp==0.5.0` installed from PyPI: every signature in section 3 was read with `inspect` and every number in section 4 was re-measured. Where the two disagree, this one wins. Moved to `cpomdp==0.5.1` on 2026-10-31, where every measured-claims test passes unchanged.
 
 Sources for the pedagogy: Software Carpentry's lessons-learned paper, fast.ai's teaching philosophy, the Django Girls organiser manual, Wilson's lesson-design tips, the Carpentries instructor training, SciPy's and NeurIPS's tutorial calls. Sources for the API: the 0.5.0 section of `CHANGELOG.md`, `README.md`, `docs/api/agent.md`, all on `main`.
 
@@ -26,7 +26,7 @@ Dates. Symposium 12–14 Nov 2026. Freeze 2026-11-09. Today 2026-10-16.
 ## 1. Standing rules
 
 - Repo `inferogenesis/cpomdp-workshop`, its own pin, its own CI. Nothing here edits cpomdp src. A papercut found while building goes to a cpomdp issue and is worked around in this repo on the pin.
-- Pin `cpomdp==0.5.0` from PyPI (published 2026-10-17, `warrantlib` 0.3.0 with it). One constant, `WORKSHOP_CPOMDP_VERSION`, read by `pyproject.toml`, cell 1 and the tests. No SHA pinning.
+- Pin `cpomdp==0.5.1` from PyPI (published 2026-10-31, `warrantlib` 0.3.0 with it). 0.5.1 is the bug-fix release on 0.5.0 and changes no number. Its typing fix let me drop the cast that passed each sensor as an `ObservationModel`. One constant, `WORKSHOP_CPOMDP_VERSION`, read by `pyproject.toml`, cell 1 and the tests. No SHA pinning.
 - Tests first. Every value the deck quotes is asserted before the cell that prints it exists. No number appears in notebook prose unless a check prints it.
 - Do not guess the API. Field names, constructor forms and report fields changed in 0.5.0 and section 3 lists what changed. Read `docs/api/` and the installed package before writing a line that touches cpomdp. Slide 3 tells the room a model guessing this API produced papercut 1. The build must not produce papercut 12.
 - `cpomdp._lab` is private (ADR-069). The self-guided p\* cell imports from it, says so in its first line, and is the only place that does.

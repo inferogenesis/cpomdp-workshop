@@ -22,7 +22,6 @@ from cpomdp import (
     StateGoal,
 )
 
-from cpomdp_workshop._seams import as_observation_model
 from cpomdp_workshop.planner import compass_planner
 from cpomdp_workshop.world import (
     DYNAMICS_NOISE,
@@ -78,9 +77,7 @@ def model_with(
         raise ValueError("a sensor needs its params. Pass default_params(k).")
     else:
         # The model reads C, and R at the prior mean, from the sensor itself.
-        observation_model = as_observation_model(
-            CallableSensor(_IDENTITY, sensor, params)
-        )
+        observation_model = CallableSensor(_IDENTITY, sensor, params)
         observation_matrix = observation_noise = None
     return LinearGaussianModel(
         _IDENTITY,
@@ -157,8 +154,8 @@ def one_node(model: LinearGaussianModel) -> CouplingGraphBackend:
         raise ValueError(
             "one_node takes a fixed-sensor model. Build it with model_with()."
         )
-    sensor = as_observation_model(
-        FixedSensor(model.observation_matrix, observation_noise=model.observation_noise)
+    sensor = FixedSensor(
+        model.observation_matrix, observation_noise=model.observation_noise
     )
     graph = CouplingGraph(
         dims=[model.n_states], couplings=[], observation_models={0: sensor}

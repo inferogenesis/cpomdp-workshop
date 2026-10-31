@@ -20,7 +20,7 @@ classifiers = [
 # measured on; `cpomdp_workshop.WORKSHOP_CPOMDP_VERSION` reads it back from the
 # installed metadata, so the notebook and the tests cannot drift from this line.
 dependencies = [
-    "cpomdp==0.5.0",
+    "cpomdp==0.5.1",
     "matplotlib>=3.5",
     "numpy>=1.24",
 ]
