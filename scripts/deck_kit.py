@@ -438,13 +438,14 @@ class Page:
         h: float,
         kind: str,
         *,
-        label: str = "",
+        label: str | Sequence[Paragraph] = "",
         size: float = 14,
     ) -> None:
         """One part of the agenda, as wide as its minutes.
 
         ``"talk"`` is a plain panel, ``"code"`` is filled in the mark's amber and
-        ``"open"`` is dashed, like time not yet given to anything.
+        ``"open"`` is dashed, like time not yet given to anything. ``label`` is one
+        line, or a paragraph per line.
         """
         fill, line = {
             "talk": (PANEL, RULE),
@@ -456,10 +457,12 @@ class Page:
         )
         shape.text_frame.vertical_anchor = MSO_ANCHOR.MIDDLE
         shape.text_frame.margin_left = shape.text_frame.margin_right = Inches(0.02)
+        shape.text_frame.margin_top = shape.text_frame.margin_bottom = Inches(0.02)
         if label:
             self._fill(
-                shape.text_frame, [label], size=size, colour=INK, font=TEXT_FONT,
-                align=PP_ALIGN.CENTER,
+                shape.text_frame, [label] if isinstance(label, str) else list(label),
+                size=size, colour=INK, font=TEXT_FONT, align=PP_ALIGN.CENTER,
+                space_after=0,
             )  # fmt: skip
 
     def mark(self, x: float, y: float, height: float) -> None:
