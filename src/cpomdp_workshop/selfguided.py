@@ -17,7 +17,6 @@ from cpomdp import (
     GaussianTransition,
 )
 
-from cpomdp_workshop._seams import as_observation_model
 from cpomdp_workshop.world import (
     DYNAMICS_NOISE,
     PRIOR_COV,
@@ -51,9 +50,7 @@ def two_node_backend(beacon_gain: float = 0.08) -> CouplingGraphBackend:
             )
         ],
         observation_models={
-            1: as_observation_model(
-                CallableSensor(_IDENTITY, reference_sensor, default_params(beacon_gain))
-            )
+            1: CallableSensor(_IDENTITY, reference_sensor, default_params(beacon_gain))
         },
     )
     rocket = GaussianTransition(_IDENTITY, dynamics_noise=DYNAMICS_NOISE * _IDENTITY)

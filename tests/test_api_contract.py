@@ -1,4 +1,4 @@
-"""The cpomdp 0.5.0 forms this workshop is written against.
+"""The cpomdp forms this workshop is written against, on the pinned release.
 
 Each test names one form the package or the notebook relies on. A cpomdp release that
 renames a field, a class or a refusal fails here first, before any flight is flown.
@@ -29,9 +29,7 @@ PRIOR = Belief(mean=[0.0, 0.0], cov=4 * I)
 
 
 def a_sensor():
-    return _seams.as_observation_model(
-        CallableSensor(I, reference_sensor, default_params(0.08))
-    )
+    return CallableSensor(I, reference_sensor, default_params(0.08))
 
 
 def a_fixed_model():

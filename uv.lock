@@ -621,7 +621,7 @@ wheels = [
 
 [[package]]
 name = "cpomdp"
-version = "0.5.0"
+version = "0.5.1"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "jax", version = "0.10.2", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version < '3.12'" },
@@ -631,14 +631,14 @@ dependencies = [
     { name = "numpy", version = "2.5.3", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version >= '3.12'" },
     { name = "warrantlib" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/58/38/b66a3117ea4ae3c274ceac6df0ac87140f1f24997d78abef8837e7f6b39d/cpomdp-0.5.0.tar.gz", hash = "sha256:aed2655c9eb1afa09da7858d32e6bba28432937c8bb493d43839d18d997e8275", size = 17958307, upload-time = "2026-10-17T07:08:59.763Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/f6/48/100eb9c17d49cb312113a1db9cf67ce51c1086e63499dfe6ebf20c2445bb/cpomdp-0.5.1.tar.gz", hash = "sha256:c083dbd15604983223bf95a765af05c711dfcd74a7492f5b2a4a067512b669e4", size = 17960595, upload-time = "2026-10-31T00:12:17.877Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/52/81/0443bcdc640b9253bb42d3b7a9fa4f407e97c7a7205ddbfbf1bff6179151/cpomdp-0.5.0-py3-none-any.whl", hash = "sha256:62eb731d1721c52afd5ef2f0f7c9e7245da8db49789a0f6b025b70a8dba21f22", size = 205046, upload-time = "2026-10-16T23:40:45.013Z" },
+    { url = "https://files.pythonhosted.org/packages/e8/4a/148a9b4567471043c561b42d605c7eb43e9119d34ca1a9a7a8aa73745044/cpomdp-0.5.1-py3-none-any.whl", hash = "sha256:48d98d11df8de3150b6f2b520d47f02d8e4ce6c1d9aae54cd7edc3760c714081", size = 205372, upload-time = "2026-10-31T00:12:15.723Z" },
 ]
 
 [[package]]
 name = "cpomdp-workshop"
-version = "0.1.0"
+version = "0.2.0"
 source = { editable = "." }
 dependencies = [
     { name = "cpomdp" },
@@ -666,7 +666,7 @@ nb = [
 
 [package.metadata]
 requires-dist = [
-    { name = "cpomdp", specifier = "==0.5.0" },
+    { name = "cpomdp", specifier = "==0.5.1" },
     { name = "ipykernel", marker = "extra == 'nb'", specifier = ">=6.29" },
     { name = "jupyter", marker = "extra == 'nb'", specifier = ">=1.1" },
     { name = "matplotlib", specifier = ">=3.5" },
