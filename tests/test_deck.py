@@ -24,7 +24,13 @@ from pptx.opc.constants import RELATIONSHIP_TYPE
 import build_deck
 import deck_layout
 import lesson
-from cpomdp_workshop import LAUNCH, model_with, pad_goal, plot
+from cpomdp_workshop import (
+    LAUNCH,
+    WORKSHOP_CPOMDP_VERSION,
+    model_with,
+    pad_goal,
+    plot,
+)
 from cpomdp_workshop.check import backend_differences
 from cpomdp_workshop.solutions import CLEAR_SKY_ROCK
 from deck_kit import without_imports
@@ -55,7 +61,7 @@ MEASURED = {
     "81": "test_two_moves_ahead_scores_eighty_one_plans_a_step",
     "78125": "test_the_coda_certificate_covers_every_seven_step_axis_plan",
     "1e-9": "test_the_kalman_filter_and_the_one_node_graph_agree",
-    "0.5.0": "test_the_numbers_were_measured_on_the_pinned_release",
+    WORKSHOP_CPOMDP_VERSION: "test_the_numbers_were_measured_on_the_pinned_release",
 }
 """Each measured number in the prose or the notes, and the claim test asserting it."""
 
