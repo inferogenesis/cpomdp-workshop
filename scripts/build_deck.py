@@ -42,6 +42,8 @@ from cpomdp_workshop import (
     default_params,
     model_with,
     one_node,
+    probe,
+    show_probe,
 )
 from deck_kit import (
     AMBER,
@@ -80,6 +82,11 @@ PYPI = "https://pypi.org/project/cpomdp/"
 SITE = "https://inferogenesis.com/"
 CPOMDP_DOCS = "https://cpomdp.inferogenesis.com/"
 PRESENTER_2_LINKEDIN = "https://www.linkedin.com/in/kevin-backhouse-112554253"
+KOUDAHL_REFERENCE = (
+    "Koudahl, M. T., Kouw, W. M. and de Vries, B. (2021). "
+    "On Epistemics in Expected Free Energy for Linear Gaussian State Space Models. "
+    "Entropy. https://doi.org/10.3390/e23121565"
+)
 
 RIGHT = SLIDE_WIDTH - MARGIN  # the right edge of the content
 FULL_WIDTH = RIGHT - MARGIN
@@ -437,10 +444,10 @@ def card_row(
         )  # fmt: skip
 
 
-def question(page: Page, top: float, text: str) -> None:
+def question(page: Page, top: float, text: str, *, height: float = 0.95) -> None:
     """A question left open for the room, under the slide's content."""
     page.text(
-        MARGIN, top, FULL_WIDTH, 0.95, [[Run(text, colour=AMBER, bold=True)]], size=22
+        MARGIN, top, FULL_WIDTH, height, [[Run(text, colour=AMBER, bold=True)]], size=22
     )
 
 
@@ -597,8 +604,9 @@ def how_we_work(deck: Deck) -> None:
                 Run("In each task, you will fill in two lines marked "),
                 Run("...", font=CODE_FONT, colour=AMBER, bold=True),
                 Run(
-                    ". We have written the rest so you can focus on the ideas. Some "
-                    "bonus exercises give you a chance to write more of your own code."
+                    " in the code. We have written the rest so you can focus on the "
+                    "ideas. Some bonus exercises give you a chance to write more of "
+                    "your own code."
                 ),
             ],
             colour=AMBER,
@@ -639,7 +647,7 @@ def how_we_work(deck: Deck) -> None:
             "Keyboard. Each task has two lines to write, and we have written the rest "
             "of the code, so the Python stays out of the way. Some of the bonus "
             "exercises ask you to write your own.",
-            "Each task has two hints and a reference solution, collapsed below the "
+            "Each task has two hints and a worked solution, collapsed below the "
             "cell. A hint shows its nudge first, and the line itself is behind Show "
             "code. Open them whenever you like, and using them is not failing.",
             "At the end of every task, run the checkpoint cell, even if everything "
@@ -762,10 +770,8 @@ def task_1_brief(deck: Deck) -> None:
         ],
         size=21, space_after=12,
     )  # fmt: skip
-    page.text(
-        MARGIN, 3.2, FULL_WIDTH, 0.55,
-        [[Run("Are all possible moves equally informative?", colour=AMBER, bold=True)]],
-        size=22,
+    question(
+        page, 3.2, "Are all possible moves equally informative?", height=0.55,
     )  # fmt: skip
     page.text(
         MARGIN, 3.9, FULL_WIDTH, 0.3,
@@ -837,6 +843,7 @@ def task_1_timer(deck: Deck) -> None:
 
 def task_1_result(deck: Deck) -> None:
     """The reference route and spread, with prompts for the task 1 discussion."""
+    spread = captured(show_probe, probe(model_with())).split("   ")[-1]
     page = route_page(
         deck,
         "Task 1 · Discussion",
@@ -849,7 +856,7 @@ def task_1_result(deck: Deck) -> None:
         size=15, colour=MUTED,
     )  # fmt: skip
     page.text(
-        ROUTE_COLUMN, 1.88, width, 0.5, ["spread = 0.000000 nats"],
+        ROUTE_COLUMN, 1.88, width, 0.5, [spread],
         size=18, font=CODE_FONT, bold=True,
     )  # fmt: skip
     page.text(
@@ -884,23 +891,32 @@ def task_1_result(deck: Deck) -> None:
             "other. Zero spread does not mean zero information gain. The bonus "
             "changes can alter the amount of information gained, while the spread "
             "remains zero.",
-            "Then poll 1 for 60 seconds. Kev reads the split. Use the following "
-            "slide to introduce how position-dependent sensor noise can make "
-            "expected information gain differ between moves.",
+            "Then poll 1 for 60 seconds. Kev reads the split.",
+            plain(lesson.SESSION_1.poll),
             "After the poll, connect the result to what we call the Koudahl "
             "collapse. Koudahl, Kouw and de Vries (2021) show that, for the linear "
             "Gaussian models and full expected free energy (EFE) objective they "
-            "analyse, EFE reduces to the KL-control objective plus a constant "
+            "analyse, EFE reduces to the Kullback–Leibler (KL) control objective "
+            "plus a constant "
             "determined by observation noise. Minimising EFE therefore supplies "
             "no purposeful exploratory (epistemic) drive in that setting.",
+            "KL control minimises the divergence "
+            "between predicted and preferred outcomes. For Gaussian preferences "
+            "and covariance that does not depend on the action, its action-dependent "
+            "term is a quadratic penalty on the predicted mean’s distance from the "
+            "goal. With linear dynamics and a quadratic control-effort cost, this "
+            "gives an LQR problem. Our Task 1 rocket uses StateGoal with exactly "
+            "that kind of goal and effort cost. This is the link to our later "
+            "statement that LQR is what is left: the Koudahl result gives the "
+            "broader KL-control reduction, while LQR is the controller for our "
+            "particular setup.",
             "Here, with fixed sensor noise and additive controls, every candidate "
             "move has the same expected information gain. The epistemic "
             "contribution cannot favour one move over another, which is why spread "
-            "is zero. Zero spread does not mean zero information gain.",
-            "Reference: Koudahl, M. T., Kouw, W. M. and de Vries, B. (2021). "
-            "On Epistemics in Expected Free Energy for Linear Gaussian State "
-            "Space Models. Entropy. https://doi.org/10.3390/e23121565",
-            plain(lesson.SESSION_1.poll),
+            "is zero.",
+            "Use the following slide to introduce how position-dependent sensor "
+            "noise can make expected information gain differ between moves.",
+            f"Reference: {KOUDAHL_REFERENCE}",
         )
     )
 
@@ -939,7 +955,7 @@ def task_1_meaning(deck: Deck) -> None:
         notes(
             "R describes the noise in the sensor readings. Writing R(x) means that "
             "this noise depends on the rocket’s position.",
-            "Near the beacon, readings are clearer. By moving towards it, the "
+            "The sensor noise is lower near the beacon. By moving towards it, the "
             "rocket can obtain a more informative measurement and reduce its "
             "uncertainty about where it is. Movement can therefore affect both "
             "progress towards the goal and what the rocket learns.",
@@ -960,8 +976,8 @@ def task_1_meaning(deck: Deck) -> None:
             "the dynamics governing how the state evolves. Koudahl, Kouw and de "
             "Vries show that this can produce exploration when the epistemic term "
             "is optimised on its own. Their full EFE objective still reduces to "
-            "KL control plus a constant, so these results concern different "
-            "objective choices.",
+            "Kullback–Leibler (KL) control plus a constant, so these results concern "
+            "different objective choices.",
             "A biological illustration of actions changing dynamics is muscle "
             "co-contraction. Activating opposing muscles together can increase "
             "joint stiffness with little change in net torque. The limb then "
@@ -975,9 +991,7 @@ def task_1_meaning(deck: Deck) -> None:
             "Reference: Corva, D. (2026). State-Dependent Observation Noise "
             "Reintroduces Epistemic Value in Linear-Gaussian Active Inference. "
             "Sections 2.3 and 3, Theorem 1. https://arxiv.org/abs/2607.20306",
-            "Further references: Koudahl, M. T., Kouw, W. M. and de Vries, B. "
-            "(2021). On Epistemics in Expected Free Energy for Linear Gaussian "
-            "State Space Models. https://doi.org/10.3390/e23121565",
+            f"Further references: {KOUDAHL_REFERENCE}",
             "Franklin, D. W. et al. (2007). Endpoint Stiffness of the Arm Is "
             "Directionally Tuned to Instability in the Environment. "
             "https://pmc.ncbi.nlm.nih.gov/articles/PMC6672883/",

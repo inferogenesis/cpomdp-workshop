@@ -89,7 +89,7 @@ SET = {
     "48": "the hours before the recording is posted",
     "1960": "the year of the controller",
     "2007": "the year of the cited Franklin arm-stiffness study",
-    "2021": "the year of the reduction to LQR",
+    "2021": "the year of the cited Koudahl result on reduction to KL control",
     "2026": "the year of the symposium",
     "2.2": "a figure number in the Active Inference book",
     "2.3": "the related-work section of the cited Corva paper",
