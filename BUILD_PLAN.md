@@ -14,8 +14,8 @@ Dates. Symposium 12–14 Nov 2026. Freeze 2026-11-09. Today 2026-10-16.
 | --- | --- |
 | Watching code emerge beats slides. Software Carpentry, 400+ workshops, 12,000 learners: "watching code emerge on the screen is much more convincing than looking at pre-made slides", and learners rated seeing instructors' mistakes and fixes highest. | DanBoringName still writes no code live. One reveal per session opens from a real error (papercut 1's `TypeError`), read aloud and fixed. A `symptoms` cell ships the top five errors with their fixes. |
 | The whole game first. fast.ai: a working result "within the first 30 minutes", then dig down. David Perkins's "elementitis" is what loses people. | Cell 2 is `workshop.preview()`: the finished three-rocket plot with the asteroid, rendered from the package in under a minute, before anyone builds anything. The session then rebuilds that picture in three steps. |
-| Setup is the first failure. Django Girls runs an "installation party" the evening before and says attendees' machines being ready is the most important thing. Carpentries sends setup days ahead and opens early. | Colab link and `pip install` on the speaker slide at 0:00. A 30-minute drop-in on the cpomdp Discord channel the evening before. The uv README a week ahead. Zoom opens 15 minutes early for triage. |
-| Attention has a ceiling. Carpentry's week-long format failed because "by the last two days, attendees' brains are full". Its two-day format with ~50% hands-on is what scaled. SciPy asks for "at least 50% of the time for hands-on exercises". | Two hours: an hour of talk, 45 minutes of code in three 15-minute builds, and 15 minutes left open at the end. No scheduled break. The closing section on why cpomdp matters runs 12 minutes. |
+| Setup is the first failure. Django Girls runs an "installation party" the evening before and says attendees' machines being ready is the most important thing. Carpentries sends setup days ahead and opens early. | Colab link, the question form and the local route on the set-up slide at 17:00 UTC. A 30-minute drop-in on the cpomdp Discord channel the evening before. The uv README a week ahead. Zoom opens 15 minutes early for triage. |
+| Attention has a ceiling. Carpentry's week-long format failed because "by the last two days, attendees' brains are full". Its two-day format with ~50% hands-on is what scaled. SciPy asks for "at least 50% of the time for hands-on exercises". | Two hours: 65 minutes of talk, 45 minutes of code in three 15-minute builds, and 10 minutes left open at the end, every part a whole number of 5 minutes. No scheduled break. The closing section on why cpomdp matters runs 10 minutes. |
 | Formative checks every 10–15 minutes, from every learner, acted on at once. Wilson 2019. Carpentry's red/green sticky notes. | One diagnostic multiple-choice poll at each task boundary, 60 s, wrong answers targeting real misconceptions. Each task closes with "paste one number in chat" (`spread`, your `k`, `max \|difference\|`), so progress is visible without anyone composing a sentence. Zoom ✅/✋ for the quiet signal. |
 | Helpers at 1:8, coaches at 1:3 for novices. Carpentry aims for "at least one helper for every eight learners". Django Girls recommends 3:1 attendee to coach. | Two presenters cover sixteen. Above that, recruit one helper per eight from the Discord channel, briefed on the symptoms cell only, answering in chat. Above forty, the reference cell carries the overflow and the notebook says so. |
 | Faded examples and scaffolds, with the reference path legitimate. Wilson's worked-example fading. Carpentries' "the reference cell is not failure". | `arg = ...` scaffolds, two code hints and the reference cell collapsed for each learner to open when they like, loud checkpoint. |
@@ -113,30 +113,30 @@ CI: `pinned` job on the SHA or version, required. `main` job tracking cpomdp `ma
 
 ## 8. The deck
 
-Remade on 2026-10-28 from the 0.5.0 deck, on the light theme of Inferogenesis's site. `scripts/build_deck.py` builds it from the package, `lesson.py` and the route frames, and one agenda table in it times every slide. `tests/test_deck.py` fails if the committed `.pptx` is not what the script builds. 31 slides:
+Remade on 2026-10-28 from the 0.5.0 deck, on the light theme of Inferogenesis's site. `scripts/build_deck.py` builds it from the package, `lesson.py` and the route frames, and one agenda table in it times every slide, in UTC from a 17:00 start. `tests/test_deck.py` fails if the committed `.pptx` is not what the script builds. Revised on 2026-10-31 from a live edit of the deck: the three code slides went, because the room reads the code on its own screen while the timer slide is up. 28 slides:
 
 | Part | Starts, length | Slides |
 | --- | --- | --- |
-| Welcome | 0:00, 12 min | 1 title, 2 who we are, 3 disclosure, 4 the two hours, 5 how we'll work, 6 get set up (Colab or local Python), 7 where we're heading |
-| Task 1 | 0:12, 27 min | 8 brief with pymdp's letters, 9 code, 10 timer, 11 the straight line, 12 under a fixed sensor EFE is LQR |
-| Task 2 | 0:39, 27 min | 13 brief, 14 code, 15 timer, 16 the beacon bends the route, 17 what steers the route |
-| Task 3 | 1:06, 27 min | 18 brief, 19 code, 20 timer, 21 the blackout, 22 the rock, 23 a rock never changes a route, 24 one rocket on two engines |
-| Why it matters | 1:33, 12 min | 25 certificates, 26 a working model is the beginning, 27 what makes cpomdp different, 28 already built on cpomdp, 29 where the research goes next |
-| Questions | 1:45, 15 min | 30 keep going, 31 thank you |
+| Welcome | 17:00, 10 min | 1 title, 2 who we are, 3 disclosure, 4 the two hours, 5 how we'll work, 6 get set up (Colab, local Python in three steps, the question form), 7 where we're heading |
+| Task 1 | 17:10, 30 min | 8 brief with pymdp's letters, 9 timer, 10 the straight line, 11 under a fixed sensor EFE is LQR |
+| Task 2 | 17:40, 30 min | 12 brief, 13 timer, 14 the beacon bends the route, 15 what steers the route |
+| Task 3 | 18:10, 30 min | 16 brief, 17 timer, 18 the blackout, 19 the rock, 20 a rock never changes a route, 21 one rocket on two engines |
+| Why it matters | 18:40, 10 min | 22 certificates, 23 a working model is the beginning, 24 what makes cpomdp different, 25 already built on cpomdp, 26 where the research goes next |
+| Questions | 18:50, 10 min | 27 keep going, 28 thank you |
 
-Each task is a 4-minute brief, 15 minutes of code and 8 minutes of discussion. The timer slide stays up while the room codes: its bar fills over 15 minutes from when the slide shows, with no click, and then tells the room to run the checkpoint. Leaving the slide restarts the bar.
+Each task is a 5-minute brief, 15 minutes of code and 10 minutes of discussion. The agenda slide shows each part's minutes and each block's UTC times. The timer slide stays up while the room codes: its bar fills over 15 minutes from when the slide shows, with no click, and then tells the room to run the checkpoint. Leaving the slide restarts the bar. The timer slide says how the notebook marks the two lines (`...`) and where the hints sit.
 
-RxInfer is named once, on slide 27, as a neighbour. Nothing runs it. The reveal of papercut 1 has no slide. The timer slides point at `workshop.symptoms()`.
+RxInfer is named once, on slide 24, as a neighbour. Nothing runs it. The reveal of papercut 1 has no slide. The timer slides point at `workshop.symptoms()`.
 
-Edits still DanBoringName's: slide 3 the AI-use panel, slide 29 The Individuating Membrane (I found no source for it), slide 30 the Zenodo DOI of 0.5.1 once minted, slide 31 the survey link and email. The lost deck's "What comes next" slide carried the status "scoped, starts after p*". Slide 29's notes ask which programme it belongs to.
+Edits still DanBoringName's: slide 3 the AI-use panel, slide 26 The Individuating Membrane (I found no source for it), slide 27 the Zenodo DOI of 0.5.1 once minted, slide 28 the survey link and email. The lost deck's "What comes next" slide carried the status "scoped, starts after p*". Slide 26's notes ask which programme it belongs to.
 
 ## 9. Delivery, before, during, after
 
 Before. The uv README and Colab link a week ahead on the cpomdp Discord channel, with the no-generative-AI request in the same message. A 30-minute install drop-in on Discord the evening before. Helpers recruited at one per eight registered above sixteen, briefed on `symptoms` only. Zoom open 15 minutes early.
 
-During. Install at 0:00 while Kev frames. Task 1 at 0:12, task 2 at 0:39, task 3 at 1:06, each with its timer slide up for the 15 minutes of code. Nobody pastes hints. Each learner opens the collapsed hint cells when they like. One number in chat at each task close. One poll at each boundary, 60 s, Kev reads the split. Why it matters at 1:33. Questions from 1:45, and anyone may leave early. No scheduled break. If the room needs one, it comes out of the open time. Anonymous form watched by whoever is not presenting. No breakout rooms. No individual debugging from the front.
+During, in UTC. Install at 17:00 while Kev frames, with the Colab link and the question form pasted into the chat together. Task 1 at 17:10, task 2 at 17:40, task 3 at 18:10, each with its timer slide up for the 15 minutes of code. Nobody pastes hints. Each learner opens the collapsed hint cells when they like. One number in chat at each task close. One poll at each boundary, 60 s, Kev reads the split. Why it matters at 18:40. Questions from 18:50, and anyone may leave early. No scheduled break. If the room needs one, it comes out of the open time. The question form is anonymous unless the asker leaves an email for a written reply. Whoever is not presenting watches its responses, answers quick ones in the chat and parks long ones for a written answer within 48 hours. No breakout rooms. No individual debugging from the front.
 
-After. Survey link on slide 25 while the room is in it. Recording, notebook, package, slides and notes posted to the Discord channel and the README within 48 hours. One-up-one-down answers read into the next revision of the notebook.
+After. Survey link on the last slide, 28, while the room is in it. Recording, notebook, package, slides and notes posted to the Discord channel and the README within 48 hours. One-up-one-down answers read into the next revision of the notebook.
 
 ## 10. Decisions still owed
 

@@ -29,8 +29,9 @@ At the end of each task, **make sure you run the checkpoint cell**, even if ever
 worked correctly. This restores the reference setup needed for the next task, so you can
 continue without difficulty if something didn't work as expected.
 
-If you have any questions during the workshop, you can also submit them anonymously
-using the form (link to come)."""
+If you have any questions during the workshop, you can also send them through
+[this form](https://docs.google.com/forms/d/e/1FAIpQLSf7mgwxYEFpnDAkqaYolxWzP1sesG6L5Rf_5pVswE3UwtkcwA/viewform).
+It's anonymous unless you leave an email for a written reply."""
 
 GETTING_STARTED = """\
 ## Getting started
