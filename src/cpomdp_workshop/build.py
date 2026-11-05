@@ -147,12 +147,19 @@ def one_node(model: LinearGaussianModel) -> CouplingGraphBackend:
         A backend for ``Agent.from_backend``. Its graph is ``backend.graph``.
 
     Raises:
+        TypeError: if handed a rocket rather than its model.
         ValueError: if the model's sensor depends on the state. The backends would
             then not be running the same model.
     """
+    if isinstance(model, Agent):
+        raise TypeError(
+            "one_node takes a model, not a rocket. Pass model, the 1960 rocket's "
+            "model from Task 1."
+        )
     if model.observation_model is not None:
         raise ValueError(
-            "one_node takes a fixed-sensor model. Build it with model_with()."
+            "one_node takes a fixed-sensor model, such as model, the 1960 rocket's "
+            "model from Task 1."
         )
     sensor = FixedSensor(
         model.observation_matrix, observation_noise=model.observation_noise

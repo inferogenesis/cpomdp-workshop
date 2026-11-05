@@ -74,8 +74,14 @@ def test_both_rockets_choose_a_move():
 
 
 def test_one_node_refuses_a_model_it_cannot_reproduce():
-    with pytest.raises(ValueError, match="fixed-sensor model"):
+    with pytest.raises(ValueError, match="fixed-sensor model") as raised:
         one_node(model_with(reference_sensor, default_params(0.08)))
+    assert "the 1960 rocket's model" in str(raised.value)
+
+
+def test_one_node_refuses_a_rocket_and_names_the_model_instead():
+    with pytest.raises(TypeError, match="takes a model, not a rocket"):
+        one_node(the_1960_rocket())  # ty: ignore[invalid-argument-type]
 
 
 def test_one_node_carries_the_same_plant():

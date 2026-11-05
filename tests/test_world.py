@@ -1,3 +1,5 @@
+import re
+
 import jax.numpy as jnp
 import numpy as np
 import pytest
@@ -71,3 +73,8 @@ def test_the_launch_to_pad_line_runs_through_the_rock():
     offset = rock - launch
     closest = launch + along * float(offset @ along)
     assert np.linalg.norm(closest - rock) < ROCK_RADIUS
+
+
+def test_a_k_left_unwritten_is_named():
+    with pytest.raises(TypeError, match=re.escape("beacon_gain is still ...")):
+        default_params(...)  # ty: ignore[invalid-argument-type]

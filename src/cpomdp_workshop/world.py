@@ -62,7 +62,12 @@ def default_params(beacon_gain: float) -> SensorParams:
         A pytree of the values [`reference_sensor`][cpomdp_workshop.reference_sensor]
         and [`beacon_sensor`][cpomdp_workshop.beacon_sensor] read. Every entry is an
         array, so the whole thing differentiates.
+
+    Raises:
+        TypeError: if ``beacon_gain`` is still the ``...`` the attempt cell left.
     """
+    if beacon_gain is Ellipsis:
+        raise TypeError("beacon_gain is still ..., so type a number for k first.")
     return {
         "beacon": jnp.asarray(BEACON),
         "beacon_gain": jnp.asarray(float(beacon_gain)),

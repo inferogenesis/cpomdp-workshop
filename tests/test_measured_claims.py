@@ -7,6 +7,7 @@ Mersenne Twister draw seeded once per flight. A re-pin re-runs this file first.
 
 from importlib import metadata
 
+import jax.numpy as jnp
 import numpy as np
 import pytest
 from cpomdp import (
@@ -35,6 +36,7 @@ from cpomdp_workshop.check import (
     check_backends,
     check_my_sensor,
     epistemic_spread,
+    grade_sensor,
     probe,
 )
 from cpomdp_workshop.planner import compass_moves, compass_planner
@@ -85,7 +87,7 @@ def test_the_1960_rocket_prints_its_gain():
 def test_the_1960_rocket_reports_where_it_lands(capsys):
     check_agent(the_1960_rocket())
     printed = capsys.readouterr().out.splitlines()
-    assert printed[-1] == "after 36 moves it is at (4.87, 0.04), 0.13 from the pad"
+    assert printed[-2] == "after 36 moves it is at (4.87, 0.04), 0.13 from the pad"
 
 
 def test_papercut_one_is_now_a_refusal_that_names_the_right_slot():
@@ -259,9 +261,15 @@ def fly_with(sensor, beacon_gain, hazard=None, **changes):
     return fly(rocket, hazard=hazard)
 
 
-def test_a_small_cap_keeps_the_beacons_route_nearly_straight():
-    flight = fly_with(beacon_sensor, 0.4, beacon_cap=1.0)
-    assert round(float(np.abs(flight.path[:, 1]).max()), 2) == 0.35
+def test_a_small_cap_keeps_the_beacons_route_straight():
+    # Every point of the straight route is at least 1.4 from the beacon, past a cap
+    # of 1, so the noise is flat along it and nothing pulls the rocket off it.
+    params = {**default_params(0.4), "beacon_cap": jnp.asarray(1.0)}
+    assert grade_sensor(beacon_sensor, params).grade == "straight"
+
+
+def test_the_starting_k_of_task_2_flies_straight():
+    assert grade_sensor(beacon_sensor, default_params(0.08)).grade == "straight"
 
 
 def test_a_large_cap_leaves_the_beacons_rocket_well_short_of_the_pad():

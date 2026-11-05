@@ -2,10 +2,11 @@
 
 Each check is a pure function the tests assert on, paired with a ``check_`` or
 ``show_`` function that prints its result. A sensor is graded by flying a rocket with
-it, never passed or failed. One that varies and still leaves the path straight is
-told which way to move k.
+it. One that varies and still leaves the path straight is told which way to move k.
+A sensor that cannot fly stops the cell, so its fix is the last thing on screen.
 """
 
+import textwrap
 from dataclasses import dataclass
 
 import jax
@@ -16,7 +17,7 @@ from cpomdp import probe_model as _probe_model
 
 from cpomdp_workshop.build import model_with, pad_goal, pad_preference
 from cpomdp_workshop.planner import compass_moves, compass_planner
-from cpomdp_workshop.sim import fly
+from cpomdp_workshop.sim import Flight, fly
 from cpomdp_workshop.world import (
     LAUNCH,
     PAD,
@@ -37,6 +38,7 @@ __all__ = [
     "epistemic_spread",
     "grade_sensor",
     "probe",
+    "route_bend",
     "show_probe",
 ]
 
@@ -44,6 +46,8 @@ STRAIGHT_BEND = 0.1
 """A path that strays less than this from the launch-to-pad line counts as straight."""
 LANDED = 0.5
 """A flight that ends further than this from the pad has not landed."""
+NARROW_CELL = 80
+"""The widest line a stopped cell prints, so Colab does not cut it off."""
 
 _ROUTE = np.linspace(LAUNCH, PAD, 11)
 _FIELD = np.stack(
@@ -78,21 +82,62 @@ def show_probe(report: ProbeReport) -> None:
     )
 
 
-def check_agent(agent: Agent) -> None:
-    """Print the agent as built, then fly it in its own world and say where it lands.
+def _model_parts(model: LinearGaussianModel) -> dict[str, object]:
+    """The parts of a fixed-sensor model a learner can write, by their code names."""
+    return {
+        "dynamics_matrix": model.dynamics_matrix,
+        "control_matrix": model.control_matrix,
+        "observation_matrix": model.observation_matrix,
+        "observation_noise": model.observation_noise,
+        "dynamics_noise": model.dynamics_noise,
+        "prior mean": model.prior.mean,
+        "prior cov": model.prior.cov,
+    }
 
-    The flight uses the agent up. Build it again to fly it again.
+
+def _same(part: object, reference: object) -> bool:
+    part, reference = np.asarray(part), np.asarray(reference)
+    return part.shape == reference.shape and np.allclose(part, reference, atol=1e-12)
+
+
+def _differing_parts(model: LinearGaussianModel) -> list[str]:
+    """The parts of ``model`` that differ from the 1960 rocket's, in model order.
+
+    The reference values are not named, so the check never hands over the answer.
+    """
+    if model.observation_model is not None:
+        return ["observation_model"]
+    reference = _model_parts(model_with())
+    return [
+        name
+        for name, part in _model_parts(model).items()
+        if not _same(part, reference[name])
+    ]
+
+
+def check_agent(agent: Agent) -> None:
+    """Print the agent as built, fly it in its own world and say where it lands.
+
+    The last line says whether its model is the 1960 rocket's. A wrong
+    ``observation_matrix`` or ``observation_noise`` still flies, so the landing alone
+    cannot tell a right answer from a wrong one. The flight uses the agent up. Build
+    it again to fly it again.
 
     Args:
         agent: a rocket that has not flown.
     """
     print(agent)
+    differing = _differing_parts(agent.model)
     flight = fly(agent)
     x, y = flight.final
     print(
         f"after {len(flight.path) - 1} moves it is at ({x:.2f}, {y:.2f}), "
         f"{flight.distance_to(PAD):.2f} from the pad"
     )
+    if differing:
+        print(f"It differs from the workshop's 1960 rocket in {', '.join(differing)}.")
+    else:
+        print("It matches the workshop's 1960 rocket.")
 
 
 @dataclass(frozen=True)
@@ -116,6 +161,21 @@ class SensorGrade:
     matches: str | None = None
 
 
+def _tuple_setting(params: SensorParams) -> str | None:
+    """Why a setting in ``params`` cannot be traced, or ``None``.
+
+    JAX traces a tuple as separate numbers, so ``x - params["beacon"]`` fails inside
+    the search even though the sensor itself is right.
+    """
+    for name, value in params.items():
+        if isinstance(value, tuple | list):
+            return (
+                f'params["{name}"] is a {type(value).__name__}. Set it with '
+                f"jnp.array([...]), such as jnp.array([2.5, 0.0])."
+            )
+    return None
+
+
 def _untraceable(sensor: NoiseFn, params: SensorParams) -> str | None:
     """Why JAX cannot trace ``sensor``, or ``None`` if it can.
 
@@ -134,11 +194,16 @@ def _untraceable(sensor: NoiseFn, params: SensorParams) -> str | None:
 
 def _broken(sensor: NoiseFn, params: SensorParams) -> str | None:
     """Why ``sensor`` is not a noise covariance the search can use, or ``None``."""
+    setting = _tuple_setting(params)
+    if setting is not None:
+        return setting
     for point in np.vstack([_ROUTE, _FIELD]):
         where = f"({point[0]:.1f}, {point[1]:.1f})"
         try:
             noise = np.asarray(sensor(point, params), dtype=float)
         except Exception as error:  # the learner's code, any failure is the finding
+            if "ellipsis" in str(error):
+                return "a line in it still holds ... where the code should be."
             return f"calling it at {where} raised {type(error).__name__}: {error}"
         if noise.shape != (2, 2):
             return (
@@ -166,6 +231,22 @@ def _matching_reference(sensor: NoiseFn, params: SensorParams) -> str | None:
     return None
 
 
+def route_bend(flight: Flight) -> float:
+    """How far the path strays from the launch-to-pad line before it nears the pad.
+
+    The positions within ``LANDED`` of the pad are left out. A rocket settling onto
+    the pad moves sideways too, and that is a landing, not a route.
+    """
+    away = np.linalg.norm(flight.path - np.asarray(PAD), axis=1) > LANDED
+    return float(np.abs(flight.path[away, 1]).max(initial=0.0))
+
+
+def _match_line(matches: str | None) -> str:
+    if matches is None:
+        return " It does not match the workshop's beacon_sensor."
+    return f" It matches the workshop's {matches}."
+
+
 def grade_sensor(sensor: NoiseFn, params: SensorParams) -> SensorGrade:
     """Grade a noise function by flying a curious rocket with it.
 
@@ -184,7 +265,8 @@ def grade_sensor(sensor: NoiseFn, params: SensorParams) -> SensorGrade:
     """
     problem = _broken(sensor, params)
     if problem is not None:
-        return SensorGrade("broken", f"Not a sensor yet: {problem}")
+        name = getattr(sensor, "__name__", "the sensor")
+        return SensorGrade("broken", f"{name} is not a sensor yet: {problem}")
     noises = [np.asarray(sensor(p, params)) for p in np.vstack([_ROUTE, _FIELD])]
     if all(np.allclose(noise, noises[0], atol=1e-12) for noise in noises):
         return SensorGrade(
@@ -195,36 +277,43 @@ def grade_sensor(sensor: NoiseFn, params: SensorParams) -> SensorGrade:
     model = model_with(sensor, params)
     planner = compass_planner(model)
     flight = fly(Agent(model, pad_preference(), selector=planner))
-    bend = float(np.abs(flight.path[:, 1]).max())
+    bend = route_bend(flight)
     distance = flight.distance_to(PAD)
     matches = _matching_reference(sensor, params)
+    path = f"The rocket bends {bend:.2f} off the straight line"
     if bend < STRAIGHT_BEND:
+        grade = "straight"
         message = (
             "R(x) varies across the map. The rocket still flies straight, so the "
             "pad's pull wins at this k. Raise it."
         )
-        return SensorGrade("straight", message, bend, distance, matches)
-    path = f"The rocket bends {bend:.2f} off the straight line"
-    if distance > LANDED:
+    elif distance > LANDED:
+        grade = "too curious"
         message = (
             f"{path} and stops {distance:.2f} short of the pad. At this k, reading "
             "near the beacon is worth more than reaching the pad."
         )
-        return SensorGrade("too curious", message, bend, distance, matches)
-    message = f"{path} and lands {distance:.2f} from the pad."
-    if matches is not None:
-        message += f" It matches the workshop's {matches}."
-    return SensorGrade("bends", message, bend, distance, matches)
+    else:
+        grade = "bends"
+        message = f"{path} and lands {distance:.2f} from the pad."
+    return SensorGrade(grade, message + _match_line(matches), bend, distance, matches)
 
 
 def check_my_sensor(sensor: NoiseFn, params: SensorParams) -> None:
-    """Print what ``sensor`` does for a rocket, graded.
+    """Print what ``sensor`` does for a rocket, graded, or stop the cell.
 
     Args:
         sensor: a noise function ``R(x, params)``.
         params: its parameters, from ``default_params(k)``.
+
+    Raises:
+        ValueError: if the sensor cannot fly. The message names the fix, wrapped to
+            fit a narrow cell, and stops the cell before a longer JAX error can.
     """
-    print(grade_sensor(sensor, params).message)
+    grade = grade_sensor(sensor, params)
+    if grade.grade == "broken":
+        raise ValueError(textwrap.fill(grade.message, width=NARROW_CELL))
+    print(grade.message)
 
 
 BeliefTrack = tuple[np.ndarray, np.ndarray]
@@ -274,8 +363,13 @@ def check_backends(reference: InferenceBackend, *others: InferenceBackend) -> No
     Args:
         reference: the backend the others are measured against.
         others: the backends to measure.
+
+    Raises:
+        TypeError: if a backend is still the ``...`` the attempt cell left.
     """
     backends = (reference, *others)
+    if any(backend is Ellipsis for backend in backends):
+        raise TypeError("backend is still ..., so write its line first.")
     tracks = [_belief_track(backend) for backend in backends]
     for backend, (means, covs) in zip(backends, tracks, strict=True):
         x, y = means[-1]
