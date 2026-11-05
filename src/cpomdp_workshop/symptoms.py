@@ -1,104 +1,96 @@
-"""The five errors the room is most likely to hit, each with the line that fixes it.
+"""The five errors the room is most likely to hit, each with its cause and fix.
 
-Each symptom is two lines of code: one that raises, one that runs. ``symptoms()`` runs
-the first and prints the message cpomdp gives, so the text in the notebook is always
-the pinned release's own words, never a paraphrase of them.
+The list comes from a walk-through of the notebook on Colab. It names what people
+actually see, which is mostly a ``...`` left in a cell, a runtime that restarted, or
+NumPy inside a sensor. A symptom that raises carries the line that raises it, and a
+test checks that the words quoted under "You see" are in that error. The printout
+fits a narrow Colab cell.
 """
 
 from dataclasses import dataclass
 
 import jax.numpy as jnp
-from cpomdp import (
-    Agent,
-    Belief,
-    CallableSensor,
-    LinearGaussianModel,
-    Preference,
-    StateGoal,
-)
+from cpomdp import Belief, KalmanBackend, LinearGaussianModel
 
-from cpomdp_workshop.build import (
-    model_with,
-    pad_goal,
-    the_1960_rocket,
-)
-from cpomdp_workshop.planner import compass_planner
-from cpomdp_workshop.world import LAUNCH, PAD, default_params, reference_sensor
+from cpomdp_workshop.check import check_my_sensor
+from cpomdp_workshop.world import LAUNCH, beacon_sensor, default_params
 
 __all__ = ["SYMPTOMS", "Symptom", "symptoms"]
 
 
 @dataclass(frozen=True)
 class Symptom:
-    """One mistake and its fix.
+    """One mistake, what it looks like, and its fix.
 
     Attributes:
-        name: what the person was trying to do.
-        wrong: the line that raises.
-        right: the line that does what was meant.
-        error: the exception ``wrong`` raises.
+        seen: what the learner sees, in a few words.
+        cause: what went wrong.
+        fix: what to do about it.
+        wrong: a line that raises the error, or ``None`` for a symptom that raises
+            nothing.
+        quoted: the words of that error that ``seen`` quotes, word for word.
     """
 
-    name: str
-    wrong: str
-    right: str
-    error: type[Exception]
+    seen: str
+    cause: str
+    fix: str
+    wrong: str | None = None
+    quoted: str | None = None
 
 
 SYMPTOMS = (
     Symptom(
-        "a state-dependent sensor in the noise slot",
-        "LinearGaussianModel(I, observation_noise=sensor, control_matrix=I, "
-        "dynamics_noise=1e-3 * I, prior=prior)",
-        "LinearGaussianModel(I, observation_model=sensor, control_matrix=I, "
-        "dynamics_noise=1e-3 * I, prior=prior)",
-        TypeError,
+        "an error naming 'ellipsis', or saying something is still ...",
+        "a line marked ... is still unwritten",
+        "write both lines marked ..., then run the cell again",
+        "LinearGaussianModel(jnp.eye(2), control_matrix=jnp.eye(2), "
+        "observation_matrix=..., observation_noise=..., "
+        "dynamics_noise=1e-3 * jnp.eye(2), prior=prior)",
+        "ellipsis",
     ),
     Symptom(
-        "a goal beside a planner",
-        "Agent(curious_model, StateGoal(PAD), selector=planner)",
-        "Agent(curious_model, Preference(PAD), selector=planner)",
-        TypeError,
+        "NameError: name 'model' is not defined (or my_sensor, my_world)",
+        "the runtime restarted or disconnected, which clears every name",
+        "run the checkpoint above the task, then the task's cell",
+        "KalmanBackend(model)",
+        "name 'model' is not defined",
     ),
     Symptom(
-        "a state goal under a sensor that depends on the state",
-        "Agent(curious_model, StateGoal(PAD))",
-        "Agent(curious_model, Preference(PAD), selector=planner)",
-        ValueError,
+        "JAX cannot trace it, or an error naming a Tracer or Concretization",
+        "Python's min, or math or np, inside a sensor or my_world",
+        "use jnp.minimum, jnp.exp and jnp.sum instead",
+        "check_my_sensor(lambda x, params: jnp.eye(2) * "
+        "(0.05 + min(jnp.sum(x**2), 1.0)), default_params(0.4))",
+        "JAX cannot trace it",
     ),
     Symptom(
-        "a preference of the wrong length",
-        "Agent(curious_model, Preference([5.0, 0.0, 0.0]), selector=planner)",
-        "Agent(curious_model, Preference([5.0, 0.0]), selector=planner)",
-        ValueError,
+        'params["beacon"] is a tuple',
+        "a setting in params given as a tuple, such as (2.5, 0.0)",
+        'params["beacon"] = jnp.array([2.5, 0.0])',
+        'check_my_sensor(beacon_sensor, {**default_params(0.4), "beacon": (2.5, 0.0)})',
+        'params["beacon"] is a tuple',
     ),
     Symptom(
-        "swapping the model under a built rocket",
-        "rocket.model = model_with()",
-        "rocket = Agent(model_with(), pad_goal())",
-        AttributeError,
+        "the plot stays the same after you move the k slider",
+        "moving a slider does not run the cell",
+        "run the cell again after each move",
     ),
 )
 
 
 def _namespace() -> dict[str, object]:
-    """The names the symptom lines use, as a notebook cell would have them."""
-    identity = jnp.eye(2)
-    curious_model = model_with(reference_sensor, default_params(0.08))
+    """The names the symptom lines use, as a notebook cell would have them.
+
+    ``model`` is left out on purpose. A restarted runtime has lost it.
+    """
     return {
-        "Agent": Agent,
-        "I": identity,
+        "KalmanBackend": KalmanBackend,
         "LinearGaussianModel": LinearGaussianModel,
-        "PAD": PAD,
-        "Preference": Preference,
-        "StateGoal": StateGoal,
-        "curious_model": curious_model,
-        "model_with": model_with,
-        "pad_goal": pad_goal,
-        "planner": compass_planner(curious_model),
-        "prior": Belief(mean=LAUNCH, cov=4 * identity),
-        "rocket": the_1960_rocket(),
-        "sensor": CallableSensor(identity, reference_sensor, default_params(0.08)),
+        "beacon_sensor": beacon_sensor,
+        "check_my_sensor": check_my_sensor,
+        "default_params": default_params,
+        "jnp": jnp,
+        "prior": Belief(mean=jnp.asarray(LAUNCH), cov=4 * jnp.eye(2)),
     }
 
 
@@ -108,16 +100,9 @@ def run(line: str) -> None:
 
 
 def symptoms() -> None:
-    """Print each mistake, the error cpomdp gives for it, and the fix."""
+    """Print each symptom: what you see, its cause and its fix."""
     for number, symptom in enumerate(SYMPTOMS, start=1):
-        try:
-            run(symptom.wrong)
-        except symptom.error as error:
-            message = f"{type(error).__name__}: {error}"
-        else:  # a release that stops refusing this shows up here, not as a crash
-            message = "(this release no longer raises here)"
-        print(f"{number}. {symptom.name}")
-        print(f"   you wrote  {symptom.wrong}")
-        print(f"   cpomdp     {message}")
-        print(f"   write      {symptom.right}")
+        print(f"{number}. You see  {symptom.seen}")
+        print(f"   Cause    {symptom.cause}")
+        print(f"   Fix      {symptom.fix}")
         print()
