@@ -142,22 +142,22 @@ def covariance_ellipse(cov: np.ndarray, *, sigmas: float = 2.0) -> tuple[float, 
     return float(width), float(height), angle
 
 
+def _widened(edges: tuple[float, float], values: np.ndarray) -> tuple[float, float]:
+    """``edges``, each moved past the values only where the values cross it."""
+    low, high = edges
+    lowest, highest = float(values.min()), float(values.max())
+    return (
+        low if lowest >= low else lowest - _PATH_MARGIN,
+        high if highest <= high else highest + _PATH_MARGIN,
+    )
+
+
 def _extent_for(flights: Mapping[str, Flight]) -> Extent:
-    """The usual map, widened where a path leaves it so the whole path shows."""
+    """The usual map, widened only where a path leaves it, so the whole path shows."""
     if not flights:
         return _EXTENT
     points = np.vstack([flight.path for flight in flights.values()])
-    (x_low, x_high), (y_low, y_high) = _EXTENT
-    return (
-        (
-            min(x_low, float(points[:, 0].min()) - _PATH_MARGIN),
-            max(x_high, float(points[:, 0].max()) + _PATH_MARGIN),
-        ),
-        (
-            min(y_low, float(points[:, 1].min()) - _PATH_MARGIN),
-            max(y_high, float(points[:, 1].max()) + _PATH_MARGIN),
-        ),
-    )
+    return _widened(_EXTENT[0], points[:, 0]), _widened(_EXTENT[1], points[:, 1])
 
 
 def _canvas(
