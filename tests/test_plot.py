@@ -228,3 +228,9 @@ def test_a_path_that_leaves_the_map_widens_it():
 def test_a_path_inside_the_map_keeps_the_usual_map():
     axes = plot_path(fly(the_1960_rocket())).axes[0]
     assert axes.get_ylim() == (-1.1, 2.5)
+
+
+def test_paths_near_the_edge_of_the_map_keep_the_usual_map():
+    axes = plot_world().axes[0]
+    assert axes.get_xlim() == (-0.6, 5.6)
+    assert axes.get_ylim() == (-1.1, 2.5)
