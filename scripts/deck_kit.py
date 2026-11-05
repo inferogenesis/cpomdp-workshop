@@ -107,6 +107,7 @@ class Run:
         font: the typeface, or ``None`` for the paragraph's.
         size: the size in points, or ``None`` for the paragraph's.
         link: a URL the text opens when clicked, or ``None``.
+        italic: whether to italicise the text.
     """
 
     text: str
@@ -115,6 +116,7 @@ class Run:
     font: str | None = None
     size: float | None = None
     link: str | None = None
+    italic: bool = False
 
 
 Paragraph = str | Sequence[Run]
@@ -252,6 +254,8 @@ class Page:
                     run.font.size = Pt(piece.size or size)
                     run.font.name = MATH_FONT if fallback else face
                     run.font.bold = piece.bold or bold
+                    if piece.italic:
+                        run.font.italic = True
                     run.font.color.rgb = _rgb(piece.colour or colour)
                     if piece.link is not None:
                         run.hyperlink.address = piece.link
@@ -287,6 +291,45 @@ class Page:
             frame, paragraphs, size=size, colour=colour, font=font, bold=bold,
             align=align, space_after=space_after,
         )  # fmt: skip
+
+    def table(
+        self,
+        x: float,
+        y: float,
+        widths: Sequence[float],
+        height: float,
+        rows: Sequence[Sequence[str]],
+    ) -> None:
+        """An editable comparison table with a header row and labels on the left."""
+        shape = self.slide.shapes.add_table(
+            len(rows),
+            len(widths),
+            Inches(x),
+            Inches(y),
+            Inches(sum(widths)),
+            Inches(height),
+        )
+        shape.name = "table"
+        table = shape.table
+        for index, width in enumerate(widths):
+            table.columns[index].width = Inches(width)
+        for i, values in enumerate(rows):
+            for j, (cell, value) in enumerate(
+                zip(table.rows[i].cells, values, strict=True)
+            ):
+                cell.fill.solid()
+                cell.fill.fore_color.rgb = _rgb(INK if i == 0 else PANEL)
+                cell.margin_left = cell.margin_right = Inches(0.18)
+                cell.vertical_anchor = MSO_ANCHOR.MIDDLE
+                self._fill(
+                    cell.text_frame,
+                    [value],
+                    size=19,
+                    font=TEXT_FONT,
+                    colour=PANEL if i == 0 else INK,
+                    bold=i == 0,
+                    align=PP_ALIGN.LEFT if j == 0 else PP_ALIGN.CENTER,
+                )
 
     def code(
         self, x: float, y: float, w: float, h: float, source: str, *, size: float = 12
@@ -548,12 +591,16 @@ class Page:
             )
         )
 
-    def notes(self, text: str) -> None:
-        """The speaker notes."""
+    def notes(self, text: str, *, sources: Sequence[tuple[str, str]] = ()) -> None:
+        """The speaker notes, with any named source links after the spoken text."""
         frame = self.slide.notes_slide.notes_text_frame
         if frame is None:  # the default notes master always has a body
             raise ValueError("this slide's notes page has no body to write in")
         frame.text = text
+        for label, url in sources:
+            run = frame.add_paragraph().add_run()
+            run.text = label
+            run.hyperlink.address = url
 
 
 @dataclass(frozen=True)
