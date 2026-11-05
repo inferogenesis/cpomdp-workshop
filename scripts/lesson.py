@@ -43,7 +43,17 @@ locally using VS Code, that's absolutely fine too.
 To run a code cell, click the play button beside it, or press **Shift + Enter**. Start
 by running the setup cell below, which will install the required workshop packages from
 PyPI and check that everything is ready. If you're using VS Code, make sure the required
-packages are installed in your selected Python environment."""
+packages are installed in your selected Python environment.
+
+The first time you run a cell, Colab warns that the notebook was not authored by Google.
+It opens from our GitHub repository, so click **Run anyway**. Colab does not keep your
+changes once you close the tab, so if you would like to keep your work, use **File →
+Save a copy in Drive** before you start.
+
+Colab may offer an **Explain error** button under an error, or suggest code as you type.
+We would ask you to write the two lines yourself, because working them out is the point
+of each task. The hints and the reference cells are there whenever you are stuck, and
+using them is completely fine."""
 
 INSTALL = """\
 # Installs the workshop on Colab, then checks the versions it was measured on.
@@ -68,9 +78,10 @@ PREVIEW = "workshop.preview()"
 HELP = """\
 ## Need a little help?
 
-If you encounter an error while working through the notebook, don't worry. The
-troubleshooting section below covers five common issues and how to resolve them. You can
-return to it at any point during the workshop."""
+If you encounter an error while working through the notebook, do not worry. The
+troubleshooting cell below lists the five errors we expect people to meet most often,
+each with its cause and its fix. The same cell sits under every task, so you can open it
+at any point during the workshop."""
 
 SYMPTOMS = """\
 # @title Stuck on an error? The five most common, with their fixes
@@ -185,8 +196,8 @@ changing them one at a time, rerunning the cell each time:
 
 - the noise level, the `0.05` in `observation_noise`
 - the rocket's initial uncertainty, the `4` in `prior`
-- the size of each movement, by writing `compass_moves(1.5)` instead of
-  `compass_moves()`
+- the size of each movement, 0.5 by default, by writing `compass_moves(1.5)` instead
+  of `compass_moves()`
 
 Keep an eye on the spread in the last line. Does it ever move away from 0.000000?""",
             hint="""\
@@ -226,7 +237,9 @@ in terms of how the Kalman filter updates uncertainty?""",
 `jnp.diag(jnp.array([0.05, 2.0]))` builds a matrix with 0.05 and 2.0 on its diagonal, so
 x is read much more accurately than y. Try using it as `observation_noise` in a copy of
 your Task 1 cell. The expected information gain is in `report.epistemic_range`, which
-holds the lowest and highest values across the nine movements.""",
+holds the lowest and highest values across the nine movements. `show_probe` prints only
+the spread, so add `print(report.epistemic_range)` under it, and run Task 1's numbers
+the same way to have a value to compare with.""",
             answer="""\
 Each reading becomes less informative: 2.7467 nats with 0.05 on x and 2.0 on y, compared
 with 4.3947 in Task 1. But every movement is still equally informative, so the spread
@@ -314,7 +327,7 @@ params = default_params(beacon_gain)
 # behaviour:
 #   params["beacon_gain"]  k            how fast the noise grows away from the beacon
 #   params["beacon_cap"]   4.0          the largest distance_squared that counts
-#   params["beacon"]       (2.5, 1.4)   where the beacon is
+#   params["beacon"]       jnp.array([2.5, 1.4])  where the beacon is
 #   params["noise_floor"]  0.05         the noise at the beacon itself
 # It also holds the blackout's settings, for task 3.
 
@@ -359,9 +372,10 @@ of them change the route?""",
 between the launch site and the pad. Change one setting at a time, and delete the line
 to go back to the original.""",
             answer="""\
-The cap and the beacon's position both change the route. With a cap of 1, the path
-barely bends, only 0.35 off the straight line. With a cap of 9, the rocket stops 1.42
-short of the pad. Moving the beacon onto the straight line, at (2.5, 0), holds the
+The cap and the beacon's position both change the route. With a cap of 1, the rocket
+flies straight, because every point of the straight route is already past the cap, so
+the noise is the same all along it. With a cap of 9, the rocket stops 1.42 short of the
+pad. Moving the beacon onto the straight line, at (2.5, 0), holds the
 rocket 1.09 short. The noise floor, on the other hand, barely matters: anywhere from
 0.01 to 0.5, the route bends just as far and lands in the same place. What shapes the
 route is how the noise differs from place to place, not its overall level.""",
@@ -379,7 +393,8 @@ This preference is controlled by a precision parameter, the `precision=` in
 The cell below flies rockets with three preference precisions, 0.1, 1 and 10. It flies
 them at two values of `k`: 0.4, and 0.6, where observations near the pad are noisier. A
 rocket counts as landed if it finishes within 0.5 of the pad. Run it and compare the
-results.
+results. The cell uses `my_sensor` from your Task 2 cell, so if your runtime has
+restarted, run Checkpoint 2 below first to restore it.
 
 Does increasing preference precision always make the rocket more likely to reach the
 landing pad? What happens when observations near the pad are particularly noisy?
@@ -475,7 +490,8 @@ Once you've completed both lines, run the cell. The `plot_world` function will c
 three rockets: our original 1960 rocket, your rocket with the selected value of `k`, and
 another with `k = 0.20`.
 
-Experiment with the `k` slider and observe how the trajectories change. Do the rockets
+Experiment with the `k` slider and observe how the trajectories change. Moving the
+slider only updates the code, so run the cell again after each move. Do the rockets
 follow similar paths? What might explain any differences, given that none of them knows
 about the rock?
 
@@ -488,16 +504,20 @@ from cpomdp_workshop import check_backends, one_node, plot_world
 
 
 def my_world(x, params):
-    height, width = params["blackout_gain"], params["blackout_width"]
+    height = params["blackout_gain"]
+    width = params["blackout_width"]
     from_blackout = jnp.sum((x - params["blackout"]) ** 2)
-    blindness = ...  # height times jnp.exp of minus from_blackout over width
+    # height times jnp.exp of minus from_blackout over width
+    blindness = ...
     return my_sensor(x, params) + jnp.eye(2) * blindness
 
 
-beacon_gain = 0.08  # @param {type:"slider", min:0.02, max:0.4, step:0.02}
+beacon_gain = 0.08  # @param {type:"slider",min:0.02,max:0.4,step:0.02}
 
-backend = ...  # task 1's model as a graph of one node
-check_backends(KalmanBackend(model), backend)  # paste max |difference| in chat
+# task 1's model as a graph of one node
+backend = ...
+# paste max |difference| in chat
+check_backends(KalmanBackend(model), backend)
 plot_world(my_world, (0.0, beacon_gain, 0.20))""",
     bonuses=(
         Bonus(
@@ -515,7 +535,9 @@ keeping the sensory environment unchanged.
 
 The cell below flies each rocket over 10 random seeds and records the seeds on which it
 collides with the rock. Run it with the rock inside the blackout. Then move the rock to
-(4.2, -0.7), an area with more reliable observations, and run it again.
+(4.2, -0.7), an area with more reliable observations, and run it again. The cell uses
+`my_world` from your Task 3 cell, so if your runtime has restarted, run Checkpoint 3
+below first to restore it.
 
 Consider the following questions:
 
@@ -579,7 +601,8 @@ lands and how often it hits the rock. A landing means finishing within 0.5 of th
 without hitting the rock.
 
 Run it. Can you identify a combination that produces relatively reliable landings while
-reducing collisions?
+reducing collisions? Like Bonus 1, the cell uses `my_world`, which Checkpoint 3 below
+restores after a restart.
 
 Now test the combinations on new random seeds that weren't in the search, by changing
 `seeds` to `range(10, 30)`.

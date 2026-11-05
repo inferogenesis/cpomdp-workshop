@@ -113,7 +113,7 @@ def shown(value):
     value = np.asarray(value, dtype=float)
     if value.ndim == 0:
         return f"{float(value)}"
-    return "(" + ", ".join(f"{float(entry)}" for entry in value) + ")"
+    return "jnp.array([" + ", ".join(f"{float(entry)}" for entry in value) + "])"
 
 
 def test_task_2_lists_every_setting_it_reads_with_its_true_value():
@@ -265,3 +265,58 @@ def test_the_notebook_runs_end_to_end_on_the_reference_path():
     assert "spread = 0.000000 nats" in printed
     assert "PROVED (set compass-9, |A|^H = 9^1 = 9, visited 9)" in printed
     assert "max |difference| = " in printed
+
+
+COMMITTED = nbformat.read(build_notebook.NOTEBOOK, as_version=4)
+GIVES_AWAY = {"reference", "checkpoint", "symptoms"}
+"""Cells whose saved output would show a result before the learner runs anything."""
+FORM_WIDTH = 68
+"""The widest code line Colab shows beside a slider form without cutting it off."""
+
+
+def test_no_saved_output_gives_a_result_away():
+    shown = [
+        c.id for c in COMMITTED.cells if first_tag(c) in GIVES_AWAY and c.get("outputs")
+    ]
+    assert shown == []
+
+
+def test_no_saved_output_carries_a_warning():
+    warnings = [
+        c.id
+        for c in COMMITTED.cells
+        for o in c.get("outputs", [])
+        if o.output_type == "stream" and o.name == "stderr"
+    ]
+    assert warnings == []
+
+
+def test_the_preview_keeps_its_figure():
+    (preview,) = [
+        c
+        for c in COMMITTED.cells
+        if c.cell_type == "code" and first_tag(c) == "preview"
+    ]
+    assert any("image/png" in o.get("data", {}) for o in preview.outputs)
+
+
+def test_getting_started_heads_off_the_colab_warning_and_lost_edits():
+    text = lesson.GETTING_STARTED
+    assert "Run anyway" in text
+    assert "Save a copy in Drive" in text
+
+
+def test_the_slider_task_says_to_run_the_cell_again():
+    assert "run the cell again" in lesson.SESSION_3.brief
+
+
+def test_the_slider_cell_fits_beside_its_form():
+    lines = build_notebook.reference(lesson.SESSION_3, HINTS).splitlines()
+    lines += lesson.SESSION_3.attempt.splitlines()
+    # A cut-off form spec loses nothing the learner reads.
+    read = [line for line in lines if "# @param" not in line]
+    assert max(len(line) for line in read) <= FORM_WIDTH
+
+
+def test_the_beacon_setting_is_shown_as_the_array_it_must_be_set_as():
+    assert 'params["beacon"]       jnp.array([2.5, 1.4])' in lesson.SESSION_2.attempt

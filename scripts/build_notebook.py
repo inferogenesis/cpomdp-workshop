@@ -5,8 +5,11 @@
 
 The notebook is generated and never edited by hand. Each reference cell is its
 session's attempt with both hint lines put in, so the attempt, the hints pasted into
-chat and the reference cannot disagree. Running it saves the outputs of every cell
-except the attempts and the hints, which a learner fills and runs themselves.
+chat and the reference cannot disagree. Running it executes every cell except the
+attempts, the hints and the bonus code. The saved notebook keeps those outputs only
+where they give nothing away: the reference, checkpoint and troubleshooting cells are
+cleared, so the number a learner pastes in chat is one they produced, and no warning
+the build machine printed is kept.
 """
 
 import argparse
@@ -27,6 +30,9 @@ NOTEBOOK = ROOT / "notebooks" / "build_a_curious_rocket.ipynb"
 SKIP = "skip-execution"
 """The tag nbclient skips: attempts hold ``...``, hints are for copying, and bonus code
 is for the learner to run."""
+CLEARED = frozenset({"reference", "checkpoint", "symptoms"})
+"""Tags of cells run in the build whose output is not saved, because it shows a result
+or a "restored" line before the learner has run anything."""
 
 _HEADER = re.compile(
     r"^\[session (?P<session>\d), (?P<kind>(?:hint|nudge) [12]|reference)\]$"
@@ -214,6 +220,23 @@ def run(notebook: NotebookNode) -> NotebookNode:
     return notebook
 
 
+def saved(notebook: NotebookNode) -> NotebookNode:
+    """``notebook`` as it is committed, in place: cleared cells and warnings dropped."""
+    for cell in notebook.cells:
+        if cell.cell_type != "code":
+            continue
+        if cell.metadata["tags"][0] in CLEARED:
+            cell.outputs = []
+            cell.execution_count = None
+        else:
+            cell.outputs = [
+                output
+                for output in cell.outputs
+                if not (output.output_type == "stream" and output.name == "stderr")
+            ]
+    return notebook
+
+
 def main() -> None:
     """Build the notebook, run it unless told not to, and write it."""
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
@@ -221,7 +244,7 @@ def main() -> None:
     arguments = parser.parse_args()
     notebook = build()
     if not arguments.no_run:
-        run(notebook)
+        saved(run(notebook))
     NOTEBOOK.parent.mkdir(exist_ok=True)
     nbformat.write(notebook, NOTEBOOK)
     print(f"wrote {NOTEBOOK.relative_to(ROOT)}")
