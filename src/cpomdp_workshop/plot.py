@@ -123,8 +123,11 @@ ROUTE_STAGES = ("straight", "beacon", "blackout", "rock")
 _BASELINE = "1960 rocket"
 _ROUTE_LEGEND: Literal["lower left"] = "lower left"  # the corner no route crosses
 
-_EXTENT = ((-0.6, 5.6), (-1.1, 2.5))
+Extent = tuple[tuple[float, float], tuple[float, float]]
+
+_EXTENT: Extent = ((-0.6, 5.6), (-1.1, 2.5))
 _FIELD_SAMPLES = (125, 73)
+_PATH_MARGIN = 0.3
 
 
 def covariance_ellipse(cov: np.ndarray, *, sigmas: float = 2.0) -> tuple[float, ...]:
@@ -139,15 +142,36 @@ def covariance_ellipse(cov: np.ndarray, *, sigmas: float = 2.0) -> tuple[float, 
     return float(width), float(height), angle
 
 
+def _extent_for(flights: Mapping[str, Flight]) -> Extent:
+    """The usual map, widened where a path leaves it so the whole path shows."""
+    if not flights:
+        return _EXTENT
+    points = np.vstack([flight.path for flight in flights.values()])
+    (x_low, x_high), (y_low, y_high) = _EXTENT
+    return (
+        (
+            min(x_low, float(points[:, 0].min()) - _PATH_MARGIN),
+            max(x_high, float(points[:, 0].max()) + _PATH_MARGIN),
+        ),
+        (
+            min(y_low, float(points[:, 1].min()) - _PATH_MARGIN),
+            max(y_high, float(points[:, 1].max()) + _PATH_MARGIN),
+        ),
+    )
+
+
 def _canvas(
-    title: str, palette: Palette, size: tuple[float, float] = (9.0, 5.0)
+    title: str,
+    palette: Palette,
+    size: tuple[float, float] = (9.0, 5.0),
+    extent: Extent = _EXTENT,
 ) -> tuple[Figure, Axes]:
     """An empty map of the world in ``palette``."""
     figure, axes = plt.subplots(figsize=size, facecolor=palette.background)
     plt.close(figure)  # returned, never shown by pyplot itself
     axes.set_facecolor(palette.panel)
-    axes.set_xlim(*_EXTENT[0])
-    axes.set_ylim(*_EXTENT[1])
+    axes.set_xlim(*extent[0])
+    axes.set_ylim(*extent[1])
     axes.set_aspect("equal")
     axes.set_title(title, color=palette.ink, loc="left", fontsize=12)
     axes.tick_params(colors=palette.muted, labelsize=9)
@@ -180,10 +204,11 @@ def _draw_field(
     sensor: NoiseFn,
     params: SensorParams,
     palette: Palette,
+    extent: Extent = _EXTENT,
 ) -> None:
     """The sensor field under everything else, with its scale."""
-    xs = np.linspace(*_EXTENT[0], _FIELD_SAMPLES[0])
-    ys = np.linspace(*_EXTENT[1], _FIELD_SAMPLES[1])
+    xs = np.linspace(*extent[0], _FIELD_SAMPLES[0])
+    ys = np.linspace(*extent[1], _FIELD_SAMPLES[1])
     grid_x, grid_y = np.meshgrid(xs, ys)
     points = np.column_stack([grid_x.ravel(), grid_y.ravel()])
     levels = _noise_levels(sensor, params, points).reshape(grid_x.shape)
@@ -321,6 +346,9 @@ def plot_flights(
 ) -> Figure:
     """Named flights over the field they flew in.
 
+    The map is the usual one unless a path leaves it. Then it widens to show the
+    whole path, so a rocket at a large k is never drawn off the edge.
+
     Args:
         flights: each flight under the name its legend entry gives it.
         sensor: the noise field to draw under the paths, or ``None`` for none.
@@ -339,9 +367,11 @@ def plot_flights(
             would not stay distinct, so split the flights across figures.
     """
     _check_colours(flights, baseline)
-    figure, axes = _canvas(title, DARK)
+    extent = _extent_for(flights)
+    figure, axes = _canvas(title, DARK, extent=extent)
     if sensor is not None:
-        _draw_field(figure, axes, sensor, params if params is not None else {}, DARK)
+        field_params = params if params is not None else {}
+        _draw_field(figure, axes, sensor, field_params, DARK, extent)
     _draw_landmarks(axes, hazard, DARK)
     inline = len(flights) == 1
     _draw_flights(axes, flights, baseline, DARK, inline=inline)

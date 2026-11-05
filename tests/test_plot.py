@@ -215,3 +215,16 @@ def test_the_rockets_keep_their_colours_on_either_palette(route):
     curious = [to_hex(c) for c in CURIOUS_COLOURS]
     assert [c for c in dark if c in curious] == [c for c in light if c in curious]
     assert [c for c in light if c in curious]
+
+
+def test_a_path_that_leaves_the_map_widens_it():
+    flight = fly(curious_rocket(2.0, beacon_sensor))
+    axes = plot_path(flight, beacon_sensor, default_params(2.0)).axes[0]
+    low, high = axes.get_ylim()
+    assert low <= flight.path[:, 1].min()
+    assert high >= flight.path[:, 1].max()
+
+
+def test_a_path_inside_the_map_keeps_the_usual_map():
+    axes = plot_path(fly(the_1960_rocket())).axes[0]
+    assert axes.get_ylim() == (-1.1, 2.5)
