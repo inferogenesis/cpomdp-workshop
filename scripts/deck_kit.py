@@ -6,7 +6,8 @@ in a filled panel, printed output in an outlined one. A placeholder the owner ha
 fill is drawn dashed in amber, so it cannot pass for finished content.
 
 Shapes are named by kind (``title``, ``code``, ``printed``, ``text``, ``picture``,
-``photo``, ``qr``, ``placeholder``, ``card``, ``pill``, ``mark``, ``track``, ``bar``).
+``photo``, ``qr``, ``placeholder``, ``card``, ``pill``, ``mark``, ``track``, ``bar``,
+``clock``).
 The layout check and the deck test read the names, so a number inside program output
 is told apart from a number in prose.
 
@@ -14,6 +15,7 @@ A photo frame is an empty panel named after the photo it holds. The committed de
 keeps it empty, and only a local presenting copy puts the photo in.
 """
 
+import itertools
 import math
 import re
 from collections.abc import Iterator, Sequence
@@ -40,6 +42,7 @@ __all__ = [
     "AMBER_MARK",
     "BACKGROUND",
     "BLUE",
+    "CLOCK_SIZE",
     "CODE_FONT",
     "CONTENT_TOP",
     "GREEN",
@@ -87,6 +90,8 @@ SLIDE_WIDTH = 13.333
 SLIDE_HEIGHT = 7.5
 MARGIN = 0.6
 CONTENT_TOP = 1.45
+CLOCK_SIZE = (1.6, 0.64)
+"""The timer's clock over the right end of its bar, wide enough for 15:00 at 32 pt."""
 
 _TITLE = (MARGIN, 0.42, 10.2, 0.8)  # x, y, w, h
 _SEGMENT = (11.03, 0.58, 1.7, 0.42)
@@ -550,14 +555,29 @@ class Page:
         minutes: int,
         *,
         then: Sequence[Paragraph],
+        clip: Path,
+        poster: Path,
         size: float = 22,
     ) -> None:
         """A bar that fills over ``minutes`` from when the slide shows, then ``then``.
 
-        The bar fills left to right with no click, marked every five minutes. When it
-        is full, ``then`` appears under the marks. Leaving the slide starts the bar
-        again on return, so the slide stays up while the room works.
+        The bar fills left to right with no click, marked every five minutes. Above
+        its right end, ``clip`` plays a clock counting the time left down to 00:00
+        and holds it. Until it plays, as in the editor or a PDF, ``poster`` stands in
+        its place. When the bar is full, ``then`` appears under the marks. Leaving
+        the slide starts both again on return, so the slide stays up while the room
+        works.
         """
+        width, height = CLOCK_SIZE
+        clock = self.slide.shapes.add_movie(
+            str(clip), Inches(x + w - width), Inches(y - height - 0.1),
+            Inches(width), Inches(height),
+            poster_frame_image=str(poster), mime_type="video/mp4",
+        )  # fmt: skip
+        clock.name = "clock"
+        # python-pptx gives the clip a timeline of its own, and the slide has one.
+        for timing in self.slide._element.findall(f"{{{_PRESENTATION}}}timing"):
+            self.slide._element.remove(timing)
         track = self._panel(x, y, w, 0.7, "track", fill=PANEL, line=RULE)
         track.adjustments[0] = 0.5
         bar = self.slide.shapes.add_shape(
@@ -582,11 +602,13 @@ class Page:
             )  # fmt: skip
         self.text(x, y + 1.5, w, 0.6, then, size=size, bold=True, space_after=0)
         reveal = self.slide.shapes[-1]
+        full = minutes * 60_000
         self.slide._element.append(
             _timing(
                 (
-                    _Effect(bar.shape_id, "wipe", minutes * 60_000),
-                    _Effect(reveal.shape_id, "appear", 1),
+                    _Effect(bar.shape_id, "wipe", 0, full),
+                    _Effect(clock.shape_id, "play", 0, full + 1000),
+                    _Effect(reveal.shape_id, "appear", full),
                 )
             )
         )
@@ -605,57 +627,84 @@ class Page:
 
 @dataclass(frozen=True)
 class _Effect:
-    """One entrance in a slide's timeline.
+    """One step in a slide's timeline.
 
     Attributes:
-        shape_id: the shape it brings in.
-        kind: ``"wipe"`` from the left, or ``"appear"`` at once.
+        shape_id: the shape it acts on.
+        kind: ``"wipe"`` in from the left, ``"appear"`` at once, or ``"play"`` a
+            video from its start.
+        start: when it begins, in milliseconds after the slide shows.
         duration: how long it takes, in milliseconds.
     """
 
     shape_id: int
     kind: str
-    duration: int
+    start: int
+    duration: int = 1
 
 
 _PRESENTATION = "http://schemas.openxmlformats.org/presentationml/2006/main"
-_PRESETS = {"wipe": ("22", "8"), "appear": ("1", "0")}  # PowerPoint's ID, subtype
+_PRESETS = {  # PowerPoint's preset ID, class and subtype
+    "wipe": ("22", "entr", "8"),
+    "appear": ("1", "entr", "0"),
+    "play": ("1", "mediacall", "0"),
+}
+
+
+def _behaviour(effect: _Effect, ids: Iterator[int]) -> str:
+    """What one step does to its shape: show it, wipe it in, or play it."""
+    target = f'<p:tgtEl><p:spTgt spid="{effect.shape_id}"/></p:tgtEl>'
+    if effect.kind == "play":
+        return (
+            '<p:cmd type="call" cmd="playFrom(0.0)"><p:cBhvr>'
+            f'<p:cTn id="{next(ids)}" dur="{effect.duration}" fill="hold"/>{target}'
+            "</p:cBhvr></p:cmd>"
+        )
+    wipe = (
+        f'<p:animEffect transition="in" filter="wipe(left)"><p:cBhvr>'
+        f'<p:cTn id="{next(ids)}" dur="{effect.duration}"/>{target}'
+        "</p:cBhvr></p:animEffect>"
+        if effect.kind == "wipe"
+        else ""
+    )
+    return (
+        f'<p:set><p:cBhvr><p:cTn id="{next(ids)}" dur="1" fill="hold"><p:stCondLst>'
+        f'<p:cond delay="0"/></p:stCondLst></p:cTn>{target}<p:attrNameLst>'
+        "<p:attrName>style.visibility</p:attrName></p:attrNameLst></p:cBhvr>"
+        f'<p:to><p:strVal val="visible"/></p:to></p:set>{wipe}'
+    )
 
 
 def _timing(effects: Sequence[_Effect]):
-    """A slide's ``p:timing``: each effect after the last, the first with the slide.
+    """A slide's ``p:timing``: every effect starts with the slide, after its delay.
 
-    PowerPoint writes "after previous" this way: one group the slide's start
-    triggers, holding one delayed step per effect.
+    PowerPoint writes "with previous" this way: one group the slide's start
+    triggers, holding every effect with its own delay. A video it plays also gets
+    a media node beside the sequence, as PowerPoint writes one for each video.
     """
-    ids = iter(range(4, 1000))
-    steps, start = [], 0
+    ids = itertools.count(5)
+    steps = []
     for effect in effects:
-        preset, subtype = _PRESETS[effect.kind]
-        target = f'<p:tgtEl><p:spTgt spid="{effect.shape_id}"/></p:tgtEl>'
-        wipe = (
-            f'<p:animEffect transition="in" filter="wipe(left)"><p:cBhvr>'
-            f'<p:cTn id="{next(ids)}" dur="{effect.duration}"/>{target}'
-            "</p:cBhvr></p:animEffect>"
-            if effect.kind == "wipe"
-            else ""
-        )
-        step, node, shown = next(ids), next(ids), next(ids)
+        preset, kind, subtype = _PRESETS[effect.kind]
+        node = next(ids)
         steps.append(
-            f'<p:par><p:cTn id="{step}" fill="hold"><p:stCondLst>'
-            f'<p:cond delay="{start}"/></p:stCondLst><p:childTnLst>'
-            f'<p:par><p:cTn id="{node}" presetID="{preset}" presetClass="entr" '
-            f'presetSubtype="{subtype}" fill="hold" grpId="0" nodeType="afterEffect">'
-            '<p:stCondLst><p:cond delay="0"/></p:stCondLst><p:childTnLst>'
-            f'<p:set><p:cBhvr><p:cTn id="{shown}" dur="1" fill="hold"><p:stCondLst>'
-            f'<p:cond delay="0"/></p:stCondLst></p:cTn>{target}<p:attrNameLst>'
-            "<p:attrName>style.visibility</p:attrName></p:attrNameLst></p:cBhvr>"
-            '<p:to><p:strVal val="visible"/></p:to></p:set>'
-            f"{wipe}</p:childTnLst></p:cTn></p:par></p:childTnLst></p:cTn></p:par>"
+            f'<p:par><p:cTn id="{node}" presetID="{preset}" presetClass="{kind}" '
+            f'presetSubtype="{subtype}" fill="hold" grpId="0" nodeType="withEffect">'
+            f'<p:stCondLst><p:cond delay="{effect.start}"/></p:stCondLst>'
+            f"<p:childTnLst>{_behaviour(effect, ids)}</p:childTnLst></p:cTn></p:par>"
         )
-        start += effect.duration
+    videos = "".join(
+        f'<p:video><p:cMediaNode vol="80000"><p:cTn id="{next(ids)}" fill="hold" '
+        'display="0"><p:stCondLst><p:cond delay="indefinite"/></p:stCondLst>'
+        f'</p:cTn><p:tgtEl><p:spTgt spid="{effect.shape_id}"/></p:tgtEl>'
+        "</p:cMediaNode></p:video>"
+        for effect in effects
+        if effect.kind == "play"
+    )
     builds = "".join(
-        f'<p:bldP spid="{effect.shape_id}" grpId="0" animBg="1"/>' for effect in effects
+        f'<p:bldP spid="{effect.shape_id}" grpId="0" animBg="1"/>'
+        for effect in effects
+        if effect.kind != "play"
     )
     return parse_xml(
         f'<p:timing xmlns:p="{_PRESENTATION}"><p:tnLst><p:par>'
@@ -664,13 +713,16 @@ def _timing(effects: Sequence[_Effect]):
         '<p:cTn id="2" dur="indefinite" nodeType="mainSeq"><p:childTnLst>'
         '<p:par><p:cTn id="3" fill="hold"><p:stCondLst><p:cond delay="indefinite"/>'
         '<p:cond evt="onBegin" delay="0"><p:tn val="2"/></p:cond></p:stCondLst>'
+        '<p:childTnLst><p:par><p:cTn id="4" fill="hold"><p:stCondLst>'
+        '<p:cond delay="0"/></p:stCondLst>'
         f"<p:childTnLst>{''.join(steps)}</p:childTnLst></p:cTn></p:par>"
+        "</p:childTnLst></p:cTn></p:par>"
         "</p:childTnLst></p:cTn>"
         '<p:prevCondLst><p:cond evt="onPrev" delay="0"><p:tgtEl><p:sldTgt/>'
         "</p:tgtEl></p:cond></p:prevCondLst>"
         '<p:nextCondLst><p:cond evt="onNext" delay="0"><p:tgtEl><p:sldTgt/>'
         "</p:tgtEl></p:cond></p:nextCondLst>"
-        "</p:seq></p:childTnLst></p:cTn></p:par></p:tnLst>"
+        f"</p:seq>{videos}</p:childTnLst></p:cTn></p:par></p:tnLst>"
         f"<p:bldLst>{builds}</p:bldLst></p:timing>"
     )
 

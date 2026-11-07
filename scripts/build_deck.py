@@ -66,6 +66,7 @@ from deck_kit import (
     code_height,
 )
 from deck_layout import fit_problems, layout_problems, metrics
+from timer_clip import CLIP, POSTER
 
 ROOT = Path(__file__).resolve().parents[1]
 ASSETS = ROOT / "assets"
@@ -306,7 +307,7 @@ def timer_page(deck: Deck, number: int, steps: tuple[str, ...]) -> Page:
             runs.append(Run(step))
         paragraphs.append(runs)
     page.text(
-        MARGIN, CONTENT_TOP + 0.1, FULL_WIDTH, 2.6, paragraphs, size=22, space_after=12
+        MARGIN, CONTENT_TOP + 0.1, FULL_WIDTH, 1.9, paragraphs, size=22, space_after=12
     )
     page.countdown(
         MARGIN, 4.3, FULL_WIDTH, TASK_MINUTES,
@@ -316,6 +317,7 @@ def timer_page(deck: Deck, number: int, steps: tuple[str, ...]) -> Page:
                 Run(f"Run checkpoint {number}, even if everything worked."),
             ]
         ],
+        clip=CLIP, poster=POSTER,
     )  # fmt: skip
     page.text(
         MARGIN, 6.45, FULL_WIDTH, 0.75,
@@ -348,7 +350,8 @@ def timer_notes(number: int, *paragraphs: str) -> str:
         "Keyboard.",
         *paragraphs,
         f"Leave this slide up for the whole {TASK_MINUTES} minutes. The bar starts "
-        "when the slide appears and needs no click. It starts again if you leave the "
+        "when the slide appears and needs no click, and the clock above it counts "
+        "down the time left to the second. Both start again if you leave the "
         "slide and come back, so share the notebook from another window if you need "
         "to.",
         "Nobody pastes hints. Each person opens the collapsed hint and reference "
@@ -1270,7 +1273,7 @@ def task_3_blackout(deck: Deck) -> None:
     """The third route frame, the blackout before the rock."""
     page = route_page(
         deck,
-        "Why do the curious rockets take a detour before we add the rock?",
+        "Why do the curious rockets detour before the rock?",
         "task 3",
         "route_3_blackout.png",
     )

@@ -15,10 +15,12 @@ from cpomdp import (
 )
 from PIL import Image
 from pptx.opc.constants import RELATIONSHIP_TYPE
+from pptx.shapes.picture import Movie
 
 import build_deck
 import deck_layout
 import lesson
+import timer_clip
 from cpomdp_workshop import (
     WORKSHOP_CPOMDP_VERSION,
     model_with,
@@ -201,6 +203,68 @@ def test_a_timer_fills_its_bar_over_fifteen_minutes_with_no_click(deck, timer):
     assert target.get("spid") == str(bar.shape_id)
     starts = timing.findall(f".//{{{PRESENTATION}}}cond[@evt='onBegin']")
     assert len(starts) == 1, "the effects start with the slide, not on a click"
+
+
+def schedule(slide):
+    """Each effect on a slide as (shape id, entr or exit, ms after the slide shows)."""
+    timing = slide._element.find(f"{{{PRESENTATION}}}timing")
+    assert timing is not None
+    effects = []
+    for node in timing.iter(f"{{{PRESENTATION}}}cTn"):
+        kind = node.get("presetClass")
+        if kind is None:
+            continue
+        cond = node.find(f"{{{PRESENTATION}}}stCondLst/{{{PRESENTATION}}}cond")
+        target = node.find(f".//{{{PRESENTATION}}}spTgt")
+        assert cond is not None
+        assert target is not None
+        effects.append((int(target.get("spid")), kind, int(cond.get("delay"))))
+    return effects
+
+
+@pytest.mark.slow
+@pytest.mark.parametrize(
+    "timer",
+    [build_deck.task_1_timer, build_deck.task_2_timer, build_deck.task_3_timer],
+)
+def test_a_timer_plays_its_clock_above_its_bar_from_when_the_slide_shows(deck, timer):
+    slide = slide_of(deck, timer)
+    (track,) = [shape for shape in slide.shapes if shape.name == "track"]
+    (bar,) = [shape for shape in slide.shapes if shape.name == "bar"]
+    (clock,) = [shape for shape in slide.shapes if shape.name == "clock"]
+    (times_up,) = [
+        shape
+        for shape in slide.shapes
+        if shape.has_text_frame and shape.text_frame.text.startswith("Time's up.")
+    ]
+    assert isinstance(clock, Movie)
+    assert clock.top + clock.height <= track.top
+    assert clock.left + clock.width == track.left + track.width
+    assert len(slide._element.findall(f"{{{PRESENTATION}}}timing")) == 1
+    effects = schedule(slide)
+    assert (bar.shape_id, "entr", 0) in effects
+    assert (clock.shape_id, "mediacall", 0) in effects
+    assert (times_up.shape_id, "entr", 15 * 60_000) in effects
+    media = slide._element.findall(
+        f".//{{{PRESENTATION}}}video//{{{PRESENTATION}}}spTgt"
+    )
+    assert [target.get("spid") for target in media] == [str(clock.shape_id)]
+
+
+@pytest.mark.slow
+@pytest.mark.parametrize(
+    "timer",
+    [build_deck.task_1_timer, build_deck.task_2_timer, build_deck.task_3_timer],
+)
+def test_a_timer_embeds_the_committed_clip_and_shows_15_00_until_it_plays(deck, timer):
+    slide = slide_of(deck, timer)
+    (clock,) = [shape for shape in slide.shapes if shape.name == "clock"]
+    assert isinstance(clock, Movie)
+    poster = clock.poster_frame
+    assert poster is not None
+    assert poster.blob == timer_clip.POSTER.read_bytes()
+    (video,) = clock._element.xpath("./p:nvPicPr/p:nvPr/a:videoFile/@r:link")
+    assert slide.part.related_part(video).blob == timer_clip.CLIP.read_bytes()
 
 
 def test_every_slide_is_on_the_light_palette(deck):
