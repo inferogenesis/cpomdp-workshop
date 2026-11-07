@@ -203,6 +203,67 @@ def test_a_timer_fills_its_bar_over_fifteen_minutes_with_no_click(deck, timer):
     assert len(starts) == 1, "the effects start with the slide, not on a click"
 
 
+def schedule(slide):
+    """Each effect on a slide as (shape id, entr or exit, ms after the slide shows)."""
+    timing = slide._element.find(f"{{{PRESENTATION}}}timing")
+    assert timing is not None
+    effects = []
+    for node in timing.iter(f"{{{PRESENTATION}}}cTn"):
+        kind = node.get("presetClass")
+        if kind is None:
+            continue
+        cond = node.find(f"{{{PRESENTATION}}}stCondLst/{{{PRESENTATION}}}cond")
+        target = node.find(f".//{{{PRESENTATION}}}spTgt")
+        assert cond is not None
+        assert target is not None
+        effects.append((int(target.get("spid")), kind, int(cond.get("delay"))))
+    return effects
+
+
+@pytest.mark.slow
+@pytest.mark.parametrize(
+    "timer",
+    [build_deck.task_1_timer, build_deck.task_2_timer, build_deck.task_3_timer],
+)
+def test_a_timer_counts_down_the_whole_minutes_left_above_its_bar(deck, timer):
+    slide = slide_of(deck, timer)
+    (bar,) = [shape for shape in slide.shapes if shape.name == "bar"]
+    clocks = [shape for shape in slide.shapes if shape.name == "clock"]
+    (times_up,) = [
+        shape
+        for shape in slide.shapes
+        if shape.has_text_frame and shape.text_frame.text.startswith("Time's up.")
+    ]
+    effects = schedule(slide)
+    shown = {spid: delay for spid, kind, delay in effects if kind == "entr"}
+    clocks.sort(key=lambda clock: shown[clock.shape_id])
+    assert [clock.text_frame.text for clock in clocks] == [
+        f"{m} minutes left" for m in range(15, 1, -1)
+    ] + ["1 minute left"]
+    assert len({(c.left, c.top, c.width, c.height) for c in clocks}) == 1
+    assert clocks[0].top + clocks[0].height <= bar.top
+    assert (bar.shape_id, "entr", 0) in effects
+    for m, clock in zip(range(15, 0, -1), clocks, strict=True):
+        start = (15 - m) * 60_000
+        assert (clock.shape_id, "entr", start) in effects
+        assert (clock.shape_id, "exit", start + 60_000) in effects
+    assert (times_up.shape_id, "entr", 15 * 60_000) in effects
+
+
+@pytest.mark.slow
+@pytest.mark.parametrize(
+    "timer",
+    [build_deck.task_1_timer, build_deck.task_2_timer, build_deck.task_3_timer],
+)
+def test_a_timer_reads_fifteen_minutes_left_where_its_animation_does_not_run(
+    deck, timer
+):
+    clocks = [shape for shape in slide_of(deck, timer).shapes if shape.name == "clock"]
+    assert clocks[-1].text_frame.text == "15 minutes left", "drawn on top"
+    for clock in clocks:
+        assert str(clock.fill.fore_color.rgb) == plot.LIGHT.background[1:]
+
+
 def test_every_slide_is_on_the_light_palette(deck):
     for slide in deck.slides:
         assert str(slide.background.fill.fore_color.rgb) == plot.LIGHT.background[1:]

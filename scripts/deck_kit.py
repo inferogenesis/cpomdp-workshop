@@ -6,7 +6,8 @@ in a filled panel, printed output in an outlined one. A placeholder the owner ha
 fill is drawn dashed in amber, so it cannot pass for finished content.
 
 Shapes are named by kind (``title``, ``code``, ``printed``, ``text``, ``picture``,
-``photo``, ``qr``, ``placeholder``, ``card``, ``pill``, ``mark``, ``track``, ``bar``).
+``photo``, ``qr``, ``placeholder``, ``card``, ``pill``, ``mark``, ``track``, ``bar``,
+``clock``).
 The layout check and the deck test read the names, so a number inside program output
 is told apart from a number in prose.
 
@@ -91,6 +92,7 @@ CONTENT_TOP = 1.45
 _TITLE = (MARGIN, 0.42, 10.2, 0.8)  # x, y, w, h
 _SEGMENT = (11.03, 0.58, 1.7, 0.42)
 _PANEL_INSET = 0.18
+_CLOCK_WIDTH = 4.0  # room for "15 minutes left" at 26 pt, over the bar's right end
 _CODE_ADVANCE = 0.6  # Courier New sets every glyph 0.6 em wide
 _CODE_LINE = 1.2  # and PowerPoint sets its lines 1.2 em apart, measured on a render
 _SLOT = re.compile(r"^\s*\w+ = \.\.\.")
@@ -178,7 +180,7 @@ class Page:
     def __init__(self, slide: Slide) -> None:
         self.slide = slide
 
-    def _box(self, x: float, y: float, w: float, h: float, name: str) -> TextFrame:
+    def _text_box(self, x: float, y: float, w: float, h: float, name: str) -> Shape:
         shape = self.slide.shapes.add_textbox(
             Inches(x), Inches(y), Inches(w), Inches(h)
         )
@@ -187,7 +189,10 @@ class Page:
         frame.word_wrap = True
         frame.margin_left = frame.margin_right = Inches(0.0)
         frame.margin_top = frame.margin_bottom = Inches(0.0)
-        return frame
+        return shape
+
+    def _box(self, x: float, y: float, w: float, h: float, name: str) -> TextFrame:
+        return self._text_box(x, y, w, h, name).text_frame
 
     def _panel(
         self,
@@ -554,10 +559,12 @@ class Page:
     ) -> None:
         """A bar that fills over ``minutes`` from when the slide shows, then ``then``.
 
-        The bar fills left to right with no click, marked every five minutes. When it
-        is full, ``then`` appears under the marks. Leaving the slide starts the bar
-        again on return, so the slide stays up while the room works.
+        The bar fills left to right with no click, marked every five minutes. A clock
+        above its right end shows the whole minutes left, one label a minute. When the
+        bar is full, ``then`` appears under the marks. Leaving the slide starts the
+        bar again on return, so the slide stays up while the room works.
         """
+        ticks = self._clock(x + w - _CLOCK_WIDTH, y - 0.7, minutes)
         track = self._panel(x, y, w, 0.7, "track", fill=PANEL, line=RULE)
         track.adjustments[0] = 0.5
         bar = self.slide.shapes.add_shape(
@@ -582,14 +589,39 @@ class Page:
             )  # fmt: skip
         self.text(x, y + 1.5, w, 0.6, then, size=size, bold=True, space_after=0)
         reveal = self.slide.shapes[-1]
+        full = minutes * 60_000
         self.slide._element.append(
             _timing(
                 (
-                    _Effect(bar.shape_id, "wipe", minutes * 60_000),
-                    _Effect(reveal.shape_id, "appear", 1),
+                    _Effect(bar.shape_id, "wipe", 0, full),
+                    *ticks,
+                    _Effect(reveal.shape_id, "appear", full),
                 )
             )
         )
+
+    def _clock(self, x: float, y: float, minutes: int) -> list["_Effect"]:
+        """One label per whole minute left, and the effects that show each in turn.
+
+        Each label is filled with the slide's background and the first is drawn on
+        top, so a copy with no animation (the editor, a PDF) reads the full time.
+        """
+        effects = []
+        for left in range(1, minutes + 1):
+            label = f"{left} {'minute' if left == 1 else 'minutes'} left"
+            clock = self._text_box(x, y, _CLOCK_WIDTH, 0.55, "clock")
+            self._fill(
+                clock.text_frame, [label],
+                size=26, colour=INK, font=TEXT_FONT, bold=True, align=PP_ALIGN.RIGHT,
+            )  # fmt: skip
+            clock.fill.solid()
+            clock.fill.fore_color.rgb = _rgb(BACKGROUND)
+            start = (minutes - left) * 60_000
+            effects += [
+                _Effect(clock.shape_id, "appear", start),
+                _Effect(clock.shape_id, "vanish", start + 60_000),
+            ]
+        return effects
 
     def notes(self, text: str, *, sources: Sequence[tuple[str, str]] = ()) -> None:
         """The speaker notes, with any named source links after the spoken text."""
@@ -605,33 +637,40 @@ class Page:
 
 @dataclass(frozen=True)
 class _Effect:
-    """One entrance in a slide's timeline.
+    """One entrance or exit in a slide's timeline.
 
     Attributes:
-        shape_id: the shape it brings in.
-        kind: ``"wipe"`` from the left, or ``"appear"`` at once.
+        shape_id: the shape it brings in or takes out.
+        kind: ``"wipe"`` in from the left, ``"appear"`` at once, or ``"vanish"``,
+            an exit at once.
+        start: when it begins, in milliseconds after the slide shows.
         duration: how long it takes, in milliseconds.
     """
 
     shape_id: int
     kind: str
-    duration: int
+    start: int
+    duration: int = 1
 
 
 _PRESENTATION = "http://schemas.openxmlformats.org/presentationml/2006/main"
-_PRESETS = {"wipe": ("22", "8"), "appear": ("1", "0")}  # PowerPoint's ID, subtype
+_PRESETS = {  # PowerPoint's preset ID, its class, its subtype, and what it sets
+    "wipe": ("22", "entr", "8", "visible"),
+    "appear": ("1", "entr", "0", "visible"),
+    "vanish": ("1", "exit", "0", "hidden"),
+}
 
 
 def _timing(effects: Sequence[_Effect]):
-    """A slide's ``p:timing``: each effect after the last, the first with the slide.
+    """A slide's ``p:timing``: every effect starts with the slide, after its delay.
 
-    PowerPoint writes "after previous" this way: one group the slide's start
-    triggers, holding one delayed step per effect.
+    PowerPoint writes "with previous" this way: one group the slide's start
+    triggers, holding every effect with its own delay.
     """
-    ids = iter(range(4, 1000))
-    steps, start = [], 0
+    ids = iter(range(5, 1000))
+    steps = []
     for effect in effects:
-        preset, subtype = _PRESETS[effect.kind]
+        preset, kind, subtype, visibility = _PRESETS[effect.kind]
         target = f'<p:tgtEl><p:spTgt spid="{effect.shape_id}"/></p:tgtEl>'
         wipe = (
             f'<p:animEffect transition="in" filter="wipe(left)"><p:cBhvr>'
@@ -640,22 +679,24 @@ def _timing(effects: Sequence[_Effect]):
             if effect.kind == "wipe"
             else ""
         )
-        step, node, shown = next(ids), next(ids), next(ids)
+        node, shown = next(ids), next(ids)
         steps.append(
-            f'<p:par><p:cTn id="{step}" fill="hold"><p:stCondLst>'
-            f'<p:cond delay="{start}"/></p:stCondLst><p:childTnLst>'
-            f'<p:par><p:cTn id="{node}" presetID="{preset}" presetClass="entr" '
-            f'presetSubtype="{subtype}" fill="hold" grpId="0" nodeType="afterEffect">'
-            '<p:stCondLst><p:cond delay="0"/></p:stCondLst><p:childTnLst>'
+            f'<p:par><p:cTn id="{node}" presetID="{preset}" presetClass="{kind}" '
+            f'presetSubtype="{subtype}" fill="hold" grpId="{int(kind == "exit")}" '
+            'nodeType="withEffect"><p:stCondLst>'
+            f'<p:cond delay="{effect.start}"/></p:stCondLst><p:childTnLst>'
             f'<p:set><p:cBhvr><p:cTn id="{shown}" dur="1" fill="hold"><p:stCondLst>'
             f'<p:cond delay="0"/></p:stCondLst></p:cTn>{target}<p:attrNameLst>'
             "<p:attrName>style.visibility</p:attrName></p:attrNameLst></p:cBhvr>"
-            '<p:to><p:strVal val="visible"/></p:to></p:set>'
-            f"{wipe}</p:childTnLst></p:cTn></p:par></p:childTnLst></p:cTn></p:par>"
+            f'<p:to><p:strVal val="{visibility}"/></p:to></p:set>'
+            f"{wipe}</p:childTnLst></p:cTn></p:par>"
         )
-        start += effect.duration
+    groups = dict.fromkeys(
+        (effect.shape_id, int(_PRESETS[effect.kind][1] == "exit")) for effect in effects
+    )
     builds = "".join(
-        f'<p:bldP spid="{effect.shape_id}" grpId="0" animBg="1"/>' for effect in effects
+        f'<p:bldP spid="{shape_id}" grpId="{group}" animBg="1"/>'
+        for shape_id, group in groups
     )
     return parse_xml(
         f'<p:timing xmlns:p="{_PRESENTATION}"><p:tnLst><p:par>'
@@ -664,7 +705,10 @@ def _timing(effects: Sequence[_Effect]):
         '<p:cTn id="2" dur="indefinite" nodeType="mainSeq"><p:childTnLst>'
         '<p:par><p:cTn id="3" fill="hold"><p:stCondLst><p:cond delay="indefinite"/>'
         '<p:cond evt="onBegin" delay="0"><p:tn val="2"/></p:cond></p:stCondLst>'
+        '<p:childTnLst><p:par><p:cTn id="4" fill="hold"><p:stCondLst>'
+        '<p:cond delay="0"/></p:stCondLst>'
         f"<p:childTnLst>{''.join(steps)}</p:childTnLst></p:cTn></p:par>"
+        "</p:childTnLst></p:cTn></p:par>"
         "</p:childTnLst></p:cTn>"
         '<p:prevCondLst><p:cond evt="onPrev" delay="0"><p:tgtEl><p:sldTgt/>'
         "</p:tgtEl></p:cond></p:prevCondLst>"

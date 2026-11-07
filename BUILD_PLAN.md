@@ -120,7 +120,7 @@ Remade on 2026-10-28 from the 0.5.0 deck, on the light theme of Inferogenesis's 
 | Welcome | 17:00, 10 min | 1. Build a curious rocket · 2. Who we are · 3. Two hours, three tasks · 4. How we will work · 5. Get set up · 6. What we will build |
 | Task 1 | 17:10, 30 min | 7. Task 1 · The 1960 rocket · 8. Task 1 · Over to you · 9. Task 1 · Discussion · 10. Making information gain depend on the action |
 | Task 2 | 17:40, 30 min | 11. What changes when observations depend on location? · 12. Task 2 · Over to you · 13. Task 2 · Discussion · 14. Why does the rocket stop short of the pad? |
-| Task 3 | 18:10, 30 min | 15. Task 3 · The blackout · 16. Task 3 · Over to you · 17. Why do the curious rockets take a detour before we add the rock? · 18. What changes when we add the rock? · 19. What happens if we move the rock into clear sky? · 20. Do the two methods agree about where the rocket is? |
+| Task 3 | 18:10, 30 min | 15. Task 3 · The blackout · 16. Task 3 · Over to you · 17. Why do the curious rockets detour before the rock? · 18. What changes when we add the rock? · 19. What happens if we move the rock into clear sky? · 20. Do the two methods agree about where the rocket is? |
 | Why it matters | 18:40, 10 min | 21. What does PROVED mean here? · 22. What did cpomdp let us do? · 23. What else can we model with cpomdp? · 24. Where the research goes next |
 | Questions | 18:50, 10 min | 25. Two more experiments to try in Colab · 26. Any questions? |
 
