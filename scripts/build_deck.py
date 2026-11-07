@@ -37,15 +37,17 @@ import lesson
 from cpomdp_workshop import (
     WORKSHOP_CPOMDP_VERSION,
     after_session_3,
+    axis_certificate,
     beacon_sensor,
     check_backends,
-    check_my_sensor,
     default_params,
+    grade_sensor,
     model_with,
     one_node,
     probe,
     show_probe,
 )
+from cpomdp_workshop._seams import RecedingHorizonSelector
 from deck_kit import (
     AMBER,
     AMBER_MARK,
@@ -55,7 +57,6 @@ from deck_kit import (
     GREEN,
     INK,
     MARGIN,
-    MATH_FONT,
     MUTED,
     SLIDE_WIDTH,
     Deck,
@@ -63,7 +64,6 @@ from deck_kit import (
     Paragraph,
     Run,
     code_height,
-    code_size,
 )
 from deck_layout import fit_problems, layout_problems, metrics
 
@@ -179,18 +179,6 @@ def span(block: Block) -> str:
     return f"{clock(block.label)}–{clock(block.label, after=block.minutes)}"
 
 
-GRAPH_CODE = """\
-sensor = FixedSensor(jnp.eye(2), observation_noise=0.05 * jnp.eye(2))
-graph = CouplingGraph(dims=[2], couplings=[], observation_models={0: sensor})
-backend = CouplingGraphBackend(
-    graph,
-    [GaussianTransition(jnp.eye(2), dynamics_noise=1e-3 * jnp.eye(2))],
-    prior=Belief(mean=LAUNCH, cov=4 * jnp.eye(2)),
-    control_matrix=jnp.eye(2),
-)
-rocket = Agent.from_backend(backend, goal)"""
-"""What ``one_node`` builds from task 1's model. The deck test runs it."""
-
 PYMDP_MAP = (
     ("A", "the observation likelihood", ("observation_matrix,", "observation_noise")),
     ("B", "the transition", ("dynamics_matrix,", "control_matrix")),
@@ -198,12 +186,6 @@ PYMDP_MAP = (
     ("D", "the prior", ("prior",)),
 )
 """pymdp's letters and the cpomdp fields that hold the same thing."""
-
-DISCLOSURE = (
-    f"today's notebook pins {WORKSHOP_CPOMDP_VERSION}. Some of its src was written by "
-    "Claude Code under the review described."
-)
-"""The disclosure slide's caption, the owner's words."""
 
 
 @dataclass(frozen=True)
@@ -252,11 +234,6 @@ def captured(function: Callable[..., object], *args: object) -> str:
     with contextlib.redirect_stdout(buffer):
         function(*args)
     return buffer.getvalue().rstrip("\n")
-
-
-def run_cell(source: str, namespace: dict[str, object]) -> str:
-    """What a notebook cell prints when run in ``namespace``."""
-    return captured(exec, source, namespace)
 
 
 def plain(markdown: str) -> str:
@@ -527,23 +504,8 @@ def who_we_are(deck: Deck) -> None:
             "continuous states, which makes it the continuous-state sibling of pymdp. "
             "If you've used pymdp, its agent runs the same loop of perceiving and then "
             "acting. We'll come back to what it adds at the end.",
-        )
-    )
-
-
-def disclosure(deck: Deck) -> None:
-    """The AI-use panel, the owner's to write, and its caption."""
-    page = deck.page("Disclosure", "welcome")
-    page.placeholder(
-        MARGIN, CONTENT_TOP, FULL_WIDTH, 3.9,
-        "[owner: the AI-use panel and the review it describes]", size=20,
-    )  # fmt: skip
-    page.text(MARGIN, 5.75, FULL_WIDTH, 0.9, [DISCLOSURE], size=20, colour=MUTED)
-    page.notes(
-        notes(
-            "TODO owner: the panel.",
-            "Q&A. Asked whether Claude wrote the release the room is running, the "
-            "answer is: some of it.",
+            f"Dan (aloud)\nSome of the source code in cpomdp {WORKSHOP_CPOMDP_VERSION} "
+            "was written by Claude Code and reviewed before release.",
         )
     )
 
@@ -1128,87 +1090,100 @@ def task_2_timer(deck: Deck) -> None:
 
 
 def task_2_result(deck: Deck) -> None:
-    """The second route frame. The beacon bends the route."""
-    page = route_page(
-        deck, "The beacon bends the route", "task 2", "route_2_beacon.png"
-    )
-    route_strip(
-        page, output=captured(check_my_sensor, beacon_sensor, default_params(0.4))
-    )
-    callout(
-        page, "k = 0.40", Run("1.41", colour=AMBER, bold=True, size=60),
-        "off the straight line. It lands 0.24 from the pad.",
+    """Compare the reference flight with the routes the room found."""
+    k = 0.4
+    result = grade_sensor(beacon_sensor, default_params(k))
+    if result.bend is None or result.distance is None:
+        raise ValueError(f"No reference flight for the Task 2 slide: {result.message}")
+    page = route_page(deck, "Task 2 · Discussion", "task 2", "route_2_beacon.png")
+    left, _, plot_width = ROUTE_FIGURE
+    page.text(
+        left, 5.99, plot_width, 0.35, [f"Reference run with k = {k:.2f}"],
+        size=16, bold=True, space_after=0,
     )  # fmt: skip
-    task_close(page, "your k", 2)
+    page.text(
+        left, 6.40, plot_width, 0.75,
+        [f"At its furthest point from the straight route, the rocket was "
+         f"{result.bend:.2f} units off course. It finished {result.distance:.2f} "
+         "units from the pad."],
+        size=17, colour=MUTED,
+    )  # fmt: skip
+    width = RIGHT - ROUTE_COLUMN
+    page.text(
+        ROUTE_COLUMN, 1.85, width, 1.45,
+        ["How did the route change as you increased k?"],
+        size=21, bold=True,
+    )  # fmt: skip
+    page.text(
+        ROUTE_COLUMN, 3.65, width, 2.50,
+        ["Which values of k gave you a route that curved towards the beacon "
+         "and still reached the pad?"],
+        size=20, bold=True,
+    )  # fmt: skip
+    page.text(
+        ROUTE_COLUMN, 6.65, width, 0.35, ["Poll 2 · 60 seconds"],
+        size=16, colour=AMBER,
+    )  # fmt: skip
     page.notes(
         notes(
-            f"Planned at {clock('Task 2', 2)}. Keyboard shows check_my_sensor's line "
-            "for k = 0.4. The rocket bends 1.41 off the straight line and lands 0.24 "
-            "from the pad.",
-            "It's the same map as the last route slide. Only the field and the amber "
-            "line are new.",
-            "Ask for k in the chat, then poll 2 for 60 s. Kev reads the split.",
+            f"Planned at {clock('Task 2', 2)}. Show the reference flight. The "
+            f"dashed line is the 1960 rocket and the amber line is the route at "
+            f"k = {k:.2f}.",
+            "Kev picks two values of k from the chat and invites those participants "
+            "to describe their flights. Where did each route bend, and where did "
+            "the rocket finish relative to the pad?",
+            "Introduce the reference flight at k = 0.6. Ask why the rocket stops "
+            "short of the pad and run poll 2 for 60 seconds.",
             plain(lesson.SESSION_2.poll),
+            "Read the split, then use the next slide to explain how the rocket "
+            "scores the readings it expects after each move.",
         )
     )
 
 
 def task_2_meaning(deck: Deck) -> None:
-    """What changes the route: the reading's noise inside the expected miss."""
-    page = deck.page("What steers the route", "task 2")
-    page.card(
-        MARGIN, CONTENT_TOP, FULL_WIDTH, 1.8,
-        [
-            [Run("the expected miss from “on the pad”", colour=MUTED, font="Calibri")],
-            [Run("½ (o⁺ − o*)ᵀ Λ (o⁺ − o*)  +  ½ tr(Λ S)", size=24)],
-            [
-                Run("S = C Σ⁺ Cᵀ + "),
-                Run("R(μ⁺)", colour=AMBER, bold=True),
-                Run("    the sensor's own noise, where the move is expected to land",
-                    colour=MUTED, font="Calibri", size=17),
-            ],
-        ],
-        size=20, font=MATH_FONT, space_after=6, anchor=MSO_ANCHOR.MIDDLE,
+    """Explain the poll result by comparing readings at the pad and near the beacon."""
+    page = deck.page("Why does the rocket stop short of the pad?", "task 2")
+    page.text(
+        MARGIN, CONTENT_TOP, FULL_WIDTH, 0.7,
+        ["The rocket prefers a sensor reading that places it on the landing pad."],
+        size=22,
     )  # fmt: skip
     page.text(
-        MARGIN, 3.55, FULL_WIDTH, 2.4,
-        [
-            "At each step the rocket scores the nine moves. The first part of each "
-            "score is how far its reading is expected to land from “on the pad”.",
-            "That expectation includes the sensor's own noise. Where the noise is "
-            "large, even a reading taken on the pad lands far from it on average, so "
-            "moves towards the beacon score better.",
-            "It takes a sensor whose noise depends on position. The 1960 rocket's "
-            "never does.",
-        ],
-        size=19, space_after=12,
+        MARGIN, 2.60, FULL_WIDTH, 1.05,
+        [[Run("At the pad, ", bold=True),
+          Run("readings are centred on the target, but high sensor noise means "
+              "they can fall a long way from it.")]],
+        size=22,
     )  # fmt: skip
     page.text(
-        MARGIN, 6.1, FULL_WIDTH, 0.75,
-        [
-            "At k = 0.6 the rocket stops short of the pad, however many moves ahead "
-            "it looks."
-        ],
-        size=17, colour=MUTED,
+        MARGIN, 3.95, FULL_WIDTH, 1.05,
+        [[Run("Nearer the beacon, ", bold=True),
+          Run("readings are centred short of the target, but lower sensor noise "
+              "keeps them closer together.")]],
+        size=22,
+    )  # fmt: skip
+    page.text(
+        MARGIN, 5.85, FULL_WIDTH, 1.05,
+        ["At k = 0.6, moving closer to the pad can increase the expected error "
+         "in the next reading. In the reference run, the rocket stops short."],
+        size=21, bold=True, colour=AMBER,
     )  # fmt: skip
     page.notes(
         notes(
-            "Kev. The answer to poll 2.",
-            "Each step, the rocket scores the nine moves by expected free energy. Its "
-            "first term is the expected miss from the preferred reading, on the pad. "
-            "That expectation carries S, and S carries R where the move is expected "
-            "to land. In the book's terms, this noise sets the ambiguity in expected "
-            "free energy (Active Inference, eq. 2.6), and now it depends on where the "
-            "rocket is.",
-            "That term changes between moves only when R depends on position. For the "
-            "1960 rocket it's the same for every move, and LQR is what's left.",
-            "At k = 0.6 the rocket stops 1.49 short of the pad looking one move "
-            "ahead, 1.65 looking two and 1.86 looking three. Looking further doesn't "
-            "help, because the pad itself reads badly at that k.",
-            "Bonus 2 varied the preference's precision. A stronger preference for a "
-            "reading isn't guaranteed to give a better landing, because a higher "
-            "precision scales the whole expected miss, the reading's own noise "
-            "included. It can't make a noisy pad read any better.",
+            "Kev. Return to poll 2. Imagine the rocket sitting on the pad and "
+            "taking several readings. They would be centred on the pad, but some "
+            "could place it a long way off. An error in either direction counts "
+            "when the rocket scores a move.",
+            "Now picture it a little closer to the beacon. The readings would "
+            "cluster around a spot short of the pad. At this setting, that tighter "
+            "cluster can give a smaller expected error than taking the next step "
+            "towards the pad. That is why the rocket stops short in this run.",
+            "If someone asks about planning further ahead, the rocket still "
+            "stopped short when we tested one, two and three moves ahead.",
+            "If participants tried the second bonus, ask what happened when "
+            "they gave the preferred reading more weight. That gives more weight "
+            "to the errors caused by noisy readings as well.",
         )
     )
 
@@ -1218,45 +1193,51 @@ def task_2_meaning(deck: Deck) -> None:
 
 def task_3_brief(deck: Deck) -> None:
     """The blackout, and the rock none of the rockets models."""
-    page = deck.page("What happens when observations become unreliable?", "task 3")
+    page = deck.page("Task 3 · The blackout", "task 3")
+    page.text(
+        MARGIN, CONTENT_TOP, FULL_WIDTH, 0.65,
+        ["The direct route to the landing pad now crosses a blackout region."],
+        size=22,
+    )  # fmt: skip
     card_row(
-        page, CONTENT_TOP, 2.4,
+        page, 2.45, 2.45,
         (
             headed(
                 "The beacon",
-                "Observations become more reliable as the rocket approaches the "
-                "beacon.",
+                [Run("Near the beacon, sensor noise is "), Run("lower", bold=True),
+                 Run(" and readings are "), Run("more reliable", bold=True), Run(".")],
             ),
             headed(
                 "The blackout",
-                "Observations become increasingly noisy towards the centre of the "
-                "blackout.",
+                [Run("Near the centre of the blackout, sensor noise is "),
+                 Run("higher", bold=True), Run(" and readings are "),
+                 Run("less reliable", bold=True), Run(".")],
                 colour=BLUE,
             ),
             headed(
-                "A rock",
-                "There's a rock inside the blackout, but none of the rockets has any "
-                "representation of it in its model.",
+                "The rock",
+                "A rock sits inside the blackout. All three rockets plan their "
+                "moves without knowing it is there.",
             ),
         ),
     )  # fmt: skip
     question(
-        page, 4.2,
-        "How might the rockets respond, and what can their routes tell us about "
-        "their behaviour?",
+        page, 5.45,
+        "Will all three rockets take the same route through the blackout?",
     )  # fmt: skip
     page.notes(
         notes(
             f"Planned at {clock('Task 3')}. Kev. In Task 2, the beacon made "
-            "observations more reliable nearby. Now we'll add a blackout on the "
+            "observations more reliable nearby. Now we add a blackout on the "
             "straight line to the pad, where the noise rises sharply towards its "
             "centre.",
-            "There's also a rock in the blackout, and none of the rockets knows it's "
-            "there. In the book's terms, the rock is in the generative process, the "
-            "world, but not in any rocket's generative model (Active Inference, "
-            "Figure 2.2).",
-            "We'll fly three rockets past it: the 1960 rocket, yours with the k on "
-            "the slider, and one at k = 0.20.",
+            "The rock sits inside the blackout. In the language of Active Inference "
+            "(Figure 2.2), it belongs to the generative process. It is part of the "
+            "world the rockets fly through. All three plan their moves without "
+            "knowing it is there.",
+            "We will compare the 1960 rocket with two curious rockets. The slider "
+            "sets k for yours, and the other uses k = 0.20. Leave the route "
+            "question with participants as they start Task 3.",
         )
     )
 
@@ -1288,165 +1269,148 @@ def task_3_timer(deck: Deck) -> None:
 def task_3_blackout(deck: Deck) -> None:
     """The third route frame, the blackout before the rock."""
     page = route_page(
-        deck, "The blackout, before the rock", "task 3", "route_3_blackout.png"
+        deck,
+        "Why do the curious rockets take a detour before we add the rock?",
+        "task 3",
+        "route_3_blackout.png",
     )
-    route_strip(page, caption="Seed 3. No rock yet.")
+    route_strip(
+        page,
+        caption="Seed 3. Darker green shows higher sensor noise "
+        "for the rocket with k = 0.08.",
+    )
     page.text(
         ROUTE_COLUMN, CONTENT_TOP, RIGHT - ROUTE_COLUMN, 5.0,
         [
-            "Near the blackout's centre the sensor noise is very large.",
-            "The 1960 rocket flies straight through. Its model has one noise level.",
-            "The curious rockets swing wide.",
+            "The 1960 rocket flies with the same sensor noise everywhere. Its "
+            "dashed path runs almost straight to the pad.",
+            "For the two curious rockets, readings are more reliable near the "
+            "beacon. Their planners take that reliability into account, and both "
+            "routes bend towards the beacon on the way to the pad.",
         ],
         size=20, space_after=18,
     )  # fmt: skip
     page.notes(
         notes(
-            f"Planned at {clock('Task 3', 2)}. Kev. It's the same map again, and the "
-            "field now has the blackout.",
-            "The 1960 rocket flies the line it flew in Task 1. Its model has one noise "
-            "level, and it flies in the world that model describes. The curious "
-            "rockets swing wide of the noisy patch.",
-            "There's no rock yet. The next slide adds it and nothing else.",
+            f"Planned at {clock('Task 3', 2)}. Kev. Return to the prediction from "
+            "the briefing. Trace the dashed line first. The 1960 rocket takes the "
+            "direct route in a world where its sensor has one noise level.",
+            "Now trace the two coloured lines. Both pass near the beacon in this "
+            "run. As in Task 2, each planner scores the readings it expects "
+            "after a move. Readings near the beacon are more reliable, and the "
+            "centre of the blackout is particularly noisy. That helps explain "
+            "the detours we see here.",
+            "Now let us put the rock in the blackout and see what happens to "
+            "those same flights.",
         )
     )
 
 
 def task_3_rock(deck: Deck) -> None:
-    """The last route frame. The rock, and the 1960 rocket's impact."""
+    """Show the same flights with the rock, then run poll 3."""
     page = route_page(
-        deck, "The 1960 rocket hits the rock", "task 3", "route_4_rock.png"
+        deck, "What changes when we add the rock?", "task 3", "route_4_rock.png"
     )
-    route_strip(
-        page,
-        caption="Seed 3. Both curious rockets clear the rock. The 1960 rocket hits it "
-        "on every seed from 0 to 9.",
-    )
-    callout(
-        page, "1960 rocket", Run("step 6", bold=True, size=54),
-        "None of the rockets models the rock.",
+    route_strip(page, caption="Reference flights, seed 3")
+    width = RIGHT - ROUTE_COLUMN
+    page.text(
+        ROUTE_COLUMN, CONTENT_TOP, width, 4.8,
+        [
+            "The 1960 rocket follows the direct route until it hits the rock "
+            "on step 6.",
+            "In this run, both curious rockets follow the same curves as before "
+            "and clear the rock.",
+        ],
+        size=20, space_after=18,
     )  # fmt: skip
-    task_close(page, "max |difference|", 3)
+    page.text(
+        ROUTE_COLUMN, 6.65, width, 0.35, ["Poll 3 · 60 seconds"],
+        size=16, colour=AMBER,
+    )  # fmt: skip
     page.notes(
         notes(
-            "Kev. One thing added, the rock in the blackout. None of the rockets "
-            "models it.",
-            "The 1960 rocket hits it on step 6, on every seed from 0 to 9. The figure "
-            "is seed 3, and both curious rockets clear it there. k = 0.08 peaks at "
-            "y = 1.71 and ends at (4.83, 0.09). k = 0.20 peaks at 1.91 and ends at "
-            "(5.18, 0.15).",
-            "Ask for max |difference| in the chat. Below 1e-9 means the two engines "
-            "agree. Then poll 3 for 60 s.",
+            "Kev. Follow the dashed line to the star. The 1960 rocket hits the rock "
+            "on step 6. Trace the two coloured routes past the rock to the pad. "
+            "These are the reference flights for seed 3.",
+            "Run poll 3 for 60 seconds. When the poll closes, read the split.",
             plain(lesson.SESSION_3.poll),
+            "After the poll: Look back at the previous plot. Both rockets had "
+            "already taken the detour before we added the rock. Those routes "
+            "happened to carry them clear of it on this run.",
+            "Next, compare ten flights with the rock in two different places.",
         )
     )
 
 
 def task_3_meaning(deck: Deck) -> None:
-    """Bonus 1's result: a rock never changes a route, only ends it."""
-    page = deck.page("A rock never changes a route", "task 3")
-    hits = (
-        (
-            "Rock in the blackout",
-            (
-                ("1960 rocket", "10 of 10"),
-                ("k = 0.08", "2 of 10"),
-                ("k = 0.20", "3 of 10"),
-            ),
-        ),
-        (
-            "Rock in clear sky, at (4.2, −0.7)",
-            (
-                ("1960 rocket", "0 of 10"),
-                ("k = 0.08", "6 of 10"),
-                ("k = 0.20", "5 of 10"),
-            ),
-        ),
-    )  # fmt: skip
-    card_row(
-        page, CONTENT_TOP, 2.55,
-        tuple(
-            headed(
-                where,
-                [Run("seeds where it hits the rock", colour=MUTED, size=16)],
-                *(
-                    [Run(f"{name}    "), Run(count, font=CODE_FONT)]
-                    for name, count in rows
-                ),
-            )
-            for where, rows in hits
-        ),
-        size=19,
-    )  # fmt: skip
+    """Compare the collision counts for the same ten seeds in two rock locations."""
+    page = deck.page("What happens if we move the rock into clear sky?", "task 3")
     page.text(
-        MARGIN, 4.35, FULL_WIDTH, 2.4,
-        [
-            "With or without the rock, a rocket flies exactly the same path until "
-            "the moment it collides.",
-            "The curious rockets steer away from noisy readings, and the rock sits "
-            "where the readings are noisiest.",
-            "Missing the rock isn't evidence that a rocket represented it or meant "
-            "to avoid it.",
-        ],
-        size=19, space_after=12,
+        MARGIN, CONTENT_TOP, FULL_WIDTH, 0.75,
+        ["We repeated the same ten flights for each rocket, changing only the "
+         "position of the rock."],
+        size=21,
+    )  # fmt: skip
+    page.table(
+        MARGIN,
+        2.5,
+        (4.55, 3.8, FULL_WIDTH - 8.35),
+        2.8,
+        (
+            ("Collisions in 10 flights", "Rock in the blackout", "Rock in clear sky"),
+            ("1960 rocket", "10", "0"),
+            ("Curious rocket, k = 0.08", "2", "6"),
+            ("Curious rocket, k = 0.20", "3", "5"),
+        ),
+    )
+    page.text(
+        MARGIN, 5.85, FULL_WIDTH, 1.0,
+        ["Each rocket followed its original path until a collision ended its "
+         "flight. Moving the rock changed which paths crossed it."],
+        size=21,
     )  # fmt: skip
     page.notes(
         notes(
-            "Kev. The answer to poll 3, and bonus 1's result.",
-            "The rockets aren't avoiding the rock at all. A rock never changes a "
-            "route. Inside the blackout, over seeds 0 to 9, the k = 0.08 rocket hits "
-            "it on 2 seeds and the k = 0.20 rocket on 3, while the 1960 rocket hits "
-            "it every time. Moved into clear sky on their routes, it's hit on 6 and 5 "
-            "of the 10 seeds by the curious rockets, and never by the 1960 rocket.",
-            "So here the blackout makes the curious rockets hit the rock less often, "
-            "although they know nothing about it. Seed 3 is one seed, and the picture "
-            "earlier shows its less common route.",
-            "Bonus 2 tuned two of the rocket's settings to land more and hit less. "
-            "The best setting led the default by one flight, and the seeds mattered "
-            "more than the settings. Tuning against one rock in one place can carry "
-            "our own knowledge of the rock into the rocket.",
+            "Kev. Follow the rocket with k = 0.08. It hit the rock on two flights "
+            "in the blackout and six when we moved it into clear sky. We used the "
+            "same sensor noise map both times. Moving the rock placed it in the "
+            "path of more of those flights."
         )
     )
 
 
 def backends(deck: Deck) -> None:
-    """The 1960 rocket on two engines."""
-    page = deck.page("One rocket, two engines", "task 3")
-    size = code_size(GRAPH_CODE, 8.9, 3.45)
-    height = code_height(GRAPH_CODE, size)
-    page.code(MARGIN, CONTENT_TOP, 8.9, height, GRAPH_CODE, size=size)
+    """Show the difference participants measured with the two inference methods."""
+    page = deck.page("Do the two methods agree about where the rocket is?", "task 3")
     page.text(
-        9.8, CONTENT_TOP, RIGHT - 9.8, height,
-        [
-            [Run("KalmanBackend", font=CODE_FONT)],
-            [Run("the Kalman filter", colour=MUTED)],
-            [Run("CouplingGraphBackend", font=CODE_FONT)],
-            [Run("the same model as a graph of one node", colour=MUTED)],
-        ],
-        size=16, space_after=6,
+        MARGIN, CONTENT_TOP, FULL_WIDTH, 0.9,
+        ["We ran the 1960 rocket model using a Kalman filter, then ran the same "
+         "model as a graph with one node."],
+        size=22,
+    )  # fmt: skip
+    page.text(
+        MARGIN, 2.65, FULL_WIDTH, 0.7,
+        ["At every step, we compared the estimated position and its uncertainty."],
+        size=22,
     )  # fmt: skip
     model = model_with()
-    beliefs = captured(check_backends, KalmanBackend(model), one_node(model))
-    top = CONTENT_TOP + height + 0.3
-    page.printed(
-        MARGIN, top, FULL_WIDTH, 0.75, "\n".join(beliefs.splitlines()[:2]), size=12
-    )
+    report = captured(check_backends, KalmanBackend(model), one_node(model))
     page.text(
-        MARGIN, top + 1.0, FULL_WIDTH, 0.75,
-        [
-            "The two agree below 1e-9. The graph engine also runs models one Kalman "
-            "filter can't hold."
-        ],
+        MARGIN, 3.75, FULL_WIDTH, 0.4, ["Reference run"],
         size=17, colour=MUTED,
+    )  # fmt: skip
+    page.printed(MARGIN, 4.25, FULL_WIDTH, 0.85, report.splitlines()[-1], size=24)
+    page.text(
+        MARGIN, 5.8, FULL_WIDTH, 0.95,
+        ["The two methods agreed throughout the flight to within numerical rounding."],
+        size=22, colour=AMBER, bold=True,
     )  # fmt: skip
     page.notes(
         notes(
-            "Keyboard. The 1960 rocket on two engines. The code is what one_node "
-            "builds. Agent.from_backend puts a rocket on either backend.",
-            "The two print the same belief to six places, and max |difference| sits "
-            "below 1e-9. A graph of one node is a Kalman filter, so this is the check "
-            "that the graph engine is right before we trust it with shapes a Kalman "
-            "filter isn't. The self-guided cells show one.",
+            "Keyboard. This is the number you shared in Task 3. With one node, "
+            "the graph should reproduce the familiar Kalman filter result. That "
+            "gives us a case we can check before we use the graph to connect "
+            "several variables."
         )
     )
 
@@ -1455,208 +1419,135 @@ def backends(deck: Deck) -> None:
 
 
 def coda(deck: Deck) -> None:
-    """The certificates, as the coda cell prints them."""
-    page = deck.page("What a printed number entitles us to say", "why it matters")
-    height = code_height(lesson.CODA, 16)
-    page.code(MARGIN, CONTENT_TOP, FULL_WIDTH, height, lesson.CODA, size=16)
-    output = run_cell(lesson.CODA, after_session_3())
-    top = CONTENT_TOP + height + 0.25
-    page.printed(MARGIN, top, FULL_WIDTH, 1.1, output, size=15, wrap=True)
-    page.text(
-        MARGIN, top + 1.4, FULL_WIDTH, 6.9 - top - 1.4,
-        [
-            "PROVED means the search scored every plan in a declared, versioned set. "
-            "The certificate counts them.",
-            "It says what the computation did. It doesn't say the model is right.",
-        ],
-        size=20, space_after=14,
-    )  # fmt: skip
-    page.notes(
-        notes(
-            f"Planned at {clock('Why it matters')}. Kev. Run the coda cell. What "
-            "does a printed number entitle us to say?",
-            "The certificate names the set by its version, compass-9, and counts "
-            "every plan the search scored, 9 a step. The axis set is five moves, and "
-            "seven moves deep it's 78125 plans, every one scored.",
-            "That supports a specific claim: this computation was exhaustive over "
-            "this set. The same goes for the backend agreement in Task 3. Neither is "
-            "a general guarantee that the model is correct or that its behaviour "
-            "generalises.",
-        )
-    )
-
-
-def beginning(deck: Deck) -> None:
-    """What the session showed, and what it hasn't established."""
-    page = deck.page("A working model is the beginning, not the end", "why it matters")
-    card_row(
-        page, CONTENT_TOP, 2.5,
+    """Compare the expected and visited counts from the notebook's certificates."""
+    planner = after_session_3()["planner"]
+    if not isinstance(planner, RecedingHorizonSelector) or planner.certificate is None:
+        raise ValueError("The workshop flight did not produce a search certificate.")
+    searches = (
+        ("One step ahead, with nine possible moves", planner.certificate),
         (
-            headed(
-                "What have we demonstrated?",
-                "How changing the observation model and the preferences can "
-                "influence an agent's behaviour.",
-                colour=GREEN,
-            ),
-            headed(
-                "What remains to be established?",
-                "Whether those behaviours generalise, how robust they are, and which "
-                "parts of the computational model have been independently validated.",
-                colour=AMBER,
-            ),
+            "Seven steps ahead, with five possible moves at each step",
+            axis_certificate(),
         ),
-        size=21,
-    )  # fmt: skip
+    )
+    rows = [("Search", "Possible plans", "Plans scored")]
+    for label, certificate in searches:
+        if certificate.warrant.value != "PROVED":
+            raise ValueError(
+                f"The search did not prove complete coverage: {certificate}"
+            )
+        rows.append((label, f"{certificate.expected:,}", f"{certificate.visited:,}"))
+
+    page = deck.page("What does PROVED mean here?", "why it matters")
+    page.table(MARGIN, 1.8, (6.65, 2.75, FULL_WIDTH - 9.4), 3.3, rows)
     page.text(
-        MARGIN, 4.3, FULL_WIDTH, 1.6,
-        [
-            "The rest of this section is about cpomdp itself: what it adds, and what "
-            "has been built on it."
-        ],
-        size=20, colour=MUTED,
+        MARGIN, 5.75, FULL_WIDTH, 1.0,
+        ["In both cases, the planner scored every plan in the set it was given."],
+        size=22, colour=AMBER, bold=True,
     )  # fmt: skip
     page.notes(
         notes(
-            "Kev. Four things to keep from today.",
-            "Fixed observation noise can give the same information gain for every "
-            "action, even if the overall uncertainty changes.",
-            "A preference for precise observations doesn't, by itself, establish an "
-            "epistemic motive. In Task 2, the expected observations and their noise "
-            "shaped how the moves were scored.",
-            "A route that happens to miss an unmodelled rock isn't evidence that the "
-            "rocket represented it or avoided it on purpose.",
-            "A certificate, a backend agreement or a working demo supports a specific "
-            "claim. None of them is a general guarantee.",
+            f"Planned at {clock('Why it matters')}. Kev. Run the final notebook cell.",
+            "A moment ago, we checked whether two ways of running the same model "
+            "gave the same estimates. Here we checked whether the planner "
+            "considered every option we gave it. To judge how well the model "
+            "describes the world, we would need to compare its predictions with "
+            "observations.",
         )
     )
 
 
 def where_cpomdp_sits(deck: Deck) -> None:
-    """Cpomdp beside its nearest neighbours, and what it adds."""
-    page = deck.page("What makes cpomdp different", "why it matters")
+    """Three uses of cpomdp that participants saw in the workshop."""
+    page = deck.page("What did cpomdp let us do?", "why it matters")
+    certificate = axis_certificate()
     card_row(
-        page, CONTENT_TOP, 1.55,
+        page, 1.95, 3.95,
         (
-            headed("pymdp", "Discrete states, in Python.", colour=MUTED),
             headed(
-                "cpomdp",
-                "Continuous states, in Python on JAX. pymdp's continuous-state "
-                "sibling.",
+                "Change what the rocket could learn",
+                "We made sensor noise depend on position. Moving towards the "
+                "beacon could give the rocket a more informative reading.",
                 colour=AMBER,
             ),
             headed(
-                "RxInfer",
-                "Message passing on factor graphs, in Julia.",
-                colour=MUTED,
+                "Check the position estimates",
+                "We ran the same rocket model as a Kalman filter and as a graph "
+                "with one node. The two methods agreed on the rocket’s position "
+                "and its uncertainty.",
+                colour=GREEN,
+            ),
+            headed(
+                "Check which plans the rocket considered",
+                "In the seven-step search, the certificate showed that the planner "
+                f"scored all {certificate.visited:,} possible plans in its set.",
+                colour=BLUE,
             ),
         ),
-        size=17,
-    )  # fmt: skip
-    card_row(
-        page, 3.3, 2.75,
-        (
-            headed(
-                "R(x)",
-                "Noise that depends on the state makes the expected information gain "
-                "differ between actions, where fixed noise makes it the same for all "
-                "of them.",
-                colour=AMBER,
-            ),
-            headed(
-                "Factor graphs",
-                "CouplingGraph runs models one Kalman filter can't hold, and refuses "
-                "to flatten them into one.",
-            ),
-            headed(
-                "Certificates",
-                "An exhaustive search over a declared set of plans returns a "
-                "certificate that counts every plan it scored.",
-            ),
-            headed(
-                "Warrants",
-                "warrantlib labels each check by how well it's warranted, apart from "
-                "whether it held.",
-            ),
-        ),
-        size=16,
+        size=19,
     )  # fmt: skip
     page.notes(
         notes(
-            "Kev. Where cpomdp sits. pymdp is the leading active inference package, "
-            "and it works with discrete states. cpomdp is its continuous-state "
-            "sibling, and pymdp's A, B, C and D map onto its fields. RxInfer does "
-            "Bayesian inference by message passing on factor graphs, in Julia, and "
-            "cpomdp checks its own filter against it.",
-            "What cpomdp adds is the four cards. State-dependent noise is what made "
-            "today's rockets differ from the 1960 one. The factor graph engine takes "
-            "models a single filter can't hold. Certificates and warrants say how far "
-            "each printed number can be trusted.",
-            "This comparison is the project's own description. We haven't run the "
-            "three packages against each other.",
+            "Kev. If you know pymdp, it models discrete states in Python. "
+            "We used cpomdp for continuous states, such as the position of the "
+            "rocket. It runs on JAX in Python. RxInfer uses message passing on "
+            "factor graphs for Bayesian inference in Julia.",
+            "The certificate gives us the counts. The label PROVED tells us why "
+            "we can say the search was complete. The planner scored every plan "
+            "in the set. Next, let us look at what people have built with these "
+            "tools.",
         )
     )
 
 
 def research(deck: Deck) -> None:
-    """Work already built on cpomdp: biology, factor graphs, R(x) and industry."""
-    page = deck.page("Already built on cpomdp", "why it matters")
-    width, height, gap = (FULL_WIDTH - 0.3) / 2, 2.45, 0.3
-    cards = (
-        headed(
-            "Biology",
-            "A bacillus hunts for food it can't see, and a beacon gives the food's "
-            "position away. E. coli chemotaxis runs as a factor graph, its hidden "
-            "CheA hub inferred from the cell's readouts.",
-            [linked(f"{CPOMDP_DOCS}examples/", size=10.5)],
-            colour=GREEN,
+    """Three published modelling examples beyond the rocket."""
+    page = deck.page("What else can we model with cpomdp?", "why it matters")
+    card_row(
+        page, 1.95, 4.15,
+        (
+            headed(
+                "Finding a reward in a maze",
+                "The agent detours to read a cue, then heads for the reward. "
+                "With fixed sensor noise, it stays in the wrong arm of the maze.",
+                colour=AMBER,
+            ),
+            headed(
+                "Inferring a hidden signal in a cell",
+                [Run("In a model of "), Run("E. coli", italic=True),
+                 Run(", we can estimate the activity of a protein called CheA "
+                     "from the signals it sends through the cell.")],
+                colour=GREEN,
+            ),
+            headed(
+                "Choosing a flow meter for a compressor",
+                "In a simulation, changing only the flow meter led the controller "
+                "to settle on opposite sides of the surge line, the boundary where "
+                "flow becomes unstable.",
+                colour=BLUE,
+            ),
         ),
-        headed(
-            "Factor graphs",
-            "With R(x) on a branch, a model can't be flattened into one Kalman filter, "
-            "and cpomdp refuses to try before it sees any data. With R(x), an agent "
-            "reads a cue and crosses to the reward. With fixed noise, it stays put.",
-            [linked(f"{CPOMDP_DOCS}examples-ffg/", size=10.5)],
-        ),
-        headed(
-            "State-dependent observation noise",
-            "Coupling R(x) to a mean the agent controls makes the posterior "
-            "covariance, and so the Kalman gain, depend on the action. A preprint.",
-            [linked(f"{SITE}research/state-dependent-observation-noise/", size=10.5)],
-            colour=AMBER,
-        ),
-        headed(
-            "Industry: a compressor's surge margin",
-            "Two flow meters of equal accuracy, with noise that moves opposite ways "
-            "with flow, settle the same agent on opposite sides of the surge line.",
-            [linked(f"{SITE}projects/cpomdp/applied/anti-surge/", size=10.5)],
-            colour=BLUE,
-        ),
-    )
-    for index, paragraphs in enumerate(cards):
-        row, column = divmod(index, 2)
-        page.card(
-            MARGIN + column * (width + gap), CONTENT_TOP + row * (height + gap), width,
-            height, paragraphs, size=16, space_after=6,
-        )  # fmt: skip
+        size=19,
+    )  # fmt: skip
     page.notes(
         notes(
-            "Kev. Pointers, not results. Each card links to the write-up.",
-            "Biology. In the bacillus example, four bacilli differ only in how "
-            "precise their goal is. Some go straight for the food, one detours to the "
-            "beacon first, one parks at the beacon. The chemotaxis model is the "
-            "shape of the signalling network, not its biophysics.",
-            "Factor graphs. The two-node models are the shapes a single Kalman filter "
-            "isn't. The cue example is a statement about control, not biology.",
-            "State-dependent noise. The preprint is the theory behind today's Task 2 "
-            "and Task 3: once R depends on a mean the agent controls, no fixed "
-            "linear-Gaussian filter reproduces it. The README adds a caution. "
-            "Non-constant isn't the same as decision-changing.",
-            "Industry. An agent holds a compressor's surge margin. A "
-            "differential-pressure meter keeps it on the safe side. A Coriolis meter "
-            "of the same accuracy settles it past the surge line. The write-up's "
-            "conclusion is that the information term isn't a safety factor, and surge "
-            "protection belongs in the setpoint or a hard limit.",
-        )
+            "Kev. The two flow meters were equally accurate at the design flow. "
+            "As flow fell, one gave clearer readings and the other gave noisier "
+            "ones. That changed where the controller settled. It is the same "
+            "idea we saw with the rocket. Dan’s preprint explains when an action "
+            "can change how much the agent expects to learn from its next reading."
+        ),
+        sources=(
+            (
+                "Maze and cell models",
+                "https://github.com/inferogenesis/cpomdp/blob/main/examples/ffg/README.md",
+            ),
+            (
+                "Compressor simulation",
+                "https://github.com/inferogenesis/cpomdp/blob/main/docs/guides/surge_margin.md",
+            ),
+            ("Dan’s preprint", "https://arxiv.org/abs/2607.20306"),
+        ),
     )
 
 
@@ -1667,29 +1558,24 @@ def programmes(deck: Deck) -> None:
         page, CONTENT_TOP, 4.1,
         (
             headed(
-                "p*",
-                [Run("certifiable active inference", colour=MUTED)],
-                "Hold the agent's model and the world apart. How much free energy "
-                "does an agent pay for being wrong about the world, and how much for "
-                "being wrong about what its own model implies?",
-                [Run("Active", colour=GREEN, bold=True)],
+                "p* · Certifiable active inference",
+                [Run("Active", colour=GREEN, italic=True)],
+                "The rocket might assume its sensor is more accurate than it really "
+                "is. Or it might model the sensor correctly but use a shortcut to "
+                "estimate its position. Can we measure the free energy cost of each "
+                "source of error separately?",
                 colour=AMBER,
             ),
             headed(
                 "Seam Networks",
-                [Run("agents that meet through a world", colour=MUTED)],
-                "Active inference agents that meet only through a shared world. Does "
-                "that structure make sense to explore, and can cpomdp tell?",
-                [Run("Planned. Nothing has run yet.", colour=AMBER, bold=True)],
+                [Run("Planned", colour=AMBER, italic=True)],
+                "Imagine two active inference agents searching the same patch for "
+                "food. When one eats, it changes what the other finds on its next "
+                "visit. How does their behaviour change over time when they can "
+                "influence each other only through the world they share?",
             ),
-            headed("The Individuating Membrane"),
         ),
-        size=17,
-    )  # fmt: skip
-    third = MARGIN + 2 * (FULL_WIDTH + 0.3) / 3
-    page.placeholder(
-        third + 0.25, CONTENT_TOP + 0.75, (FULL_WIDTH - 0.6) / 3 - 0.5, 1.6,
-        "[owner: one line on The Individuating Membrane, and its status]", size=15,
+        size=19,
     )  # fmt: skip
     page.text(
         MARGIN, 6.05, FULL_WIDTH, 0.7,
@@ -1698,19 +1584,8 @@ def programmes(deck: Deck) -> None:
     )  # fmt: skip
     page.notes(
         notes(
-            "Kev. Three programmes, at different stages.",
-            "p* is active. The standard derivation lets one distribution play both "
-            "the agent's model and the world, so a wrong model has nowhere to show "
-            "up. p* holds the two apart and asks how tightly each cost can be "
-            "certified. Its gates are public, passes and failures both.",
-            "Seam Networks is a string of thought experiments that grew out of p* and "
-            "cpomdp's harness. Each cell is a whole active inference agent, and cells "
-            "meet only through a world object, the seam. It's planned, and nothing "
-            "has run.",
-            "TODO owner: The Individuating Membrane, a line for the card and what to "
-            "say here.",
-            "TODO owner: the lost deck's 'What comes next' slide carried the status "
-            "'scoped, starts after p*'. Put it on the programme it belonged to.",
+            "Kev. With p-star, we want to go a step beyond estimating those two "
+            "costs and put bounds on how large each one can be."
         )
     )
 
@@ -1719,68 +1594,70 @@ def programmes(deck: Deck) -> None:
 
 
 def keep_going(deck: Deck) -> None:
-    """The self-guided cells, and where everything lives."""
-    page = deck.page("Keep going", "questions")
-    blurbs = {
-        "Two moves ahead": "The world again, two moves ahead. Each step scores 81 "
-        "plans in place of 9.",
-        "A model one filter cannot hold": "Two nodes that cpomdp refuses to flatten "
-        "into one Kalman filter, with its reason.",
-    }
-    card_row(
-        page, CONTENT_TOP, 1.75,
-        tuple(headed(name, blurbs[name]) for name, _ in lesson.TAIL),
-        size=17,
-    )  # fmt: skip
-    top = 3.45
-    for label, url in (
-        ("repository", REPOSITORY),
-        ("cpomdp on PyPI", PYPI),
-        ("Inferogenesis", SITE),
-    ):
-        page.text(MARGIN, top, 4.0, 0.35, [label], size=15, colour=MUTED)
-        page.link(MARGIN, top + 0.36, FULL_WIDTH, 0.35, url, size=12)
-        top += 0.78
-    page.text(MARGIN, top, 4.0, 0.35, ["Discord"], size=15, colour=MUTED)
+    """Two optional experiments in Colab and their follow-up resources."""
+    page = deck.page("Two more experiments to try in Colab", "questions")
     page.text(
-        MARGIN, top + 0.36, 7.0, 0.45, ["the cpomdp channel on the AII Discord"],
-        size=17,
+        MARGIN, CONTENT_TOP, FULL_WIDTH, 0.65,
+        [[Run("Open the "), Run("Self-guided", bold=True),
+          Run(" section of the notebook, below Checkpoint 3.")]],
+        size=22,
     )  # fmt: skip
-    page.placeholder(
-        8.0, top, RIGHT - 8.0, 0.8, f"[Zenodo DOI of cpomdp {WORKSHOP_CPOMDP_VERSION}]"
-    )
+    card_row(
+        page, 2.5, 3.65,
+        (
+            headed(
+                "Let the rocket look two moves ahead",
+                "Fly the same rockets again. This time, each rocket considers 81 "
+                "pairs of moves before choosing its next move. Compare the flight "
+                "paths with the ones you saw in Task 3.",
+                colour=AMBER,
+            ),
+            headed(
+                "Give the rocket a probe to tow",
+                "The probe takes readings as it follows the rocket. How reliable "
+                "those readings are depends on where the probe is. Run the example "
+                "to see why a single fixed Kalman filter cannot reproduce this model.",
+                colour=GREEN,
+            ),
+        ),
+        size=19,
+    )  # fmt: skip
     page.notes(
-        notes(
-            f"Planned at {clock('Questions')}. The open time starts here. The "
-            "self-guided cells sit below the last checkpoint, and each stands on "
-            "checkpoint 3. Nothing there runs live.",
-            "Recording, notebook, package, slides and notes go to the Discord channel "
-            "and the README within 48 hours.",
-            "TODO owner: the Zenodo DOI once minted.",
-        )
+        "You can try either exercise in your own time. Within 48 hours, we will "
+        "share the recording and workshop materials in the repository and in "
+        "the cpomdp channel on the Active Inference Institute Discord.",
+        sources=(
+            ("Open the notebook in Colab", COLAB),
+            ("Workshop materials", REPOSITORY),
+            ("cpomdp on PyPI", PYPI),
+            ("Inferogenesis", SITE),
+            (
+                "Inferogenesis (2026). cpomdp (v0.5.1) [Software]. Zenodo. "
+                "10.5281/zenodo.23823455",
+                "https://doi.org/10.5281/zenodo.23823455",
+            ),
+        ),
     )
 
 
 def thanks(deck: Deck) -> None:
-    """Thanks, questions, the survey while the room is still here, and two QR codes."""
+    """Open questions, with both presenters' emails and the two QR codes."""
     page = deck.page()
     page.mark(MARGIN, 0.55, 0.85)
     side, gap, top = 1.9, 0.4, 1.75  # each QR code, the clear space between, its top
     codes = RIGHT - 2 * side - gap  # where the QR codes start
     column = codes - gap - MARGIN  # the width the words take, left of the codes
-    page.text(MARGIN, 1.6, column, 1.2, ["Thank you"], size=60, bold=True)
+    page.text(MARGIN, 1.6, column, 1.2, ["Any questions?"], size=60, bold=True)
     page.text(
-        MARGIN, 2.95, column, 1.2,
-        ["Questions now, or on the anonymous form.", "One up, one down before you go."],
-        size=24, colour=MUTED, space_after=10,
+        MARGIN, 2.95, column, 0.95,
+        ["Type your question in the chat, or just ask out loud."],
+        size=24, colour=MUTED,
     )  # fmt: skip
-    width = (column - 0.4) / 2
-    page.placeholder(MARGIN, 4.45, width, 0.8, "[survey link]")
-    page.placeholder(MARGIN + width + 0.4, 4.45, width, 0.8, "[email]")
+    emails = ("dan@inferogenesis.com", "kevin@kevinbackhouse.com")
     page.text(
-        MARGIN, 5.9, column, 0.6,
-        [f"Everything shown runs on cpomdp {WORKSHOP_CPOMDP_VERSION} from PyPI."],
-        size=18, colour=MUTED,
+        MARGIN, 4.45, column, 1.4,
+        [[Run(email, link=f"mailto:{email}")] for email in emails],
+        size=22, space_after=8,
     )  # fmt: skip
     for index, (url, caption) in enumerate(
         ((PRESENTER_2_LINKEDIN, "Kevin on LinkedIn"), (SITE, "inferogenesis.com"))
@@ -1791,22 +1668,12 @@ def thanks(deck: Deck) -> None:
             left, top + side + 0.15, side, 0.4, [caption], size=15, colour=MUTED,
             align=PP_ALIGN.CENTER, space_after=0,
         )  # fmt: skip
-    page.notes(
-        notes(
-            "Leave this up through the questions. The survey link goes in the chat as "
-            "well, while the room is still here. One up, one down: one thing that "
-            "worked and one that didn't.",
-            f"Everything shown runs on cpomdp {WORKSHOP_CPOMDP_VERSION} from PyPI.",
-            "The QR codes open Kev's LinkedIn and inferogenesis.com.",
-            "TODO owner: the survey link and the email.",
-        )
-    )
+    page.notes("Thank everyone for joining and leave this slide up during questions.")
 
 
 SLIDES: tuple[Callable[[Deck], None], ...] = (
     title,
     who_we_are,
-    disclosure,
     agenda,
     how_we_work,
     setup,
@@ -1826,7 +1693,6 @@ SLIDES: tuple[Callable[[Deck], None], ...] = (
     task_3_meaning,
     backends,
     coda,
-    beginning,
     where_cpomdp_sits,
     research,
     programmes,

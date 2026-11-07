@@ -1,10 +1,9 @@
-import hashlib
 import re
 import xml.etree.ElementTree as ET
+from io import BytesIO
 from pathlib import Path
-from typing import Any
+from zipfile import ZipFile
 
-import jax.numpy as jnp
 import pytest
 
 pytest.importorskip("pptx", reason="the deck extra builds the slides")
@@ -12,26 +11,18 @@ pytest.importorskip("segno", reason="the deck extra draws the QR codes")
 
 import segno
 from cpomdp import (
-    Agent,
-    Belief,
-    CouplingGraph,
-    CouplingGraphBackend,
-    FixedSensor,
-    GaussianTransition,
     KalmanBackend,
 )
 from PIL import Image
-from pptx import Presentation
 from pptx.opc.constants import RELATIONSHIP_TYPE
 
 import build_deck
 import deck_layout
 import lesson
 from cpomdp_workshop import (
-    LAUNCH,
     WORKSHOP_CPOMDP_VERSION,
     model_with,
-    pad_goal,
+    one_node,
     plot,
 )
 from cpomdp_workshop.check import backend_differences
@@ -40,7 +31,7 @@ from cpomdp_workshop.solutions import CLEAR_SKY_ROCK
 PROSE = ("title", "text", "card", "pill", "placeholder")
 DRAWING = "http://schemas.openxmlformats.org/drawingml/2006/main"
 PRESENTATION = "http://schemas.openxmlformats.org/presentationml/2006/main"
-NUMBER = re.compile(r"(?<![\w.])\d+(?:\.\d+)*(?:e-?\d+)?")
+NUMBER = re.compile(r"(?<![\w.])\d+(?:,\d{3})*(?:\.\d+)*(?:e-?\d+)?")
 CLOCK = re.compile(r"\b\d+:\d\d\b")
 
 MEASURED = {
@@ -96,6 +87,7 @@ SET = {
     "3.11": "the oldest Python the workshop runs on",
     "2607.20306": "the arXiv number of presenter 1's paper",
     "10.3390": "the DOI registrant prefix of the cited Koudahl paper",
+    "10.5281": "the Zenodo DOI prefix for the cited cpomdp release",
 }
 """Numbers the deck sets or names rather than measures."""
 
@@ -114,6 +106,8 @@ def prose_and_notes(presentation):
         for shape in slide.shapes:
             if shape.has_text_frame and shape.name.split()[0] in PROSE:
                 yield shape.text_frame.text
+            elif shape.has_table:
+                yield from (cell.text for cell in shape.table.iter_cells())
         yield slide.notes_slide.notes_text_frame.text
 
 
@@ -122,8 +116,8 @@ def pictures(slide):
 
 
 @pytest.mark.slow
-def test_the_deck_has_twenty_eight_slides_each_with_notes(deck):
-    assert len(deck.slides) == 28
+def test_the_deck_has_twenty_six_slides_each_with_notes(deck):
+    assert len(deck.slides) == 26
     for slide in deck.slides:
         assert slide.notes_slide.notes_text_frame.text.strip()
 
@@ -243,24 +237,13 @@ def test_the_route_frames_build_up_in_one_place(deck):
     assert len(places) == 1
 
 
-def test_the_graph_slide_code_flies_the_same_beliefs_as_the_kalman_filter():
-    namespace: dict[str, Any] = {
-        "jnp": jnp,
-        "Agent": Agent,
-        "Belief": Belief,
-        "CouplingGraph": CouplingGraph,
-        "CouplingGraphBackend": CouplingGraphBackend,
-        "FixedSensor": FixedSensor,
-        "GaussianTransition": GaussianTransition,
-        "LAUNCH": LAUNCH,
-        "goal": pad_goal(),
-    }
-    exec(build_deck.GRAPH_CODE, namespace)
-    assert isinstance(namespace["rocket"], Agent)
-    (difference,) = backend_differences(
-        KalmanBackend(model_with()), namespace["backend"]
-    )
+def test_the_graph_slide_shows_the_measured_maximum_difference(deck):
+    model = model_with()
+    (difference,) = backend_differences(KalmanBackend(model), one_node(model))
     assert difference < 1e-9
+    slide = slide_of(deck, build_deck.backends)
+    (output,) = [shape for shape in slide.shapes if shape.name == "printed"]
+    assert output.text_frame.text == f"max |difference| = {difference:.1e}"
 
 
 def test_the_clear_sky_rock_is_where_the_slide_says():
@@ -271,7 +254,7 @@ def test_the_clear_sky_rock_is_where_the_slide_says():
 @pytest.mark.slow
 def test_every_number_in_the_prose_and_notes_is_measured_or_set(deck):
     numbers = {
-        token
+        token.replace(",", "")
         for text in prose_and_notes(deck)
         for token in NUMBER.findall(CLOCK.sub("", text))
     }
@@ -282,24 +265,6 @@ def test_every_measured_number_names_a_claim_test_that_exists():
     claims = (Path(__file__).parent / "test_measured_claims.py").read_text()
     for test_name in MEASURED.values():
         assert f"def {test_name}(" in claims, test_name
-
-
-@pytest.mark.slow
-def test_the_owners_placeholders_are_visible(deck):
-    placeholders = [
-        shape.text_frame.text
-        for slide in deck.slides
-        for shape in slide.shapes
-        if shape.name == "placeholder"
-    ]
-    for owed in (
-        "[email]",
-        "[survey link]",
-        "[Zenodo DOI",
-        "[owner: the AI-use panel",
-        "[owner: one line on The Individuating Membrane",
-    ):
-        assert any(text.startswith(owed) for text in placeholders), owed
 
 
 def photo_frames(slide):
@@ -435,25 +400,14 @@ def test_the_thanks_slide_draws_each_qr_module_for_module(deck, url):
 
 
 @pytest.mark.slow
-def test_claude_is_named_only_in_the_owners_disclosure(deck):
-    naming = [text for text in prose_and_notes(deck) if "Claude" in text]
-    assert naming[0] == build_deck.DISCLOSURE
-    assert len(naming) == 2  # the caption and the Q&A answer in its notes
-    assert naming[1].endswith("the answer is: some of it.")
-
-
-def snapshot(presentation):
-    slides = []
-    for slide in presentation.slides:
-        shapes = [
-            (shape.name, shape.left, shape.top, shape.width, shape.height,
-             shape.text_frame.text if shape.has_text_frame else
-             hashlib.sha256(shape.image.blob).hexdigest()
-             if shape.name.startswith("picture") else None)
-            for shape in slide.shapes
-        ]  # fmt: skip
-        slides.append((shapes, slide.notes_slide.notes_text_frame.text))
-    return slides
+def test_the_ai_use_disclosure_is_in_dans_introduction_notes(deck):
+    slide = slide_of(deck, build_deck.who_we_are)
+    introduction = slide.notes_slide.notes_text_frame.text
+    assert "Dan (aloud)\nSome of the source code" in introduction
+    assert "was written by Claude Code and reviewed before release." in introduction
+    assert [text for text in prose_and_notes(deck) if "Claude Code" in text] == [
+        introduction
+    ]
 
 
 def test_links_are_drawn_in_ink_not_the_templates_dark_blue(deck):
@@ -468,5 +422,11 @@ def test_links_are_drawn_in_ink_not_the_templates_dark_blue(deck):
 
 @pytest.mark.slow
 def test_the_committed_deck_is_the_one_the_script_builds(deck):
-    committed = Presentation(str(build_deck.DECK))
-    assert snapshot(committed) == snapshot(deck)
+    # Compare package contents, including formatting and shape IDs. ZIP entry
+    # timestamps record when PowerPoint was built and are outside the contents.
+    buffer = BytesIO()
+    deck.save(buffer)
+    with ZipFile(build_deck.DECK) as committed, ZipFile(buffer) as rebuilt:
+        assert set(committed.namelist()) == set(rebuilt.namelist())
+        for name in rebuilt.namelist():
+            assert committed.read(name) == rebuilt.read(name), name
