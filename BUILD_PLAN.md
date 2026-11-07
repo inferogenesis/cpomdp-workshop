@@ -118,15 +118,15 @@ Remade on 2026-10-28 from the 0.5.0 deck, on the light theme of Inferogenesis's 
 | Part | Starts, length | Slides |
 | --- | --- | --- |
 | Welcome | 17:00, 10 min | 1. Build a curious rocket · 2. Who we are · 3. Two hours, three tasks · 4. How we will work · 5. Get set up · 6. What we will build |
-| Task 1 | 17:10, 30 min | 7. Task 1 · The 1960 rocket · 8. Task 1 · Over to you · 9. Task 1 · Discussion · 10. Making information gain depend on the action |
-| Task 2 | 17:40, 30 min | 11. What changes when observations depend on location? · 12. Task 2 · Over to you · 13. Task 2 · Discussion · 14. Why does the rocket stop short of the pad? |
-| Task 3 | 18:10, 30 min | 15. Task 3 · The blackout · 16. Task 3 · Over to you · 17. Why do the curious rockets detour before the rock? · 18. What changes when we add the rock? · 19. What happens if we move the rock into clear sky? · 20. Do the two methods agree about where the rocket is? |
-| Why it matters | 18:40, 10 min | 21. What does PROVED mean here? · 22. What did cpomdp let us do? · 23. What else can we model with cpomdp? · 24. Where the research goes next |
-| Questions | 18:50, 10 min | 25. Two more experiments to try in Colab · 26. Any questions? |
+| Task 1 | 17:10, 30 min | 7. Task 1 · The 1960 rocket · 8. Task 1 · Over to you · 9. Task 1 · Discussion |
+| Task 2 | 17:40, 30 min | 10. Making information gain depend on the action · 11. Task 2 · Over to you · 12. Task 2 · Discussion · 13. Why does the rocket stop short of the pad? |
+| Task 3 | 18:10, 30 min | 14. Task 3 · The blackout · 15. Task 3 · Over to you · 16. Why do the curious rockets detour before the rock? · 17. What changes when we add the rock? · 18. What happens if we move the rock into clear sky? · 19. Do the two methods agree about where the rocket is? |
+| Why it matters | 18:40, 10 min | 20. What does PROVED mean here? · 21. What did cpomdp let us do? · 22. What else can we model with cpomdp? · 23. Where the research goes next |
+| Questions | 18:50, 10 min | 24. Two more experiments to try in Colab · 25. Any questions? |
 
 Each task is a 5-minute brief, 15 minutes of code and 10 minutes of discussion. The agenda slide shows each part's minutes and each block's UTC times. The timer slide stays up while the room codes: its bar fills over 15 minutes from when the slide shows, with no click, and then tells the room to run the checkpoint. Leaving the slide restarts the bar. The timer slide says how the notebook marks the two lines (`...`) and where the hints sit.
 
-The notes on slide 22 mention RxInfer in the comparison of packages. Nothing runs it. The reveal of papercut 1 has no slide. The timer slides point at `workshop.symptoms()`.
+The notes on slide 21 mention RxInfer in the comparison of packages, and slide 2's notes in the presenter's background. Nothing runs it. The reveal of papercut 1 has no slide. The timer slides point at `workshop.symptoms()`.
 
 Dan gives the AI-use disclosure aloud from the notes on slide 2.
 
