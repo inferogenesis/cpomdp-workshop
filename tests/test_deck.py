@@ -118,8 +118,8 @@ def pictures(slide):
 
 
 @pytest.mark.slow
-def test_the_deck_has_twenty_six_slides_each_with_notes(deck):
-    assert len(deck.slides) == 26
+def test_the_deck_has_twenty_five_slides_each_with_notes(deck):
+    assert len(deck.slides) == 25
     for slide in deck.slides:
         assert slide.notes_slide.notes_text_frame.text.strip()
 
