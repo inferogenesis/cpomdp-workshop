@@ -66,6 +66,7 @@ from deck_kit import (
     code_height,
 )
 from deck_layout import fit_problems, layout_problems, metrics
+from timer_clip import CLIP, POSTER
 
 ROOT = Path(__file__).resolve().parents[1]
 ASSETS = ROOT / "assets"
@@ -316,6 +317,7 @@ def timer_page(deck: Deck, number: int, steps: tuple[str, ...]) -> Page:
                 Run(f"Run checkpoint {number}, even if everything worked."),
             ]
         ],
+        clip=CLIP, poster=POSTER,
     )  # fmt: skip
     page.text(
         MARGIN, 6.45, FULL_WIDTH, 0.75,

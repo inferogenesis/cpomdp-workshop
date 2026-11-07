@@ -15,10 +15,12 @@ from cpomdp import (
 )
 from PIL import Image
 from pptx.opc.constants import RELATIONSHIP_TYPE
+from pptx.shapes.picture import Movie
 
 import build_deck
 import deck_layout
 import lesson
+import timer_clip
 from cpomdp_workshop import (
     WORKSHOP_CPOMDP_VERSION,
     model_with,
@@ -225,32 +227,28 @@ def schedule(slide):
     "timer",
     [build_deck.task_1_timer, build_deck.task_2_timer, build_deck.task_3_timer],
 )
-def test_a_timer_counts_down_each_second_from_fifteen_minutes_above_its_bar(
-    deck, timer
-):
+def test_a_timer_plays_its_clock_above_its_bar_from_when_the_slide_shows(deck, timer):
     slide = slide_of(deck, timer)
+    (track,) = [shape for shape in slide.shapes if shape.name == "track"]
     (bar,) = [shape for shape in slide.shapes if shape.name == "bar"]
-    clocks = [shape for shape in slide.shapes if shape.name == "clock"]
+    (clock,) = [shape for shape in slide.shapes if shape.name == "clock"]
     (times_up,) = [
         shape
         for shape in slide.shapes
         if shape.has_text_frame and shape.text_frame.text.startswith("Time's up.")
     ]
+    assert isinstance(clock, Movie)
+    assert clock.top + clock.height <= track.top
+    assert clock.left + clock.width == track.left + track.width
+    assert len(slide._element.findall(f"{{{PRESENTATION}}}timing")) == 1
     effects = schedule(slide)
-    shown = {spid: delay for spid, kind, delay in effects if kind == "entr"}
-    clocks.sort(key=lambda clock: shown[clock.shape_id])
-    assert [clock.text_frame.text for clock in clocks] == [
-        f"{s // 60:02d}:{s % 60:02d}" for s in range(900, -1, -1)
-    ]
-    assert len({(c.left, c.top, c.width, c.height) for c in clocks}) == 1
-    assert clocks[0].top + clocks[0].height <= bar.top
     assert (bar.shape_id, "entr", 0) in effects
-    effects = set(effects)
-    for s, clock in zip(range(900, -1, -1), clocks, strict=True):
-        start = (900 - s) * 1000
-        assert (clock.shape_id, "entr", start) in effects
-        assert ((clock.shape_id, "exit", start + 1000) in effects) == (s > 0)
+    assert (clock.shape_id, "mediacall", 0) in effects
     assert (times_up.shape_id, "entr", 15 * 60_000) in effects
+    media = slide._element.findall(
+        f".//{{{PRESENTATION}}}video//{{{PRESENTATION}}}spTgt"
+    )
+    assert [target.get("spid") for target in media] == [str(clock.shape_id)]
 
 
 @pytest.mark.slow
@@ -258,11 +256,15 @@ def test_a_timer_counts_down_each_second_from_fifteen_minutes_above_its_bar(
     "timer",
     [build_deck.task_1_timer, build_deck.task_2_timer, build_deck.task_3_timer],
 )
-def test_a_timer_reads_fifteen_minutes_where_its_animation_does_not_run(deck, timer):
-    clocks = [shape for shape in slide_of(deck, timer).shapes if shape.name == "clock"]
-    assert clocks[-1].text_frame.text == "15:00", "drawn on top"
-    for clock in clocks:
-        assert str(clock.fill.fore_color.rgb) == plot.LIGHT.background[1:]
+def test_a_timer_embeds_the_committed_clip_and_shows_15_00_until_it_plays(deck, timer):
+    slide = slide_of(deck, timer)
+    (clock,) = [shape for shape in slide.shapes if shape.name == "clock"]
+    assert isinstance(clock, Movie)
+    poster = clock.poster_frame
+    assert poster is not None
+    assert poster.blob == timer_clip.POSTER.read_bytes()
+    (video,) = clock._element.xpath("./p:nvPicPr/p:nvPr/a:videoFile/@r:link")
+    assert slide.part.related_part(video).blob == timer_clip.CLIP.read_bytes()
 
 
 def test_every_slide_is_on_the_light_palette(deck):

@@ -42,6 +42,7 @@ __all__ = [
     "AMBER_MARK",
     "BACKGROUND",
     "BLUE",
+    "CLOCK_SIZE",
     "CODE_FONT",
     "CONTENT_TOP",
     "GREEN",
@@ -89,11 +90,12 @@ SLIDE_WIDTH = 13.333
 SLIDE_HEIGHT = 7.5
 MARGIN = 0.6
 CONTENT_TOP = 1.45
+CLOCK_SIZE = (1.6, 0.64)
+"""The timer's clock over the right end of its bar, wide enough for 15:00 at 32 pt."""
 
 _TITLE = (MARGIN, 0.42, 10.2, 0.8)  # x, y, w, h
 _SEGMENT = (11.03, 0.58, 1.7, 0.42)
 _PANEL_INSET = 0.18
-_CLOCK_WIDTH = 1.6  # room for "15:00" at 32 pt, over the bar's right end
 _CODE_ADVANCE = 0.6  # Courier New sets every glyph 0.6 em wide
 _CODE_LINE = 1.2  # and PowerPoint sets its lines 1.2 em apart, measured on a render
 _SLOT = re.compile(r"^\s*\w+ = \.\.\.")
@@ -181,7 +183,7 @@ class Page:
     def __init__(self, slide: Slide) -> None:
         self.slide = slide
 
-    def _text_box(self, x: float, y: float, w: float, h: float, name: str) -> Shape:
+    def _box(self, x: float, y: float, w: float, h: float, name: str) -> TextFrame:
         shape = self.slide.shapes.add_textbox(
             Inches(x), Inches(y), Inches(w), Inches(h)
         )
@@ -190,10 +192,7 @@ class Page:
         frame.word_wrap = True
         frame.margin_left = frame.margin_right = Inches(0.0)
         frame.margin_top = frame.margin_bottom = Inches(0.0)
-        return shape
-
-    def _box(self, x: float, y: float, w: float, h: float, name: str) -> TextFrame:
-        return self._text_box(x, y, w, h, name).text_frame
+        return frame
 
     def _panel(
         self,
@@ -556,16 +555,29 @@ class Page:
         minutes: int,
         *,
         then: Sequence[Paragraph],
+        clip: Path,
+        poster: Path,
         size: float = 22,
     ) -> None:
         """A bar that fills over ``minutes`` from when the slide shows, then ``then``.
 
-        The bar fills left to right with no click, marked every five minutes. A clock
-        above its right end counts the time left down to 00:00, one label a second.
-        When the bar is full, ``then`` appears under the marks. Leaving the slide
-        starts the bar again on return, so the slide stays up while the room works.
+        The bar fills left to right with no click, marked every five minutes. Above
+        its right end, ``clip`` plays a clock counting the time left down to 00:00
+        and holds it. Until it plays, as in the editor or a PDF, ``poster`` stands in
+        its place. When the bar is full, ``then`` appears under the marks. Leaving
+        the slide starts both again on return, so the slide stays up while the room
+        works.
         """
-        ticks = self._clock(x + w - _CLOCK_WIDTH, y - 0.75, minutes)
+        width, height = CLOCK_SIZE
+        clock = self.slide.shapes.add_movie(
+            str(clip), Inches(x + w - width), Inches(y - height - 0.1),
+            Inches(width), Inches(height),
+            poster_frame_image=str(poster), mime_type="video/mp4",
+        )  # fmt: skip
+        clock.name = "clock"
+        # python-pptx gives the clip a timeline of its own, and the slide has one.
+        for timing in self.slide._element.findall(f"{{{_PRESENTATION}}}timing"):
+            self.slide._element.remove(timing)
         track = self._panel(x, y, w, 0.7, "track", fill=PANEL, line=RULE)
         track.adjustments[0] = 0.5
         bar = self.slide.shapes.add_shape(
@@ -595,35 +607,11 @@ class Page:
             _timing(
                 (
                     _Effect(bar.shape_id, "wipe", 0, full),
-                    *ticks,
+                    _Effect(clock.shape_id, "play", 0, full + 1000),
                     _Effect(reveal.shape_id, "appear", full),
                 )
             )
         )
-
-    def _clock(self, x: float, y: float, minutes: int) -> list["_Effect"]:
-        """One mm:ss label per second left, and the effects that show each in turn.
-
-        PowerPoint has no running clock, so each second is its own label, shown for
-        one second. 00:00 stays up. Each label is filled with the slide's background
-        and the first is drawn on top, so a copy with no animation (the editor, a PDF)
-        reads the full time.
-        """
-        total = minutes * 60
-        effects = []
-        for left in range(total + 1):
-            clock = self._text_box(x, y, _CLOCK_WIDTH, 0.6, "clock")
-            self._fill(
-                clock.text_frame, [f"{left // 60:02d}:{left % 60:02d}"],
-                size=32, colour=INK, font=TEXT_FONT, bold=True, align=PP_ALIGN.RIGHT,
-            )  # fmt: skip
-            clock.fill.solid()
-            clock.fill.fore_color.rgb = _rgb(BACKGROUND)
-            start = (total - left) * 1000
-            effects.append(_Effect(clock.shape_id, "appear", start))
-            if left:
-                effects.append(_Effect(clock.shape_id, "vanish", start + 1000))
-        return effects
 
     def notes(self, text: str, *, sources: Sequence[tuple[str, str]] = ()) -> None:
         """The speaker notes, with any named source links after the spoken text."""
@@ -639,12 +627,12 @@ class Page:
 
 @dataclass(frozen=True)
 class _Effect:
-    """One entrance or exit in a slide's timeline.
+    """One step in a slide's timeline.
 
     Attributes:
-        shape_id: the shape it brings in or takes out.
-        kind: ``"wipe"`` in from the left, ``"appear"`` at once, or ``"vanish"``,
-            an exit at once.
+        shape_id: the shape it acts on.
+        kind: ``"wipe"`` in from the left, ``"appear"`` at once, or ``"play"`` a
+            video from its start.
         start: when it begins, in milliseconds after the slide shows.
         duration: how long it takes, in milliseconds.
     """
@@ -656,49 +644,67 @@ class _Effect:
 
 
 _PRESENTATION = "http://schemas.openxmlformats.org/presentationml/2006/main"
-_PRESETS = {  # PowerPoint's preset ID, its class, its subtype, and what it sets
-    "wipe": ("22", "entr", "8", "visible"),
-    "appear": ("1", "entr", "0", "visible"),
-    "vanish": ("1", "exit", "0", "hidden"),
+_PRESETS = {  # PowerPoint's preset ID, class and subtype
+    "wipe": ("22", "entr", "8"),
+    "appear": ("1", "entr", "0"),
+    "play": ("1", "mediacall", "0"),
 }
+
+
+def _behaviour(effect: _Effect, ids: Iterator[int]) -> str:
+    """What one step does to its shape: show it, wipe it in, or play it."""
+    target = f'<p:tgtEl><p:spTgt spid="{effect.shape_id}"/></p:tgtEl>'
+    if effect.kind == "play":
+        return (
+            '<p:cmd type="call" cmd="playFrom(0.0)"><p:cBhvr>'
+            f'<p:cTn id="{next(ids)}" dur="{effect.duration}" fill="hold"/>{target}'
+            "</p:cBhvr></p:cmd>"
+        )
+    wipe = (
+        f'<p:animEffect transition="in" filter="wipe(left)"><p:cBhvr>'
+        f'<p:cTn id="{next(ids)}" dur="{effect.duration}"/>{target}'
+        "</p:cBhvr></p:animEffect>"
+        if effect.kind == "wipe"
+        else ""
+    )
+    return (
+        f'<p:set><p:cBhvr><p:cTn id="{next(ids)}" dur="1" fill="hold"><p:stCondLst>'
+        f'<p:cond delay="0"/></p:stCondLst></p:cTn>{target}<p:attrNameLst>'
+        "<p:attrName>style.visibility</p:attrName></p:attrNameLst></p:cBhvr>"
+        f'<p:to><p:strVal val="visible"/></p:to></p:set>{wipe}'
+    )
 
 
 def _timing(effects: Sequence[_Effect]):
     """A slide's ``p:timing``: every effect starts with the slide, after its delay.
 
     PowerPoint writes "with previous" this way: one group the slide's start
-    triggers, holding every effect with its own delay.
+    triggers, holding every effect with its own delay. A video it plays also gets
+    a media node beside the sequence, as PowerPoint writes one for each video.
     """
     ids = itertools.count(5)
     steps = []
     for effect in effects:
-        preset, kind, subtype, visibility = _PRESETS[effect.kind]
-        target = f'<p:tgtEl><p:spTgt spid="{effect.shape_id}"/></p:tgtEl>'
-        wipe = (
-            f'<p:animEffect transition="in" filter="wipe(left)"><p:cBhvr>'
-            f'<p:cTn id="{next(ids)}" dur="{effect.duration}"/>{target}'
-            "</p:cBhvr></p:animEffect>"
-            if effect.kind == "wipe"
-            else ""
-        )
-        node, shown = next(ids), next(ids)
+        preset, kind, subtype = _PRESETS[effect.kind]
+        node = next(ids)
         steps.append(
             f'<p:par><p:cTn id="{node}" presetID="{preset}" presetClass="{kind}" '
-            f'presetSubtype="{subtype}" fill="hold" grpId="{int(kind == "exit")}" '
-            'nodeType="withEffect"><p:stCondLst>'
-            f'<p:cond delay="{effect.start}"/></p:stCondLst><p:childTnLst>'
-            f'<p:set><p:cBhvr><p:cTn id="{shown}" dur="1" fill="hold"><p:stCondLst>'
-            f'<p:cond delay="0"/></p:stCondLst></p:cTn>{target}<p:attrNameLst>'
-            "<p:attrName>style.visibility</p:attrName></p:attrNameLst></p:cBhvr>"
-            f'<p:to><p:strVal val="{visibility}"/></p:to></p:set>'
-            f"{wipe}</p:childTnLst></p:cTn></p:par>"
+            f'presetSubtype="{subtype}" fill="hold" grpId="0" nodeType="withEffect">'
+            f'<p:stCondLst><p:cond delay="{effect.start}"/></p:stCondLst>'
+            f"<p:childTnLst>{_behaviour(effect, ids)}</p:childTnLst></p:cTn></p:par>"
         )
-    groups = dict.fromkeys(
-        (effect.shape_id, int(_PRESETS[effect.kind][1] == "exit")) for effect in effects
+    videos = "".join(
+        f'<p:video><p:cMediaNode vol="80000"><p:cTn id="{next(ids)}" fill="hold" '
+        'display="0"><p:stCondLst><p:cond delay="indefinite"/></p:stCondLst>'
+        f'</p:cTn><p:tgtEl><p:spTgt spid="{effect.shape_id}"/></p:tgtEl>'
+        "</p:cMediaNode></p:video>"
+        for effect in effects
+        if effect.kind == "play"
     )
     builds = "".join(
-        f'<p:bldP spid="{shape_id}" grpId="{group}" animBg="1"/>'
-        for shape_id, group in groups
+        f'<p:bldP spid="{effect.shape_id}" grpId="0" animBg="1"/>'
+        for effect in effects
+        if effect.kind != "play"
     )
     return parse_xml(
         f'<p:timing xmlns:p="{_PRESENTATION}"><p:tnLst><p:par>'
@@ -716,7 +722,7 @@ def _timing(effects: Sequence[_Effect]):
         "</p:tgtEl></p:cond></p:prevCondLst>"
         '<p:nextCondLst><p:cond evt="onNext" delay="0"><p:tgtEl><p:sldTgt/>'
         "</p:tgtEl></p:cond></p:nextCondLst>"
-        "</p:seq></p:childTnLst></p:cTn></p:par></p:tnLst>"
+        f"</p:seq>{videos}</p:childTnLst></p:cTn></p:par></p:tnLst>"
         f"<p:bldLst>{builds}</p:bldLst></p:timing>"
     )
 

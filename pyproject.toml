@@ -33,6 +33,7 @@ Repository = "https://github.com/inferogenesis/cpomdp-workshop"
 nb = ["ipykernel>=6.29", "jupyter>=1.1"]
 # Builds the slide deck from scripts/build_deck.py.
 deck = [
+    "imageio-ffmpeg>=0.5",
     "python-pptx>=1.0",
     "segno>=1.6",
 ]
