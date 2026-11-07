@@ -225,7 +225,9 @@ def schedule(slide):
     "timer",
     [build_deck.task_1_timer, build_deck.task_2_timer, build_deck.task_3_timer],
 )
-def test_a_timer_counts_down_the_whole_minutes_left_above_its_bar(deck, timer):
+def test_a_timer_counts_down_each_second_from_fifteen_minutes_above_its_bar(
+    deck, timer
+):
     slide = slide_of(deck, timer)
     (bar,) = [shape for shape in slide.shapes if shape.name == "bar"]
     clocks = [shape for shape in slide.shapes if shape.name == "clock"]
@@ -238,15 +240,16 @@ def test_a_timer_counts_down_the_whole_minutes_left_above_its_bar(deck, timer):
     shown = {spid: delay for spid, kind, delay in effects if kind == "entr"}
     clocks.sort(key=lambda clock: shown[clock.shape_id])
     assert [clock.text_frame.text for clock in clocks] == [
-        f"{m} minutes left" for m in range(15, 1, -1)
-    ] + ["1 minute left"]
+        f"{s // 60:02d}:{s % 60:02d}" for s in range(900, -1, -1)
+    ]
     assert len({(c.left, c.top, c.width, c.height) for c in clocks}) == 1
     assert clocks[0].top + clocks[0].height <= bar.top
     assert (bar.shape_id, "entr", 0) in effects
-    for m, clock in zip(range(15, 0, -1), clocks, strict=True):
-        start = (15 - m) * 60_000
+    effects = set(effects)
+    for s, clock in zip(range(900, -1, -1), clocks, strict=True):
+        start = (900 - s) * 1000
         assert (clock.shape_id, "entr", start) in effects
-        assert (clock.shape_id, "exit", start + 60_000) in effects
+        assert ((clock.shape_id, "exit", start + 1000) in effects) == (s > 0)
     assert (times_up.shape_id, "entr", 15 * 60_000) in effects
 
 
@@ -255,11 +258,9 @@ def test_a_timer_counts_down_the_whole_minutes_left_above_its_bar(deck, timer):
     "timer",
     [build_deck.task_1_timer, build_deck.task_2_timer, build_deck.task_3_timer],
 )
-def test_a_timer_reads_fifteen_minutes_left_where_its_animation_does_not_run(
-    deck, timer
-):
+def test_a_timer_reads_fifteen_minutes_where_its_animation_does_not_run(deck, timer):
     clocks = [shape for shape in slide_of(deck, timer).shapes if shape.name == "clock"]
-    assert clocks[-1].text_frame.text == "15 minutes left", "drawn on top"
+    assert clocks[-1].text_frame.text == "15:00", "drawn on top"
     for clock in clocks:
         assert str(clock.fill.fore_color.rgb) == plot.LIGHT.background[1:]
 

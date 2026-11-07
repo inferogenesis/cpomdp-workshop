@@ -15,6 +15,7 @@ A photo frame is an empty panel named after the photo it holds. The committed de
 keeps it empty, and only a local presenting copy puts the photo in.
 """
 
+import itertools
 import math
 import re
 from collections.abc import Iterator, Sequence
@@ -92,7 +93,7 @@ CONTENT_TOP = 1.45
 _TITLE = (MARGIN, 0.42, 10.2, 0.8)  # x, y, w, h
 _SEGMENT = (11.03, 0.58, 1.7, 0.42)
 _PANEL_INSET = 0.18
-_CLOCK_WIDTH = 4.0  # room for "15 minutes left" at 26 pt, over the bar's right end
+_CLOCK_WIDTH = 1.6  # room for "15:00" at 32 pt, over the bar's right end
 _CODE_ADVANCE = 0.6  # Courier New sets every glyph 0.6 em wide
 _CODE_LINE = 1.2  # and PowerPoint sets its lines 1.2 em apart, measured on a render
 _SLOT = re.compile(r"^\s*\w+ = \.\.\.")
@@ -560,11 +561,11 @@ class Page:
         """A bar that fills over ``minutes`` from when the slide shows, then ``then``.
 
         The bar fills left to right with no click, marked every five minutes. A clock
-        above its right end shows the whole minutes left, one label a minute. When the
-        bar is full, ``then`` appears under the marks. Leaving the slide starts the
-        bar again on return, so the slide stays up while the room works.
+        above its right end counts the time left down to 00:00, one label a second.
+        When the bar is full, ``then`` appears under the marks. Leaving the slide
+        starts the bar again on return, so the slide stays up while the room works.
         """
-        ticks = self._clock(x + w - _CLOCK_WIDTH, y - 0.7, minutes)
+        ticks = self._clock(x + w - _CLOCK_WIDTH, y - 0.75, minutes)
         track = self._panel(x, y, w, 0.7, "track", fill=PANEL, line=RULE)
         track.adjustments[0] = 0.5
         bar = self.slide.shapes.add_shape(
@@ -601,26 +602,27 @@ class Page:
         )
 
     def _clock(self, x: float, y: float, minutes: int) -> list["_Effect"]:
-        """One label per whole minute left, and the effects that show each in turn.
+        """One mm:ss label per second left, and the effects that show each in turn.
 
-        Each label is filled with the slide's background and the first is drawn on
-        top, so a copy with no animation (the editor, a PDF) reads the full time.
+        PowerPoint has no running clock, so each second is its own label, shown for
+        one second. 00:00 stays up. Each label is filled with the slide's background
+        and the first is drawn on top, so a copy with no animation (the editor, a PDF)
+        reads the full time.
         """
+        total = minutes * 60
         effects = []
-        for left in range(1, minutes + 1):
-            label = f"{left} {'minute' if left == 1 else 'minutes'} left"
-            clock = self._text_box(x, y, _CLOCK_WIDTH, 0.55, "clock")
+        for left in range(total + 1):
+            clock = self._text_box(x, y, _CLOCK_WIDTH, 0.6, "clock")
             self._fill(
-                clock.text_frame, [label],
-                size=26, colour=INK, font=TEXT_FONT, bold=True, align=PP_ALIGN.RIGHT,
+                clock.text_frame, [f"{left // 60:02d}:{left % 60:02d}"],
+                size=32, colour=INK, font=TEXT_FONT, bold=True, align=PP_ALIGN.RIGHT,
             )  # fmt: skip
             clock.fill.solid()
             clock.fill.fore_color.rgb = _rgb(BACKGROUND)
-            start = (minutes - left) * 60_000
-            effects += [
-                _Effect(clock.shape_id, "appear", start),
-                _Effect(clock.shape_id, "vanish", start + 60_000),
-            ]
+            start = (total - left) * 1000
+            effects.append(_Effect(clock.shape_id, "appear", start))
+            if left:
+                effects.append(_Effect(clock.shape_id, "vanish", start + 1000))
         return effects
 
     def notes(self, text: str, *, sources: Sequence[tuple[str, str]] = ()) -> None:
@@ -667,7 +669,7 @@ def _timing(effects: Sequence[_Effect]):
     PowerPoint writes "with previous" this way: one group the slide's start
     triggers, holding every effect with its own delay.
     """
-    ids = iter(range(5, 1000))
+    ids = itertools.count(5)
     steps = []
     for effect in effects:
         preset, kind, subtype, visibility = _PRESETS[effect.kind]

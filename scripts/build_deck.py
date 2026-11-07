@@ -349,7 +349,7 @@ def timer_notes(number: int, *paragraphs: str) -> str:
         *paragraphs,
         f"Leave this slide up for the whole {TASK_MINUTES} minutes. The bar starts "
         "when the slide appears and needs no click, and the clock above it counts "
-        "down the whole minutes left. Both start again if you leave the "
+        "down the time left to the second. Both start again if you leave the "
         "slide and come back, so share the notebook from another window if you need "
         "to.",
         "Nobody pastes hints. Each person opens the collapsed hint and reference "
