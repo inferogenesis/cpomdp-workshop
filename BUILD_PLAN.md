@@ -456,10 +456,12 @@ Times are UTC. The table assumes the workshop is at 17:00 on Friday 13 Nov, as D
 
 ## 10. Decisions still owed, and issue drafts
 
-- **Owed:** the Task 3 chat number (draft: the curious rocket's miss on seed 3).
-- **Owed:** poll 2's and poll 3's wording (drafts in §5).
-- **Owed:** slide 10's notes gaining the plug-in-mean paragraph. Draft: "The rocket never knows its true position. When it plans, it reads the noise at the mean of where it predicts a move will take it, R(μ⁺). That's a first-order shortcut, least accurate when the belief is wide and the noise changes sharply." cpomdp drops the ½tr(H_R Σ⁺) term by design.
-- **Owed:** the workshop date (§9).
+- **Owed:** the Task 3 chat number (draft: the curious rocket's miss on seed 3). The build uses the draft until Dan decides.
+- **Decided 9 Nov, no live polls.** The poll questions stay in the notebook for anyone who wants to think about them. No slide gives them time.
+- **Decided 9 Nov, the plug-in mean is a spoken note.** It goes into slide 10's notes in the notes' existing style, and Dan refines the wording by hand. Draft: "The rocket never knows its true position. When it plans, it reads the noise at the mean of where it predicts a move will take it, R(μ⁺). That's a first-order shortcut, least accurate when the belief is wide and the noise changes sharply." cpomdp drops the ½tr(H_R Σ⁺) term by design.
+- **Decided 9 Nov, the date.** The workshop is on Friday 13 Nov at 17:00 UTC. The dates in §9 are guides, not deadlines.
+- **Decided 9 Nov, `check_my_broadcast` is built.** Task 3 is the harder task, so it gets the check. It may move into a hint later.
+- **Decided 9 Nov, how the build lands.** Three stacked pull requests: Task 2, then Task 3, then the release. Each is reviewed on GitHub.
 - **Issue draft, cpomdp:** "`EnumeratedEFESearch`: rank by the pragmatic term alone, or weight the epistemic term, so ablations don't need a hand-rolled selector."
 - **Issue draft, cpomdp:** "Docs: an observation-space preference pays for R(x) in the pragmatic term through ½tr(ΛR). Say so where `Preference` meets `CallableSensor`, and consider allowing a state-space goal under R(x)."
 
