@@ -27,9 +27,9 @@ Reference for task 1: the collapsed cell under hint 2. Run it, then the checkpoi
 
 [session 2, nudge 1]
 `k` controls how quickly the reading gets noisier as the rocket moves away from the beacon.
-As k rises, the curious rocket's path climbs further towards the beacon.
-Past some k, it stays near the beacon and stops short of the pad. The same rocket with curiosity off still lands.
-Try raising k from 0.08 in steps of about 0.1 and watch where each rocket ends.
+As k rises, the noise climbs more steeply away from the beacon, and the routes change with it.
+Past some k, one of the two rockets stops short of the pad while the other still lands.
+Try raising k from 0.08 in steps of about 0.1, and read the two lines `show_landings` prints each time.
 
 [session 2, hint 1]
 beacon_gain = 0.4

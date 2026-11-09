@@ -311,7 +311,9 @@ itself has no such switch.
 `params`. The comments in the code list each setting and how to read it by name, for
 example `params["beacon_cap"]`.
 
-Run the cell to test your sensor and plot both flights.
+Run the cell to test your sensor and plot both flights. A rocket has landed if it ends
+within 0.5 of the pad, inside the circle the plot draws round it. `show_landings` prints
+how far from the pad each rocket ended, and whether it landed.
 
 Start with `k = 0.08`, then raise it and watch both rockets. At what `k` does one of
 them stop landing? What might explain the difference, when both rockets share one model
@@ -330,6 +332,7 @@ from cpomdp_workshop import (
     default_params,
     fly,
     plot_flights,
+    show_landings,
 )
 
 beacon_gain = ...  # k: type 0.08 first, then raise it until one rocket stops landing
@@ -367,6 +370,7 @@ incurious = Agent(
 )
 flights = {"curiosity on": fly(curious), "curiosity off": fly(incurious)}
 print(f"your k = {beacon_gain}")  # paste the k where one rocket stopped landing
+show_landings(flights)
 plot_flights(flights, my_sensor, params)""",
     bonuses=(
         Bonus(
@@ -385,7 +389,10 @@ How does the gap change as the precision rises? What could explain it?
 
 **For an additional challenge:** Set `beacon_gain = 0.2` and `seeds = range(10)`. The
 cell then prints how many of the ten seeds part by 1 or more, and the median gap. Do
-your conclusions still hold?""",
+your conclusions still hold?
+
+**One more thing to try:** Go back to your Task 2 cell and keep raising `k` past the
+value you shared. What happens to the rocket with curiosity off?""",
             hint="""\
 `fly_both` builds a new pair of rockets for every seed and every precision, because a
 rocket can only fly once. `on.route_gap(off)` is the gap between two flights. To try
@@ -408,7 +415,12 @@ the rocket still bends towards the beacon at `k = 0.2`: on seed 3 it passes 1.06
 the beacon, against 1.40 for the straight route. The readings there are less noisy,
 and the pragmatic term pays for noise as well as for distance. The rocket with
 curiosity off flies the same route at any precision, so its bend owes nothing to
-curiosity.""",
+curiosity.
+
+The same term explains what you see if you keep raising `k`. On seed 3, the rocket with
+curiosity off lands up to `k = 0.45` and stops 1.42 short of the pad at `k = 0.46`. At
+`k = 0.5`, neither rocket lands on any of the ten seeds. Near the pad the readings are
+then so noisy that the pragmatic term alone prefers to stop short.""",
             code='''\
 import jax.numpy as jnp
 import numpy as np
@@ -458,26 +470,28 @@ Try three one-line edits to your Task 2 cell with `k = 0.08`, one at a time. Bef
 each run, predict what it will do to the curious rocket's route.
 
 1. Under the `params` line, add `params["beacon_cap"] = 1.0`.
-2. In `curious_model`, change the drift to `dynamics_noise=1e-2 * jnp.eye(2)`.
+2. In `curious_model`, change `dynamics_noise` to `1e-2 * jnp.eye(2)`. The rocket
+   then believes it drifts ten times as much between readings. The world itself adds
+   no drift, so only the rocket's belief changes.
 3. In `curious_model`, change the prior to
    `prior=Belief(mean=LAUNCH, cov=25 * jnp.eye(2))`.
 
 Which edits change what curiosity does, and which leave it alone?""",
             hint="""\
-With a cap of 1, every point of the straight route is already past the cap. More drift
-means the rocket grows less sure of where it is between readings. A wider prior only
-changes how unsure the rocket is before its first reading. Undo each edit before you try
-the next.""",
+With a cap of 1, every point of the straight route is already past the cap. A rocket
+that believes it drifts more grows less sure of where it is between readings. A wider
+prior only changes how unsure the rocket is before its first reading. Undo each edit
+before you try the next.""",
             answer="""\
 With a cap of 1, the noise is the same all along the straight route, so no move there
 teaches more than another. On seed 3 the two rockets fly the same straight route. Over
 ten seeds they fly the same route on nine. On the tenth, a noisy reading pushes the
 rocket within reach of the beacon, where the noise varies again, and the routes split.
 
-With ten times the drift, σ² stays large, so a move towards the beacon always offers
-more information. The curious rocket stays near the beacon and stops 2.67 short of the
-pad on seed 3. The rocket with curiosity off lands 0.16 from it. Over ten seeds, no
-curious rocket lands and eight of the incurious ones do.
+When the rocket believes it drifts ten times as much, σ² stays large, so a move towards
+the beacon always offers more information. The curious rocket stays near the beacon and
+stops 2.67 short of the pad on seed 3. The rocket with curiosity off lands 0.16 from it.
+Over ten seeds, no curious rocket lands and eight of the incurious ones do.
 
 A wider prior leaves the curious rocket's route unchanged on all ten seeds. Its first
 reading leaves it about as sure as it would have been, and the beacon's field does not
