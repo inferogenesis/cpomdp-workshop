@@ -534,8 +534,9 @@ def test_the_curious_rocket_prefers_the_pad_loosely():
     assert np.allclose(pad_preference().precision, 0.1 * I)
 
 
-def test_with_curiosity_off_the_route_is_the_same_at_any_precision():
-    off = [fly_pair(0.4, precision)[1].path for precision in (0.1, 1.0, 3.0)]
+@pytest.mark.parametrize("beacon_gain", [0.2, 0.4])
+def test_with_curiosity_off_the_route_is_the_same_at_any_precision(beacon_gain):
+    off = [fly_pair(beacon_gain, precision)[1].path for precision in (0.1, 1.0, 3.0)]
     assert all(np.array_equal(path, off[0]) for path in off)
 
 

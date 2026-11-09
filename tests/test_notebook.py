@@ -149,9 +149,9 @@ def test_every_bonus_shows_its_question_then_a_hint_then_an_answer(number):
         assert source.count("</details>") == 2
 
 
-@pytest.mark.parametrize("number", [1, 2])
-def test_bonus_1_of_tasks_1_and_2_is_worked_in_the_attempt_cell(number):
-    assert lesson.SESSIONS[number - 1].bonuses[0].code is None
+@pytest.mark.parametrize(("number", "which"), [(1, 1), (2, 2)])
+def test_one_bonus_of_tasks_1_and_2_is_worked_in_the_attempt_cell(number, which):
+    assert lesson.SESSIONS[number - 1].bonuses[which - 1].code is None
 
 
 def test_bonus_1_of_task_3_starts_from_a_seed_loop():
@@ -160,16 +160,17 @@ def test_bonus_1_of_task_3_starts_from_a_seed_loop():
     assert "for seed in seeds" in code
 
 
-@pytest.mark.parametrize("number", [2, 3])
-def test_bonus_2_of_tasks_2_and_3_comes_with_its_flight_loop(number):
-    code = lesson.SESSIONS[number - 1].bonuses[1].code
+@pytest.mark.parametrize(("number", "which"), [(2, 1), (3, 2)])
+def test_the_bonus_that_flies_seeds_comes_with_its_flight_loop(number, which):
+    code = lesson.SESSIONS[number - 1].bonuses[which - 1].code
     assert code is not None
     assert "for seed in seeds" in code
 
 
 @pytest.mark.parametrize("number", [1, 2, 3])
-def test_every_bonus_2_has_a_cell_to_work_in(number):
-    assert lesson.SESSIONS[number - 1].bonuses[1].code is not None
+def test_every_task_has_a_bonus_cell_to_work_in(number):
+    bonuses = lesson.SESSIONS[number - 1].bonuses
+    assert any(bonus.code is not None for bonus in bonuses)
 
 
 def test_a_hint_that_names_no_slot_is_refused():
