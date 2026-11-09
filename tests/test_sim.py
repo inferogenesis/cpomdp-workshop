@@ -2,7 +2,7 @@ import numpy as np
 import pytest
 
 from cpomdp_workshop.build import curious_rocket, the_1960_rocket
-from cpomdp_workshop.sim import DEFAULT_STEPS, ROCK, _hits, fly
+from cpomdp_workshop.sim import DEFAULT_STEPS, ROCK, Flight, _hits, fly
 from cpomdp_workshop.world import LAUNCH, NOISE_FLOOR, default_params, reference_sensor
 
 
@@ -85,3 +85,22 @@ def test_the_belief_sharpens_once_the_rocket_starts_reading():
     traces = [float(np.trace(cov)) for cov in flight.covs]
     assert traces[0] < 2 * 4.0
     assert traces == sorted(traces, reverse=True)
+
+
+def a_flight(path):
+    path = np.asarray(path, dtype=float)
+    steps = len(path) - 1
+    return Flight(path, np.zeros((steps, 2)), np.zeros((steps, 2, 2)), False, None)
+
+
+def test_the_route_gap_is_the_widest_split_at_the_same_step():
+    low = a_flight([[0, 0], [1, 0], [2, 0]])
+    high = a_flight([[0, 0], [1, 2], [2, 1]])
+    assert low.route_gap(high) == 2.0
+    assert high.route_gap(low) == 2.0
+
+
+def test_the_route_gap_stops_at_the_shorter_flight():
+    short = a_flight([[0, 0], [1, 0]])
+    long = a_flight([[0, 0], [1, 1], [9, 9]])
+    assert short.route_gap(long) == 1.0

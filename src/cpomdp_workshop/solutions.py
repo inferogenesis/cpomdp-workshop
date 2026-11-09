@@ -6,7 +6,7 @@ hold.
 """
 
 import numpy as np
-from cpomdp import LinearGaussianModel, Preference
+from cpomdp import Belief, LinearGaussianModel, Preference
 
 from cpomdp_workshop._seams import (
     CompletenessCertificate,
@@ -14,7 +14,7 @@ from cpomdp_workshop._seams import (
     policy_efe_trace,
 )
 from cpomdp_workshop.build import model_with, pad_preference
-from cpomdp_workshop.planner import axis_actions
+from cpomdp_workshop.planner import axis_actions, compass_planner
 from cpomdp_workshop.sim import Flight
 from cpomdp_workshop.world import ROCK_RADIUS, default_params, reference_sensor
 
@@ -22,6 +22,7 @@ __all__ = [
     "CLEAR_SKY_ROCK",
     "CODA_HORIZON",
     "axis_certificate",
+    "curiosity_decided",
     "efe_split",
 ]
 
@@ -72,3 +73,29 @@ def efe_split(
         trace = policy_efe_trace(model, belief, move[None, :], preference)
         rows.append([float(trace.pragmatic[0]), float(trace.epistemic[0])])
     return np.asarray(rows)
+
+
+def curiosity_decided(
+    flight: Flight, model: LinearGaussianModel, preference: Preference
+) -> np.ndarray:
+    """Which of a curious rocket's moves its curiosity decided.
+
+    A move counts when the same rocket with curiosity off, holding the same belief,
+    would have picked a different move. Every other move the pragmatic term alone
+    would have picked too.
+
+    Args:
+        flight: a curious rocket's flight, planned one move ahead over the compass
+            moves.
+        model: the rocket's model.
+        preference: the reading it prefers.
+
+    Returns:
+        One flag per move, true where curiosity changed the move.
+    """
+    incurious = compass_planner(model, curiosity=False)
+    decided = []
+    for step, move in enumerate(np.diff(flight.path, axis=0)):
+        belief = Belief(mean=flight.means[step], cov=flight.covs[step])
+        decided.append(not np.allclose(incurious.select(belief, preference), move))
+    return np.asarray(decided)
