@@ -1,7 +1,7 @@
 """Build a curious rocket: the workshop package.
 
 Everything the notebook imports lives here. The world and its sensor field are in
-``world``, the compass moves and the search over them in ``planner``, the two rockets
+``world``, the compass moves and the search over them in ``planner``, the rockets
 in ``build``, the flight loop in ``sim`` and the checks the room runs in ``check``.
 
 The cpomdp release the workshop was measured against is pinned in ``pyproject.toml``
@@ -13,22 +13,27 @@ import sys
 from importlib import metadata
 
 from cpomdp_workshop.build import (
+    CURIOUS_PRECISION,
     THRUSTER_COST,
     curious_rocket,
     model_with,
     one_node,
     pad_goal,
+    pad_model,
     pad_preference,
+    radar_preference,
     the_1960_rocket,
 )
 from cpomdp_workshop.check import (
     check_agent,
     check_backends,
+    check_my_broadcast,
     check_my_sensor,
     epistemic_spread,
     grade_sensor,
     probe,
     show_landings,
+    show_misses,
     show_probe,
 )
 from cpomdp_workshop.checkpoints import (
@@ -43,18 +48,22 @@ from cpomdp_workshop.planner import (
     compass_planner,
 )
 from cpomdp_workshop.plot import (
+    curiosity_pair,
+    pad_pair,
     plot_beliefs,
     plot_flights,
+    plot_pad,
     plot_path,
     plot_world,
     preview,
     world_flights,
 )
 from cpomdp_workshop.selfguided import two_node_backend
-from cpomdp_workshop.sim import ROCK, Flight, fly
+from cpomdp_workshop.sim import ROCK, Flight, PadFlight, fly, fly_pad
 from cpomdp_workshop.solutions import (
     CLEAR_SKY_ROCK,
     axis_certificate,
+    curiosity_decided,
     efe_split,
 )
 from cpomdp_workshop.symptoms import symptoms
@@ -63,9 +72,13 @@ from cpomdp_workshop.world import (
     BLACKOUT,
     LAUNCH,
     PAD,
+    PAD_GUESS,
     ROCK_RADIUS,
     beacon_sensor,
+    broadcast_noise,
     default_params,
+    pad_params,
+    pad_sensor,
     reference_sensor,
 )
 
@@ -73,45 +86,60 @@ __all__ = [
     "BEACON",
     "BLACKOUT",
     "CLEAR_SKY_ROCK",
+    "CURIOUS_PRECISION",
     "LAUNCH",
     "MINIMUM_PYTHON",
     "PAD",
+    "PAD_GUESS",
     "ROCK",
     "ROCK_RADIUS",
     "STEP",
     "THRUSTER_COST",
     "WORKSHOP_CPOMDP_VERSION",
     "Flight",
+    "PadFlight",
     "after_session_1",
     "after_session_2",
     "after_session_3",
     "axis_certificate",
     "beacon_sensor",
+    "broadcast_noise",
     "check_agent",
     "check_backends",
+    "check_my_broadcast",
     "check_my_sensor",
     "compass_actions",
     "compass_moves",
     "compass_planner",
+    "curiosity_decided",
+    "curiosity_pair",
     "curious_rocket",
     "default_params",
     "efe_split",
     "epistemic_spread",
     "fly",
+    "fly_pad",
     "grade_sensor",
     "hello",
     "model_with",
     "one_node",
     "pad_goal",
+    "pad_model",
+    "pad_pair",
+    "pad_params",
     "pad_preference",
+    "pad_sensor",
     "plot_beliefs",
     "plot_flights",
+    "plot_pad",
     "plot_path",
     "plot_world",
     "preview",
     "probe",
+    "radar_preference",
     "reference_sensor",
     "show_landings",
+    "show_misses",
     "show_probe",
     "symptoms",
     "the_1960_rocket",
@@ -156,6 +184,6 @@ def hello() -> None:
         )
     print(f"cpomdp {installed}, jax {metadata.version('jax')}, Python {python}. Ready.")
     print(
-        f"launch {LAUNCH} -> pad {PAD}, nav beacon at {BEACON}, "
-        f"blackout at {BLACKOUT} with a rock of radius {ROCK_RADIUS}"
+        f"launch {LAUNCH} -> pad {PAD}, navigation beacon at {BEACON}. "
+        f"In task 3 the pad is hidden, somewhere around {PAD_GUESS}."
     )

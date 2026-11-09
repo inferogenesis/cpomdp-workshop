@@ -9,16 +9,27 @@ cannot be swapped once built, so every object is made new.
 
 from cpomdp import Agent
 
-from cpomdp_workshop.build import model_with, one_node, pad_goal, pad_preference
+from cpomdp_workshop.build import (
+    model_with,
+    pad_goal,
+    pad_model,
+    pad_preference,
+    radar_preference,
+)
 from cpomdp_workshop.check import probe
 from cpomdp_workshop.planner import compass_planner
-from cpomdp_workshop.sim import fly
-from cpomdp_workshop.world import beacon_sensor, default_params, reference_sensor
+from cpomdp_workshop.sim import fly, fly_pad
+from cpomdp_workshop.world import (
+    PAD_SPREAD_WORLD,
+    beacon_sensor,
+    broadcast_noise,
+    default_params,
+    pad_params,
+)
 
 __all__ = ["after_session_1", "after_session_2", "after_session_3"]
 
 SESSION_2_GAIN = 0.4
-SESSION_3_GAIN = 0.08
 
 
 def after_session_1() -> dict[str, object]:
@@ -58,10 +69,29 @@ def after_session_2() -> dict[str, object]:
 
 
 def after_session_3() -> dict[str, object]:
-    """Session 2's names, plus the blackout world and the 1960 model as a graph."""
+    """Session 2's names, with the hidden pad's put over them.
+
+    Task 3 reuses ``params``, ``model``, ``preference``, ``curious``, ``incurious``
+    and ``flights`` for the hidden-pad rocket, as its attempt cell does.
+    """
+    params = pad_params()
+    model = pad_model(broadcast_noise, params, PAD_SPREAD_WORLD)
+    preference = radar_preference()
+    curious = Agent(model, preference, selector=compass_planner(model))
+    incurious = Agent(
+        model, preference, selector=compass_planner(model, curiosity=False)
+    )
     return {
         **after_session_2(),
-        "my_world": reference_sensor,
-        "beacon_gain": SESSION_3_GAIN,
-        "backend": one_node(model_with()),
+        "params": params,
+        "my_broadcast": broadcast_noise,
+        "pad_spread": PAD_SPREAD_WORLD,
+        "model": model,
+        "preference": preference,
+        "curious": curious,
+        "incurious": incurious,
+        "flights": {
+            "curiosity on": fly_pad(curious),
+            "curiosity off": fly_pad(incurious),
+        },
     }
