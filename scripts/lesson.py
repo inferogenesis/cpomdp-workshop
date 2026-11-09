@@ -1,9 +1,9 @@
 """What the notebook says, cell by cell. ``build_notebook.py`` assembles it.
 
 Each session is a brief, an attempt cell with two ``...`` lines to write, two bonuses
-and a poll. The hints and the reference cell are not here. The hints live in
-``delivery/hints_chat.txt``, and the reference cell is the attempt with both hints
-put in, so neither can drift from the attempt.
+and a question to think about. The hints and the reference cell are not here. The
+hints live in ``delivery/hints_chat.txt``, and the reference cell is the attempt with
+both hints put in, so neither can drift from the attempt.
 """
 
 from dataclasses import dataclass
@@ -128,7 +128,8 @@ class Session:
         brief: the markdown above the attempt.
         attempt: the code cell, with exactly two ``...`` lines.
         bonuses: the two collapsed bonus cells, in order.
-        poll: the markdown poll after the checkpoint.
+        poll: the question to think about after the checkpoint. No slide gives it
+            time.
     """
 
     number: int
@@ -253,7 +254,7 @@ is, not how well it can see.""",
         ),
     ),
     poll="""\
-### Poll 1
+### A question to think about
 
 The 1960 rocket's spread is zero whatever you change. Why?
 
@@ -290,6 +291,17 @@ its planner evaluates nine possible actions, taking into account the expected
 observations and their uncertainty. Each action is a one-step policy, scored by its
 expected free energy (Active Inference book, section 2.7, p. 32).
 
+The rocket holds this preference only loosely, with a precision of 0.1, so the
+information a move offers can compete with the pull of the pad. Expected free energy
+has no other weight between the two, so the precision is the only setting that trades
+one against the other.
+
+To see what curiosity does, we will fly the same rocket twice. The first flight has
+curiosity on. The second ranks the same nine moves with the epistemic term taken out,
+so it weighs only how close each move is expected to bring its reading to the pad. The
+switch that turns curiosity off is a helper in this workshop's package, and `cpomdp`
+itself has no such switch.
+
 **Your task:** Complete the two missing lines marked with `...`:
 
 1. Choose a value for `k` to control how quickly the noise increases with distance.
@@ -299,13 +311,15 @@ expected free energy (Active Inference book, section 2.7, p. 32).
 `params`. The comments in the code list each setting and how to read it by name, for
 example `params["beacon_cap"]`.
 
-Run the cell to test your sensor and plot the rocket's flight path.
+Run the cell to test your sensor and plot both flights. A rocket has landed if it ends
+within 0.5 of the pad, inside the circle the plot draws round it. `show_landings` prints
+how far from the pad each rocket ended, and whether it landed.
 
-Start with `k = 0.08`, then experiment with different values. Can you find a value that
-makes the rocket take a different route towards the beacon and still reach the landing
-pad? What might explain this change in behaviour?
+Start with `k = 0.08`, then raise it and watch both rockets. At what `k` does one of
+them stop landing? What might explain the difference, when both rockets share one model
+and one sensor?
 
-**Share your `k` value in the workshop chat.**""",
+**Share that `k` value in the workshop chat.**""",
     attempt="""\
 import jax.numpy as jnp
 from cpomdp import Agent, Belief, CallableSensor, LinearGaussianModel, Preference
@@ -317,10 +331,11 @@ from cpomdp_workshop import (
     compass_planner,
     default_params,
     fly,
-    plot_path,
+    plot_flights,
+    show_landings,
 )
 
-beacon_gain = ...  # k: type 0.08 first, then raise it until the path bends
+beacon_gain = ...  # k: type 0.08 first, then raise it until one rocket stops landing
 params = default_params(beacon_gain)
 # The settings params holds for this task. The only one we're concerned with for this
 # exercise is k, "beacon_gain". The rest are chosen for you to best display the
@@ -347,121 +362,160 @@ curious_model = LinearGaussianModel(
     prior=Belief(mean=LAUNCH, cov=4 * jnp.eye(2)),
     observation_model=CallableSensor(jnp.eye(2), my_sensor, params),
 )
+preference = Preference(PAD, precision=0.1 * jnp.eye(2))  # loose enough to compete
 planner = compass_planner(curious_model)  # scores all nine compass moves every step
-curious = Agent(curious_model, Preference(PAD, precision=jnp.eye(2)), selector=planner)
-flight = fly(curious)
-print(f"your k = {beacon_gain}")  # paste in chat
-plot_path(flight, my_sensor, params)""",
+curious = Agent(curious_model, preference, selector=planner)
+incurious = Agent(
+    curious_model, preference, selector=compass_planner(curious_model, curiosity=False)
+)
+flights = {"curiosity on": fly(curious), "curiosity off": fly(incurious)}
+print(f"your k = {beacon_gain}")  # paste the k where one rocket stopped landing
+show_landings(flights)
+plot_flights(flights, my_sensor, params)""",
     bonuses=(
         Bonus(
-            title="What else shapes the route?",
+            title="Turn the preference up",
             question="""\
-You've seen how `k` changes the rocket's route. But `params` holds other settings too.
-Under the `params` line in your Task 2 cell, add a line that changes one of them, then
-run the cell again. Keep `beacon_gain = 0.4` so that you can compare the routes fairly.
-For example:
+So far, our rocket has held its preference for the pad loosely, at a precision of 0.1.
+What happens to curiosity when the rocket wants the pad more?
 
-```python
-params["beacon_cap"] = 9.0
-```
+The cell below flies the rocket with curiosity on and with curiosity off at four
+precisions, 0.1, 0.3, 1 and 3, with `k = 0.08` on seed 3. For each precision it prints
+the gap, the largest distance between the two routes at the same step, and how many of
+each rocket landed within 0.5 of the pad. The cell uses `my_sensor` from your Task 2
+cell, so if your runtime has restarted, run Checkpoint 2 below first to restore it.
 
-Try the cap, the noise floor (`noise_floor`) and the beacon's position (`beacon`). Which
-of them change the route?""",
+How does the gap change as the precision rises? What could explain it?
+
+**For an additional challenge:** Set `beacon_gain = 0.2` and `seeds = range(10)`. The
+cell then prints how many of the ten seeds part by 1 or more, and the median gap. Do
+your conclusions still hold?
+
+**One more thing to try:** Go back to your Task 2 cell and keep raising `k` past the
+value you shared. What happens to the rocket with curiosity off?""",
             hint="""\
-`params["beacon"] = jnp.array([2.5, 0.0])` moves the beacon onto the straight line
-between the launch site and the pad. Change one setting at a time, and delete the line
-to go back to the original.""",
+`fly_both` builds a new pair of rockets for every seed and every precision, because a
+rocket can only fly once. `on.route_gap(off)` is the gap between two flights. To try
+another precision, add it to `(0.1, 0.3, 1, 3)` in the last loop. Then compare how the
+two terms of expected free energy depend on the precision.""",
             answer="""\
-The cap and the beacon's position both change the route. With a cap of 1, the rocket
-flies straight, because every point of the straight route is already past the cap, so
-the noise is the same all along it. With a cap of 9, the rocket stops 1.42 short of the
-pad. Moving the beacon onto the straight line, at (2.5, 0), holds the
-rocket 1.09 short. The noise floor, on the other hand, barely matters: anywhere from
-0.01 to 0.5, the route bends just as far and lands in the same place. What shapes the
-route is how the noise differs from place to place, not its overall level.""",
-        ),
-        Bonus(
-            title="How much does the goal matter?",
-            question="""\
-So far, we've changed the reliability of the rocket's observations. But its behaviour
-also depends on how strongly it prefers observations indicating that it has reached the
-landing pad.
+On seed 3, the two routes are 1.53 apart at a precision of 0.1 and 0.77 apart at 0.3.
+At 1 and at 3 they are the same route, and every rocket lands. Over ten seeds at
+`k = 0.08`, the routes part by 1 or more on all ten at 0.1, on one at 0.3 and on none
+at 1 or 3. At `k = 0.2` they part on all ten at 0.1, on eight at 0.3 and on none at 1
+or 3.
 
-This preference is controlled by a precision parameter, the `precision=` in
-`Preference(PAD, precision=jnp.eye(2))`.
+The pragmatic term scales with the precision and the epistemic term does not, so a
+higher precision drowns out the information a move offers. At a precision of 1, the
+value Task 1's goal used, curiosity decides none of the 36 moves at `k = 0.08` on any
+of the ten seeds.
 
-The cell below flies rockets with three preference precisions, 0.1, 1 and 10. It flies
-them at two values of `k`: 0.4, and 0.6, where observations near the pad are noisier. A
-rocket counts as landed if it finishes within 0.5 of the pad. Run it and compare the
-results. The cell uses `my_sensor` from your Task 2 cell, so if your runtime has
-restarted, run Checkpoint 2 below first to restore it.
+A bend towards the beacon does not show that a rocket is curious. With curiosity off,
+the rocket still bends towards the beacon at `k = 0.2`: on seed 3 it passes 1.06 from
+the beacon, against 1.40 for the straight route. The readings there are less noisy,
+and the pragmatic term pays for noise as well as for distance. The rocket with
+curiosity off flies the same route at any precision, so its bend owes nothing to
+curiosity.
 
-Does increasing preference precision always make the rocket more likely to reach the
-landing pad? What happens when observations near the pad are particularly noisy?
-
-**For an additional challenge:** Each rocket flies once, on seed 3. Change `seeds` to
-`range(10)` to fly each one over ten seeds. Do your conclusions still hold? Can you
-explain how sensor reliability and preference precision interact to influence the
-rocket's behaviour?""",
-            hint="""\
-`landings` builds a new rocket for every seed and every precision, because a rocket can
-only fly once. `flight.distance_to(PAD)` is how far from the pad a flight ended. To try
-another precision, add it to `(0.1, 1, 10)` in the last loop.""",
-            answer="""\
-Not always. On seed 3, at `k = 0.4`, a precision of 0.1 doesn't land, while 1 and 10
-both do. Above 1, it barely makes a difference: on seed 3, precisions of 1 and 10 fly
-exactly the same route. And when observations near the pad are noisy, at `k = 0.6`, no
-precision gets the rocket to land. Over seeds 0 to 9 the picture holds. At `k = 0.4`, a
-precision of 0.1 lands no rockets, 1 lands 8 and 10 lands 9. At `k = 0.6`, none of the
-three lands a single rocket. A higher precision scales the whole expected miss,
-including the reading's own noise, so it can't make a noisy pad read any better.""",
+The same term explains what you see if you keep raising `k`. On seed 3, the rocket with
+curiosity off lands up to `k = 0.45` and stops 1.42 short of the pad at `k = 0.46`. At
+`k = 0.5`, neither rocket lands on any of the ten seeds. Near the pad the readings are
+then so noisy that the pragmatic term alone prefers to stop short.""",
             code='''\
 import jax.numpy as jnp
+import numpy as np
 from cpomdp import Agent, Preference
 
 from cpomdp_workshop import PAD, compass_planner, default_params, fly, model_with
 
+beacon_gain = 0.08  # for the additional challenge, try 0.2
 seeds = [3]  # one flight per rocket. For the additional challenge, try range(10)
 
 
-def landings(beacon_gain, precision):
-    """On how many seeds a rocket with this k and preference precision lands."""
-    landed = 0
-    for seed in seeds:
+def fly_both(precision, seed):
+    """The same rocket flown with curiosity on, then with curiosity off."""
+    flights = []
+    for curiosity in (True, False):
         # A rocket can only fly once, so every flight builds a new one. model_with
         # builds the same model as your task 2 cell.
         model = model_with(my_sensor, default_params(beacon_gain))
         preference = Preference(PAD, precision=precision * jnp.eye(2))
-        rocket = Agent(model, preference, selector=compass_planner(model))
-        flight = fly(rocket, seed=seed)
-        landed += flight.distance_to(PAD) < 0.5
-    return landed
+        planner = compass_planner(model, curiosity=curiosity)
+        flights.append(fly(Agent(model, preference, selector=planner), seed=seed))
+    return flights
 
 
-print(f"landings on seeds {list(seeds)}")
-for precision in (0.1, 1, 10):
+for precision in (0.1, 0.3, 1, 3):
+    gaps, on_landed, off_landed = [], 0, 0
+    for seed in seeds:
+        on, off = fly_both(precision, seed)
+        gaps.append(on.route_gap(off))
+        on_landed += on.distance_to(PAD) < 0.5
+        off_landed += off.distance_to(PAD) < 0.5
+    parted = sum(gap >= 1 for gap in gaps)
     print(
-        f"precision {precision:>4}:  k = 0.4 lands {landings(0.4, precision)},  "
-        f"k = 0.6 lands {landings(0.6, precision)}"
+        f"precision {precision:>3}: median gap {np.median(gaps):.2f}, "
+        f"parted by 1 or more on {parted} of {len(seeds)}, "
+        f"landed with curiosity on {on_landed}, off {off_landed}"
     )''',
+        ),
+        Bonus(
+            title="What does curiosity need?",
+            question="""\
+The epistemic term of one move is ln(1 + σ²/r). Here σ² is how unsure the rocket is
+about its position after the move, and r is the reading noise where the move takes it.
+A move teaches more where r is small and where the rocket is unsure.
+
+Try three one-line edits to your Task 2 cell with `k = 0.08`, one at a time. Before
+each run, predict what it will do to the curious rocket's route.
+
+1. Under the `params` line, add `params["beacon_cap"] = 1.0`.
+2. In `curious_model`, change `dynamics_noise` to `1e-2 * jnp.eye(2)`. The rocket
+   then believes it drifts ten times as much between readings. The world itself adds
+   no drift, so only the rocket's belief changes.
+3. In `curious_model`, change the prior to
+   `prior=Belief(mean=LAUNCH, cov=25 * jnp.eye(2))`.
+
+Which edits change what curiosity does, and which leave it alone?""",
+            hint="""\
+With a cap of 1, every point of the straight route is already past the cap. A rocket
+that believes it drifts more grows less sure of where it is between readings. A wider
+prior only changes how unsure the rocket is before its first reading. Undo each edit
+before you try the next.""",
+            answer="""\
+With a cap of 1, the noise is the same all along the straight route, so no move there
+teaches more than another. On seed 3 the two rockets fly the same straight route. Over
+ten seeds they fly the same route on nine. On the tenth, a noisy reading pushes the
+rocket within reach of the beacon, where the noise varies again, and the routes split.
+
+When the rocket believes it drifts ten times as much, σ² stays large, so a move towards
+the beacon always offers more information. The curious rocket stays near the beacon and
+stops 2.67 short of the pad on seed 3. The rocket with curiosity off lands 0.16 from it.
+Over ten seeds, no curious rocket lands and eight of the incurious ones do.
+
+A wider prior leaves the curious rocket's route unchanged on all ten seeds. Its first
+reading leaves it about as sure as it would have been, and the beacon's field does not
+reach the launch site, so the first move has nothing to learn either way. When you are
+done, run the checkpoint to restore the task's original numbers.""",
         ),
     ),
     poll="""\
-### Poll 2
+### A question to think about
 
-At `k = 0.6` the rocket stops short of the pad. Why?
+At `k = 0.4` the curious rocket stops short of the pad, and the same rocket with
+curiosity off lands. Why?
 
-1. From near the beacon it cannot see the pad.
-2. It still looks too few moves ahead.
-3. It prefers a *reading* of the pad. At that `k` the pad reads so badly that a spot
-   nearer the beacon is expected to read closer to "on the pad".
-4. The thruster cost stops it.
+1. Its sensor is worse than the incurious rocket's.
+2. Moves towards the pad lead away from the beacon, so each one teaches less. With a
+   loose preference, the information it would lose outweighs the pull of the pad.
+3. It cannot see the pad from near the beacon.
+4. It runs out of moves.
 
 <details><summary>Answer</summary>
 
-3. The preference is over readings, and the expected miss includes the reading's own
-noise. Where the noise is large, standing on the pad still reads far from it on
-average. The curious rocket carries no thruster cost, so 4 cannot apply.
+2. Both rockets share one model and one sensor, so 1 is out. A reading near the beacon
+still says where the rocket is, so 3 is out too. Neither rocket runs out of moves in 36
+steps.
 
 </details>""",
 )
@@ -577,7 +631,8 @@ def hit_seeds(beacon_gain):
         if beacon_gain == 0:
             rocket = the_1960_rocket()
         else:
-            rocket = curious_rocket(beacon_gain, my_world)
+            # the blackout task's rockets prefer the pad at precision 1
+            rocket = curious_rocket(beacon_gain, my_world, precision=1.0)
         if fly(rocket, seed=seed, hazard=rock).crashed:
             found.append(seed)
     return found
@@ -666,7 +721,7 @@ for believed_gain in (0.02, 0.08, 0.20):
         ),
     ),
     poll="""\
-### Poll 3
+### A question to think about
 
 Why did the curious rockets clear the rock in the blackout?
 

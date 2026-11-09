@@ -6,6 +6,7 @@ renames a field, a class or a refusal fails here first, before any flight is flo
 
 import dataclasses
 
+import jax.numpy as jnp
 import numpy as np
 import pytest
 from cpomdp import (
@@ -22,6 +23,7 @@ from cpomdp import (
 )
 
 from cpomdp_workshop import _seams
+from cpomdp_workshop.planner import compass_planner
 from cpomdp_workshop.world import PAD, default_params, reference_sensor
 
 I = np.eye(2)
@@ -99,6 +101,12 @@ def test_a_state_goal_carries_the_thruster_cost():
     assert np.allclose(goal.effort, 100 * I)
 
 
+def test_a_state_goal_under_a_state_dependent_sensor_is_refused():
+    # Why the curious rocket prefers a reading, and so pays for its noise.
+    with pytest.raises(ValueError, match="a StateGoal needs a fixed sensor"):
+        Agent(a_sensed_model(), StateGoal(PAD))
+
+
 def test_a_goal_beside_a_selector_is_refused():
     model = a_sensed_model()
     with pytest.raises(TypeError, match="selector= takes a Preference"):
@@ -151,3 +159,26 @@ def test_the_probe_report_carries_the_fields_the_notebook_reads():
     } <= names
     assert isinstance(ProbeReport.flattens, property)
     assert callable(ProbeReport.summary)
+
+
+def test_the_efe_trace_splits_g_into_its_two_terms_exactly():
+    # The curiosity switch reweights these two terms, and at weight one it must
+    # rank plans exactly as the search ranks them by g.
+    plan = jnp.full((2, 2), 0.5)
+    trace = _seams.policy_efe_trace(a_sensed_model(), PRIOR, plan, Preference(PAD))
+    assert np.array_equal(
+        np.asarray(trace.g), np.asarray(trace.pragmatic - trace.epistemic)
+    )
+
+
+def test_two_agents_share_one_model_with_a_custom_selector_beside_a_search():
+    model = a_sensed_model()
+    preference = Preference(PAD, precision=0.1 * I)
+    curious = Agent(model, preference, selector=compass_planner(model))
+    incurious = Agent(
+        model, preference, selector=compass_planner(model, curiosity=False)
+    )
+    for agent in (curious, incurious):
+        agent.infer_states(np.zeros(2))
+        assert np.asarray(agent.sample_action()).shape == (2,)
+    assert curious.belief is not incurious.belief

@@ -81,6 +81,15 @@ class Flight:
         """How far the end of the flight is from ``target``."""
         return float(np.linalg.norm(self.final - np.asarray(target)))
 
+    def route_gap(self, other: "Flight") -> float:
+        """The largest distance between this route and ``other`` at the same step.
+
+        Steps past the end of the shorter flight are left out.
+        """
+        steps = min(len(self.path), len(other.path))
+        apart = np.linalg.norm(self.path[:steps] - other.path[:steps], axis=1)
+        return float(apart.max())
+
 
 def fly(
     agent: Agent,

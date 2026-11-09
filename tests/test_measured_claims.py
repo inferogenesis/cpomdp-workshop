@@ -6,6 +6,7 @@ Mersenne Twister draw seeded once per flight. A re-pin re-runs this file first.
 """
 
 from importlib import metadata
+from typing import NamedTuple
 
 import jax.numpy as jnp
 import numpy as np
@@ -24,6 +25,8 @@ from cpomdp import (
 from cpomdp_workshop import WORKSHOP_CPOMDP_VERSION
 from cpomdp_workshop._seams import RecedingHorizonSelector
 from cpomdp_workshop.build import (
+    BLACKOUT_PRECISION,
+    CURIOUS_PRECISION,
     curious_rocket,
     model_with,
     one_node,
@@ -42,7 +45,11 @@ from cpomdp_workshop.check import (
 from cpomdp_workshop.planner import compass_moves, compass_planner
 from cpomdp_workshop.selfguided import two_node_backend
 from cpomdp_workshop.sim import ROCK, fly
-from cpomdp_workshop.solutions import CLEAR_SKY_ROCK, axis_certificate
+from cpomdp_workshop.solutions import (
+    CLEAR_SKY_ROCK,
+    axis_certificate,
+    curiosity_decided,
+)
 from cpomdp_workshop.world import (
     BEACON,
     PAD,
@@ -52,6 +59,10 @@ from cpomdp_workshop.world import (
 )
 
 I = np.eye(2)
+
+
+def blackout_rocket(beacon_gain):
+    return curious_rocket(beacon_gain, precision=BLACKOUT_PRECISION)
 
 
 def rounded(values, places=2):
@@ -147,39 +158,21 @@ def test_the_1960_rocket_hits_the_rock_on_step_six_whatever_the_noise_does(seed)
 
 
 def test_the_default_slider_rocket_clears_the_rock_and_lands():
-    flight = fly(curious_rocket(0.08), hazard=ROCK)
+    flight = fly(blackout_rocket(0.08), hazard=ROCK)
     assert flight.crashed is False
     assert round(float(flight.path[:, 1].max()), 2) == 1.71
     assert rounded(flight.final) == (4.83, 0.09)
 
 
 def test_the_k_point_two_rocket_clears_the_rock_and_lands():
-    flight = fly(curious_rocket(0.20), hazard=ROCK)
+    flight = fly(blackout_rocket(0.20), hazard=ROCK)
     assert flight.crashed is False
     assert round(float(flight.path[:, 1].max()), 2) == 1.91
     assert rounded(flight.final) == (5.18, 0.15)
 
 
-def test_session_two_bends_the_flight_path_up_to_the_beacon():
-    flight = fly(curious_rocket(0.4, beacon_sensor))
-    assert round(float(flight.path[:, 1].max()), 2) == 1.41
-    assert flight.path[:, 1].max() >= BEACON[1]
-    assert rounded(flight.final) == (5.12, 0.21)
-    assert flight.distance_to(PAD) < 0.3
-
-
-@pytest.mark.parametrize(
-    ("horizon", "short_of_the_pad"), [(1, 1.49), (2, 1.65), (3, 1.86)]
-)
-def test_a_rocket_too_curious_to_land_stays_short_however_far_it_looks(
-    horizon, short_of_the_pad
-):
-    flight = fly(curious_rocket(0.6, beacon_sensor, horizon=horizon))
-    assert round(flight.distance_to(PAD), 2) == short_of_the_pad
-
-
 def build(beacon_gain):
-    return the_1960_rocket() if beacon_gain == 0 else curious_rocket(beacon_gain)
+    return the_1960_rocket() if beacon_gain == 0 else blackout_rocket(beacon_gain)
 
 
 @pytest.mark.slow
@@ -199,8 +192,8 @@ def test_in_clear_sky_the_rock_is_hit_on_the_curious_rockets_routes(
 
 
 def test_a_rock_never_changes_a_route_only_ends_it():
-    free = fly(curious_rocket(0.08), seed=2)
-    hit = fly(curious_rocket(0.08), seed=2, hazard=CLEAR_SKY_ROCK)
+    free = fly(blackout_rocket(0.08), seed=2)
+    hit = fly(blackout_rocket(0.08), seed=2, hazard=CLEAR_SKY_ROCK)
     assert hit.crashed is True
     assert np.array_equal(hit.path, free.path[: len(hit.path)])
 
@@ -209,15 +202,16 @@ def test_a_rock_never_changes_a_route_only_ends_it():
 def test_most_curious_routes_pass_below_the_blackout():
     below = 0
     for seed in range(30):
-        y = fly(curious_rocket(0.08), seed=seed).path[:, 1]
+        y = fly(blackout_rocket(0.08), seed=seed).path[:, 1]
         below += bool(y[np.argmax(np.abs(y))] < 0)
     assert below == 19
 
 
 def test_the_beacon_sensor_bends_the_path_to_the_beacon_and_lands(capsys):
-    check_my_sensor(beacon_sensor, default_params(0.4))
+    check_my_sensor(beacon_sensor, default_params(0.08))
     assert capsys.readouterr().out.strip() == (
-        "The rocket bends 1.41 off the straight line and lands 0.24 from the pad. "
+        "The curious rocket bends 1.41 off the straight line and lands 0.23 from the "
+        "pad. "
         "It matches the workshop's beacon_sensor."
     )
 
@@ -257,7 +251,8 @@ def test_noise_fixed_in_place_never_tells_the_moves_apart(noise, prior):
 def fly_with(sensor, beacon_gain, hazard=None, **changes):
     params = {**default_params(beacon_gain), **changes}
     model = model_with(sensor, params)
-    rocket = Agent(model, pad_preference(), selector=compass_planner(model))
+    preference = pad_preference(BLACKOUT_PRECISION)  # v2's bonuses and the blackout
+    rocket = Agent(model, preference, selector=compass_planner(model))
     return fly(rocket, hazard=hazard)
 
 
@@ -266,10 +261,6 @@ def test_a_small_cap_keeps_the_beacons_route_straight():
     # of 1, so the noise is flat along it and nothing pulls the rocket off it.
     params = {**default_params(0.4), "beacon_cap": jnp.asarray(1.0)}
     assert grade_sensor(beacon_sensor, params).grade == "straight"
-
-
-def test_the_starting_k_of_task_2_flies_straight():
-    assert grade_sensor(beacon_sensor, default_params(0.08)).grade == "straight"
 
 
 def test_a_large_cap_leaves_the_beacons_rocket_well_short_of_the_pad():
@@ -308,7 +299,7 @@ def test_over_ten_seeds_the_curious_rockets_clip_the_rock_a_few_times(
     hits = [
         seed
         for seed in range(10)
-        if fly(curious_rocket(beacon_gain), seed=seed, hazard=ROCK).crashed
+        if fly(blackout_rocket(beacon_gain), seed=seed, hazard=ROCK).crashed
     ]
     assert hits == hit_on_seeds
 
@@ -450,3 +441,288 @@ def test_the_searchs_winner_holds_by_one_flight_and_not_when_the_rock_moves():
     clear_sky_hits = [tallies[2][1] for tallies in SEARCH.values()]
     assert (min(clear_sky_hits), max(clear_sky_hits)) == (10, 12)
     assert all(SEARCH[c][2][1] == 12 for c in [*SEARCH_WINNERS, SEARCH_DEFAULT])
+
+
+# --- Task 2: the same rocket flown with curiosity on and off ----------------------
+#
+# Every seed-3 claim below sits beside the ten-seed count it stands for, so a seed that
+# stops behaving like the rest fails here rather than on a slide.
+
+
+def a_beacon_model(beacon_gain, *, dynamics_noise=1e-3, prior_cov=4.0, **changes):
+    # The attempt cell's model, with the bonus's one-line edits as arguments.
+    params = {**default_params(beacon_gain), **changes}
+    return LinearGaussianModel(
+        I,
+        control_matrix=I,
+        dynamics_noise=dynamics_noise * I,
+        prior=Belief(mean=[0.0, 0.0], cov=prior_cov * I),
+        observation_model=CallableSensor(I, beacon_sensor, params),
+    )
+
+
+def fly_pair(beacon_gain, precision=CURIOUS_PRECISION, seed=3, **model_changes):
+    preference = Preference(np.asarray(PAD), precision=precision * I)
+    flights = []
+    for curiosity in (True, False):
+        model = a_beacon_model(beacon_gain, **model_changes)
+        planner = compass_planner(model, curiosity=curiosity)
+        flights.append(fly(Agent(model, preference, selector=planner), seed=seed))
+    return flights
+
+
+def lands(flight):
+    return flight.distance_to(PAD) < 0.5
+
+
+def nearest_beacon(flight):
+    return float(np.linalg.norm(flight.path - np.asarray(BEACON), axis=1).min())
+
+
+class Pairs(NamedTuple):
+    parted: int  # seeds whose routes are ever 1 or more apart
+    median_gap: float
+    on_landed: int
+    off_landed: int
+
+
+def over_ten_seeds(beacon_gain, precision=CURIOUS_PRECISION, **model_changes):
+    pairs = [
+        fly_pair(beacon_gain, precision, seed, **model_changes) for seed in range(10)
+    ]
+    gaps = np.array([on.route_gap(off) for on, off in pairs])
+    return pairs, Pairs(
+        int((gaps >= 1).sum()),
+        round(float(np.median(gaps)), 2),
+        sum(lands(on) for on, _ in pairs),
+        sum(lands(off) for _, off in pairs),
+    )
+
+
+def decided_on_each_seed(beacon_gain, precision):
+    counts = []
+    for seed in range(10):
+        rocket = curious_rocket(beacon_gain, beacon_sensor, precision=precision)
+        flight = fly(rocket, seed=seed)
+        decided = curiosity_decided(flight, rocket.model, pad_preference(precision))
+        counts.append(int(decided.sum()))
+    return counts
+
+
+def test_the_curious_rocket_prefers_the_pad_loosely():
+    assert CURIOUS_PRECISION == 0.1
+    assert np.allclose(pad_preference().precision, 0.1 * I)
+
+
+@pytest.mark.parametrize("beacon_gain", [0.2, 0.4])
+def test_with_curiosity_off_the_route_is_the_same_at_any_precision(beacon_gain):
+    off = [fly_pair(beacon_gain, precision)[1].path for precision in (0.1, 1.0, 3.0)]
+    assert all(np.array_equal(path, off[0]) for path in off)
+
+
+def test_at_k_0_08_curiosity_flies_to_the_beacon_and_both_rockets_land():
+    on, off = fly_pair(0.08)
+    assert round(nearest_beacon(on), 2) == 0.09
+    assert round(nearest_beacon(off), 2) == 1.40
+    assert round(on.distance_to(PAD), 2) == 0.23
+    assert round(off.distance_to(PAD), 2) == 0.29
+    assert round(on.route_gap(off), 2) == 1.53
+
+
+def test_at_the_starting_k_curiosity_decides_six_of_the_36_moves():
+    rocket = curious_rocket(0.08, beacon_sensor)
+    flight = fly(rocket)
+    decided = curiosity_decided(flight, rocket.model, pad_preference())
+    assert (int(decided.sum()), len(decided)) == (6, 36)
+
+
+@pytest.mark.slow
+def test_at_the_starting_k_the_routes_part_on_every_seed_and_every_rocket_lands():
+    pairs, tally = over_ten_seeds(0.08)
+    assert tally == Pairs(10, 1.53, 10, 10)
+    assert round(float(np.median([nearest_beacon(on) for on, _ in pairs])), 2) == 0.31
+
+
+def test_the_sensor_check_at_k_0_4_says_the_curious_rocket_stops_short(capsys):
+    check_my_sensor(beacon_sensor, default_params(0.4))
+    assert capsys.readouterr().out.strip() == (
+        "The curious rocket bends 2.06 off the straight line and stops 2.79 short of "
+        "the pad. It matches the workshop's beacon_sensor."
+    )
+
+
+def test_at_k_0_4_the_curious_rocket_stops_short_and_the_incurious_one_lands():
+    on, off = fly_pair(0.4)
+    assert round(on.distance_to(PAD), 2) == 2.79
+    assert round(nearest_beacon(on), 2) == 0.08
+    assert round(off.distance_to(PAD), 2) == 0.24
+    assert lands(off)
+
+
+@pytest.mark.slow
+def test_at_k_0_4_no_curious_rocket_lands_and_every_incurious_one_does():
+    pairs, tally = over_ten_seeds(0.4)
+    assert (tally.on_landed, tally.off_landed) == (0, 10)
+    short = np.median([on.distance_to(PAD) for on, _ in pairs])
+    assert round(float(short), 2) == 1.67
+
+
+@pytest.mark.parametrize(
+    ("beacon_gain", "landed"), [(0.2, True), (0.3, True), (0.4, False)]
+)
+def test_on_seed_3_the_curious_rocket_lands_up_to_k_0_3(beacon_gain, landed):
+    on, off = fly_pair(beacon_gain)
+    assert lands(on) is landed
+    assert lands(off)
+
+
+@pytest.mark.slow
+@pytest.mark.parametrize(("beacon_gain", "landed"), [(0.2, 10), (0.3, 8), (0.4, 0)])
+def test_over_ten_seeds_the_curious_rocket_lands_less_as_k_rises(beacon_gain, landed):
+    landings = 0
+    for seed in range(10):
+        rocket = curious_rocket(beacon_gain, beacon_sensor)
+        landings += lands(fly(rocket, seed=seed))
+    assert landings == landed
+
+
+# Task 2 bonus 1: the preference turned up, on seed 3 and then over ten seeds.
+
+
+@pytest.mark.parametrize(
+    ("beacon_gain", "gaps"),
+    [(0.08, (1.53, 0.77, 0.00, 0.00)), (0.2, (1.48, 1.15, 0.38, 0.00))],
+)
+def test_on_seed_3_turning_the_preference_up_closes_the_gap(beacon_gain, gaps):
+    pairs = [fly_pair(beacon_gain, precision) for precision in (0.1, 0.3, 1.0, 3.0)]
+    assert tuple(round(on.route_gap(off), 2) for on, off in pairs) == gaps
+    assert all(lands(on) and lands(off) for on, off in pairs)
+
+
+@pytest.mark.slow
+@pytest.mark.parametrize(
+    ("beacon_gain", "precision", "expected"),
+    [
+        (0.08, 0.1, Pairs(10, 1.53, 10, 10)),
+        (0.08, 0.3, Pairs(1, 0.38, 10, 10)),
+        (0.08, 1.0, Pairs(0, 0.00, 10, 10)),
+        (0.08, 3.0, Pairs(0, 0.00, 10, 10)),
+        (0.2, 0.1, Pairs(10, 2.50, 10, 9)),
+        (0.2, 0.3, Pairs(8, 1.12, 10, 9)),
+        (0.2, 1.0, Pairs(0, 0.38, 9, 9)),
+        (0.2, 3.0, Pairs(0, 0.00, 9, 9)),
+    ],
+)
+def test_over_ten_seeds_turning_the_preference_up_closes_the_gap(
+    beacon_gain, precision, expected
+):
+    assert over_ten_seeds(beacon_gain, precision)[1] == expected
+
+
+# Slide 13: at precision 1 the route still bends and curiosity decides almost nothing.
+
+
+@pytest.mark.slow
+def test_at_precision_1_and_the_starting_k_curiosity_decides_no_move_on_any_seed():
+    assert decided_on_each_seed(0.08, 1.0) == [0] * 10
+
+
+@pytest.mark.slow
+def test_at_k_0_2_curiosity_decides_one_move_at_most_at_precision_1_and_six_at_0_1():
+    tight = decided_on_each_seed(0.2, 1.0)
+    loose = decided_on_each_seed(0.2, CURIOUS_PRECISION)
+    assert max(tight) == 1
+    assert (min(loose), max(loose)) == (6, 9)
+    assert (tight[3], loose[3]) == (1, 7)
+
+
+def test_at_k_0_2_the_incurious_rocket_bends_towards_the_beacon_too():
+    _, off = fly_pair(0.2)
+    on_tight, _ = fly_pair(0.2, 1.0)
+    on_loose, _ = fly_pair(0.2)
+    straight = nearest_beacon(fly_pair(0.08, seed=3, beacon_cap=jnp.asarray(1.0))[1])
+    assert round(straight, 2) == 1.40
+    assert round(nearest_beacon(off), 2) == 1.06
+    assert round(nearest_beacon(on_tight), 2) == 0.72
+    assert round(nearest_beacon(on_loose), 2) == 0.09
+
+
+@pytest.mark.slow
+def test_at_k_0_4_and_precision_1_seed_3_is_not_the_typical_flight():
+    # Why slide 13 compares the precisions at k = 0.2: at k = 0.4, curiosity decides
+    # no move on seed 3 but parts the routes on six seeds of ten.
+    assert decided_on_each_seed(0.4, 1.0) == [0, 0, 0, 0, 2, 2, 1, 3, 1, 6]
+    assert over_ten_seeds(0.4, 1.0)[1] == Pairs(6, 1.20, 8, 10)
+
+
+# Task 2 bonus 2: what curiosity needs, one edit to the attempt cell at a time.
+
+
+def test_on_seed_3_a_flat_route_leaves_curiosity_nothing_to_choose():
+    on, off = fly_pair(0.08, beacon_cap=jnp.asarray(1.0))
+    assert np.array_equal(on.path, off.path)
+    assert round(nearest_beacon(on), 2) == 1.40
+
+
+@pytest.mark.slow
+def test_over_ten_seeds_a_flat_route_leaves_curiosity_nothing_to_choose():
+    pairs, tally = over_ten_seeds(0.08, beacon_cap=jnp.asarray(1.0))
+    assert tally == Pairs(0, 0.00, 10, 10)
+    # On seed 8 a noisy reading pushes the rocket within the beacon's reach, where
+    # the noise varies again, and the routes split there.
+    gaps = [round(on.route_gap(off), 2) for on, off in pairs]
+    assert gaps == [0.0] * 8 + [0.77, 0.0]
+
+
+def test_on_seed_3_more_drift_keeps_the_curious_rocket_from_landing():
+    on, off = fly_pair(0.08, dynamics_noise=1e-2)
+    assert round(on.distance_to(PAD), 2) == 2.67
+    assert round(off.distance_to(PAD), 2) == 0.16
+
+
+@pytest.mark.slow
+def test_over_ten_seeds_more_drift_keeps_the_curious_rocket_from_landing():
+    assert over_ten_seeds(0.08, dynamics_noise=1e-2)[1][2:] == (0, 8)
+
+
+def test_on_seed_3_a_wide_prior_leaves_the_curious_route_unchanged():
+    wide, _ = fly_pair(0.08, prior_cov=25.0)
+    usual, _ = fly_pair(0.08)
+    assert np.array_equal(wide.path, usual.path)
+
+
+@pytest.mark.slow
+def test_over_ten_seeds_a_wide_prior_leaves_the_curious_route_unchanged():
+    for seed in range(10):
+        wide, _ = fly_pair(0.08, seed=seed, prior_cov=25.0)
+        usual, _ = fly_pair(0.08, seed=seed)
+        assert np.array_equal(wide.path, usual.path), seed
+
+
+# Curiosity off lands only up to k = 0.45. Past it, the pragmatic term alone stops the
+# rocket short, because it pays for the reading's noise too.
+
+
+@pytest.mark.parametrize(
+    ("beacon_gain", "on_short", "off_short"),
+    [
+        (0.36, 0.19, 0.24),
+        (0.37, 1.39, 0.36),
+        (0.45, 1.52, 0.22),
+        (0.46, 1.52, 1.42),
+        (0.5, 1.87, 1.30),
+    ],
+)
+def test_on_seed_3_the_rockets_part_only_for_k_from_0_37_to_0_45(
+    beacon_gain, on_short, off_short
+):
+    on, off = fly_pair(beacon_gain)
+    assert round(on.distance_to(PAD), 2) == on_short
+    assert round(off.distance_to(PAD), 2) == off_short
+    assert (lands(on), lands(off)) == (beacon_gain < 0.37, beacon_gain < 0.46)
+
+
+@pytest.mark.slow
+def test_at_k_0_5_neither_rocket_lands_on_any_seed():
+    _, tally = over_ten_seeds(0.5)
+    assert (tally.on_landed, tally.off_landed) == (0, 0)

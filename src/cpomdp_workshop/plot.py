@@ -2,9 +2,12 @@
 
 The sensor field is drawn as ``log10 R(x)`` in one muted green ramp, stronger where
 the reading is noisier, so the blackout stands out around the rock and the beacon sits
-in the quietest patch. The 1960 rocket is a dashed ink line. The curious rockets take
-amber, then blue, in the order given. Text is ink or muted, never a series colour, and
-a figure with more than one rocket carries a legend.
+in the quietest patch. A circle round the pad marks where a flight has to end to have
+landed. The 1960 rocket is a dashed ink line. The curious rockets take
+amber, then blue, in the order given, so a rocket with curiosity on is amber beside the
+same rocket with it off in blue. A flight ends in a dot of its colour, or in a star
+where it crashed. Text is ink or muted, never a series colour, and a figure with more
+than one rocket carries a legend.
 
 The neutral colours come from a [`Palette`][cpomdp_workshop.plot.Palette]. Figures
 are drawn on [`DARK`][cpomdp_workshop.plot.DARK], the notebook's. The slides draw
@@ -27,16 +30,23 @@ import jax.numpy as jnp
 import matplotlib.pyplot as plt
 import numpy as np
 from matplotlib.axes import Axes
+from matplotlib.collections import QuadMesh
 from matplotlib.colors import LinearSegmentedColormap, Normalize
 from matplotlib.figure import Figure
 from matplotlib.patches import Circle, Ellipse
 from numpy.typing import ArrayLike
 
-from cpomdp_workshop.build import curious_rocket, the_1960_rocket
+from cpomdp_workshop.build import (
+    BLACKOUT_PRECISION,
+    CURIOUS_PRECISION,
+    curious_rocket,
+    the_1960_rocket,
+)
 from cpomdp_workshop.sim import DEFAULT_SEED, ROCK, Flight, Hazard, fly
 from cpomdp_workshop.world import (
     BEACON,
     BLACKOUT_GAIN,
+    LANDING_RADIUS,
     LAUNCH,
     NOISE_FLOOR,
     PAD,
@@ -48,12 +58,18 @@ from cpomdp_workshop.world import (
 )
 
 __all__ = [
+    "BALANCE_GAIN",
+    "CURIOSITY_OFF",
+    "CURIOSITY_ON",
     "CURIOUS_COLOURS",
     "DARK",
+    "END_MARKER",
     "IMPACT_MARKER",
     "LIGHT",
     "ROUTE_STAGES",
     "Palette",
+    "curiosity_pair",
+    "plot_balance",
     "plot_beliefs",
     "plot_flights",
     "plot_path",
@@ -115,10 +131,23 @@ ROCK_FILL = "#5A625D"
 FIELD_SCALE = Normalize(np.log10(NOISE_FLOOR), np.log10(NOISE_FLOOR + BLACKOUT_GAIN))
 
 IMPACT_MARKER = "*"
+END_MARKER = "o"
 CURIOUS_COLOURS = (AMBER, BLUE)
 
-ROUTE_STAGES = ("straight", "beacon", "blackout", "rock")
+ROUTE_STAGES = ("straight", "beacon", "too_curious", "blackout", "rock")
 """The frames of the route build-up, in the order the slides show them."""
+
+CURIOSITY_ON = "curiosity on"
+CURIOSITY_OFF = "curiosity off"
+
+BALANCE_GAIN = 0.2  # k
+"""The k the precision comparison flies at.
+
+At k = 0.2 and precision 1, curiosity decides at most one move of a flight on every
+seed from 0 to 9, so seed 3 stands for the rest. At k = 0.4 it decides none on seed 3
+but parts the routes on six seeds of ten.
+"""
+_BALANCE_PRECISIONS = (1.0, CURIOUS_PRECISION)
 
 _BASELINE = "1960 rocket"
 _ROUTE_LEGEND: Literal["lower left"] = "lower left"  # the corner no route crosses
@@ -126,6 +155,8 @@ _ROUTE_LEGEND: Literal["lower left"] = "lower left"  # the corner no route cross
 Extent = tuple[tuple[float, float], tuple[float, float]]
 
 _EXTENT: Extent = ((-0.6, 5.6), (-1.1, 2.5))
+# Half-width panels leave the launch site's name less room before the axis labels.
+_BALANCE_EXTENT: Extent = ((-1.1, 5.6), (-1.1, 2.5))
 _FIELD_SAMPLES = (125, 73)
 _PATH_MARGIN = 0.3
 
@@ -169,6 +200,12 @@ def _canvas(
     """An empty map of the world in ``palette``."""
     figure, axes = plt.subplots(figsize=size, facecolor=palette.background)
     plt.close(figure)  # returned, never shown by pyplot itself
+    _style_map(axes, title, palette, extent)
+    return figure, axes
+
+
+def _style_map(axes: Axes, title: str, palette: Palette, extent: Extent) -> None:
+    """Turn ``axes`` into an empty map of the world in ``palette``."""
     axes.set_facecolor(palette.panel)
     axes.set_xlim(*extent[0])
     axes.set_ylim(*extent[1])
@@ -178,7 +215,6 @@ def _canvas(
     for spine in axes.spines.values():
         spine.set_color(palette.rule)
         spine.set_linewidth(0.8)
-    return figure, axes
 
 
 def _noise_levels(
@@ -207,16 +243,34 @@ def _draw_field(
     extent: Extent = _EXTENT,
 ) -> None:
     """The sensor field under everything else, with its scale."""
+    mesh = _field_mesh(axes, sensor, params, palette, extent)
+    _field_scale(figure, mesh, [axes], palette)
+
+
+def _field_mesh(
+    axes: Axes,
+    sensor: NoiseFn,
+    params: SensorParams,
+    palette: Palette,
+    extent: Extent = _EXTENT,
+) -> QuadMesh:
+    """The sensor field drawn under everything else on ``axes``."""
     xs = np.linspace(*extent[0], _FIELD_SAMPLES[0])
     ys = np.linspace(*extent[1], _FIELD_SAMPLES[1])
     grid_x, grid_y = np.meshgrid(xs, ys)
     points = np.column_stack([grid_x.ravel(), grid_y.ravel()])
     levels = _noise_levels(sensor, params, points).reshape(grid_x.shape)
-    mesh = axes.pcolormesh(
+    return axes.pcolormesh(
         grid_x, grid_y, levels, cmap=palette.field_ramp, norm=FIELD_SCALE,
         shading="auto",
         zorder=0,
     )  # fmt: skip
+
+
+def _field_scale(
+    figure: Figure, mesh: QuadMesh, axes: list[Axes], palette: Palette
+) -> None:
+    """One scale for the field drawn on ``axes``."""
     scale = figure.colorbar(mesh, ax=axes, shrink=0.8, pad=0.02)
     scale.set_label("reading noise, log10 R", color=palette.muted, fontsize=9)
     scale.ax.tick_params(colors=palette.muted, labelsize=8)
@@ -233,6 +287,7 @@ def _draw_landmarks(axes: Axes, hazard: Hazard | None, palette: Palette) -> None
             textcoords="offset points", ha="center", va="top", color=palette.ink,
             fontsize=9, zorder=6,
         )  # fmt: skip
+    _landing_zone(axes, PAD, palette)
     # Each name sits on the side no flight path crosses.
     for point, name, offset, align in (
         (LAUNCH, "launch", (-9, 0), "right"),
@@ -251,6 +306,17 @@ def _draw_landmarks(axes: Axes, hazard: Hazard | None, palette: Palette) -> None
         )  # fmt: skip
 
 
+def _landing_zone(axes: Axes, pad: ArrayLike, palette: Palette) -> None:
+    """The circle round the pad that a flight has to end inside to have landed."""
+    x, y = np.asarray(pad, dtype=float)
+    axes.add_patch(
+        Circle(
+            (x, y), LANDING_RADIUS, fill=False, edgecolor=palette.ink, lw=1.0,
+            alpha=0.6, zorder=3,
+        )
+    )  # fmt: skip
+
+
 def _draw_flight(
     axes: Axes,
     flight: Flight,
@@ -261,7 +327,7 @@ def _draw_flight(
     dashed: bool,
     inline: bool,
 ) -> None:
-    """One path, ending in an impact star if it crashed.
+    """One path, ending in a dot, or in an impact star if it crashed.
 
     The impact step goes in the legend entry, or beside the star when ``inline``.
     """
@@ -272,9 +338,14 @@ def _draw_flight(
         linestyle=(0, (5, 3)) if dashed else "solid", solid_capstyle="round",
         label=label, zorder=4,
     )  # fmt: skip
-    if not flight.crashed:
-        return
     x, y = flight.final
+    if not flight.crashed:
+        axes.plot(
+            x, y, marker=END_MARKER, ms=7, color=colour,
+            markeredgecolor=palette.panel, markeredgewidth=1.5, linestyle="none",
+            label="_end", zorder=6,
+        )  # fmt: skip
+        return
     axes.plot(
         x, y, marker=IMPACT_MARKER, ms=16, color=colour,
         markeredgecolor=palette.panel,
@@ -330,9 +401,38 @@ def world_flights(
         if beacon_gain == 0:
             rocket = the_1960_rocket()
         else:
-            rocket = curious_rocket(beacon_gain, sensor, horizon=horizon)
+            rocket = curious_rocket(
+                beacon_gain, sensor, horizon=horizon, precision=BLACKOUT_PRECISION
+            )
         flights[beacon_gain] = fly(rocket, seed=seed, hazard=hazard)
     return flights
+
+
+def curiosity_pair(
+    beacon_gain: float,
+    *,
+    precision: float = CURIOUS_PRECISION,
+    seed: int = DEFAULT_SEED,
+) -> dict[str, Flight]:
+    """The same curious rocket flown twice in the beacon's field, curiosity on and off.
+
+    Args:
+        beacon_gain: k for the beacon's field, which both rockets model and fly in.
+        precision: λ, how tightly both prefer to read the pad.
+        seed: the reading noise, shared by both.
+
+    Returns:
+        The flight with curiosity on, then the one with it off, under those names.
+    """
+    return {
+        name: fly(
+            curious_rocket(
+                beacon_gain, beacon_sensor, curiosity=curiosity, precision=precision
+            ),
+            seed=seed,
+        )
+        for name, curiosity in ((CURIOSITY_ON, True), (CURIOSITY_OFF, False))
+    }
 
 
 def plot_flights(
@@ -518,11 +618,46 @@ def tile_task1() -> Figure:
 
 
 def tile_task2() -> Figure:
-    """Task 2's tile: the k = 0.4 arc up to the beacon, over the beacon field."""
-    flight = fly(curious_rocket(0.4, beacon_sensor))
-    return plot_path(
-        flight, beacon_sensor, default_params(0.4), title="k = 0.40, beacon only"
+    """Task 2's tile: the curious rocket at k = 0.08, with curiosity on and off."""
+    return plot_flights(
+        curiosity_pair(0.08),
+        beacon_sensor,
+        default_params(0.08),
+        title="k = 0.08, curiosity on and off",
     )
+
+
+def plot_balance(*, palette: Palette = DARK) -> Figure:
+    """The curiosity pair at ``BALANCE_GAIN``, preferring the pad tightly and loosely.
+
+    Both panels draw the beacon's field and the same rocket with curiosity on and off.
+    At precision 1, on the left, the two routes nearly coincide. The bend they share
+    comes from the reading's noise in the pragmatic term. At precision 0.1, on the
+    right, curiosity takes the rocket to the beacon.
+
+    Args:
+        palette: the neutral colours. The slides pass
+            [`LIGHT`][cpomdp_workshop.plot.LIGHT].
+
+    Returns:
+        The figure, with each panel titled by its precision.
+    """
+    figure, panels = plt.subplots(
+        1, 2, figsize=(14.0, 4.6), facecolor=palette.background
+    )
+    plt.close(figure)  # returned, never shown by pyplot itself
+    params = default_params(BALANCE_GAIN)
+    mesh = None
+    for axes, precision in zip(panels, _BALANCE_PRECISIONS, strict=True):
+        _style_map(axes, f"precision {precision:g}", palette, _BALANCE_EXTENT)
+        mesh = _field_mesh(axes, beacon_sensor, params, palette, _BALANCE_EXTENT)
+        _draw_landmarks(axes, None, palette)
+        flights = curiosity_pair(BALANCE_GAIN, precision=precision)
+        _draw_flights(axes, flights, None, palette, inline=False)
+        _legend(axes, palette, loc=_ROUTE_LEGEND)
+    if mesh is not None:
+        _field_scale(figure, mesh, list(panels), palette)
+    return figure
 
 
 def tile_task3() -> Figure:
@@ -557,12 +692,8 @@ def _straight_frame() -> _RouteFrame:
     return _RouteFrame(_one_noise_level, {}, flights, None)
 
 
-def _beacon_frame() -> _RouteFrame:
-    beacon_gain = 0.4  # k, the session 2 reference
-    flights = {
-        _BASELINE: fly(the_1960_rocket()),
-        f"k = {beacon_gain:.2f}": fly(curious_rocket(beacon_gain, beacon_sensor)),
-    }
+def _pair_frame(beacon_gain: float) -> _RouteFrame:
+    flights = curiosity_pair(beacon_gain)
     return _RouteFrame(beacon_sensor, default_params(beacon_gain), flights, None)
 
 
@@ -575,7 +706,8 @@ def _blackout_frame(hazard: Hazard | None) -> _RouteFrame:
 
 _ROUTE_FRAMES: dict[str, Callable[[], _RouteFrame]] = {
     "straight": _straight_frame,
-    "beacon": _beacon_frame,
+    "beacon": lambda: _pair_frame(0.08),  # k, task 2's starting value
+    "too_curious": lambda: _pair_frame(0.4),  # k, where task 2's rockets part
     "blackout": lambda: _blackout_frame(None),
     "rock": lambda: _blackout_frame(ROCK),
 }
@@ -585,13 +717,15 @@ def plot_route(stage: str, *, palette: Palette = DARK) -> Figure:
     """One frame of the route build-up the slides step through.
 
     Every frame draws the same map at the same size, with launch, pad and beacon in
-    place and the 1960 rocket dashed, so the eye sees only what the frame adds. All
-    flights use the default seed.
+    place, so the eye sees only what the frame adds. The 1960 rocket is dashed
+    wherever it flies. All flights use the default seed.
 
     - ``"straight"``: one noise level everywhere, the 1960 rocket's world. It flies
       the straight line to the pad.
-    - ``"beacon"``: the beacon's field, and a curious rocket at k = 0.40 bending up
-      toward the beacon.
+    - ``"beacon"``: the beacon's field at k = 0.08, and the curious rocket with
+      curiosity on, flying to the beacon, beside itself with curiosity off.
+    - ``"too_curious"``: the same pair at k = 0.40. Curiosity on stops short of the
+      pad, and curiosity off lands.
     - ``"blackout"``: the blackout added to the field, and curious rockets at
       k = 0.08 and k = 0.20 flying round it.
     - ``"rock"``: the rock in the blackout. The 1960 rocket hits it.
@@ -605,7 +739,7 @@ def plot_route(stage: str, *, palette: Palette = DARK) -> Figure:
         The figure, with no title. The slide carries it.
 
     Raises:
-        ValueError: for a stage that is not one of the four.
+        ValueError: for a stage that is not one of the five.
     """
     if stage not in _ROUTE_FRAMES:
         raise ValueError(

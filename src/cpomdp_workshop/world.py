@@ -21,6 +21,7 @@ __all__ = [
     "BLACKOUT_GAIN",
     "BLACKOUT_WIDTH",
     "DYNAMICS_NOISE",
+    "LANDING_RADIUS",
     "LAUNCH",
     "NOISE_FLOOR",
     "PAD",
@@ -38,6 +39,8 @@ PAD = (5.0, 0.0)
 BEACON = (2.5, 1.4)
 BLACKOUT = (2.5, 0.0)
 ROCK_RADIUS = 0.42
+LANDING_RADIUS = 0.5
+"""A flight that ends within this distance of the pad has landed."""
 
 NOISE_FLOOR = 0.05  # R0
 BEACON_CAP = 4.0  # cap

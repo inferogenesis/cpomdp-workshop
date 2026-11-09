@@ -2,11 +2,14 @@
 
 Each check is a pure function the tests assert on, paired with a ``check_`` or
 ``show_`` function that prints its result. A sensor is graded by flying a rocket with
-it. One that varies and still leaves the path straight is told which way to move k.
-A sensor that cannot fly stops the cell, so its fix is the last thing on screen.
+it. One that varies and still leaves the path straight is told to raise k. A sensor
+that cannot fly stops the cell, so its fix is the last thing on screen. The grade is
+about the curious rocket alone, so ``show_landings`` prints where every flight of a
+cell ended.
 """
 
 import textwrap
+from collections.abc import Mapping
 from dataclasses import dataclass
 
 import jax
@@ -19,6 +22,7 @@ from cpomdp_workshop.build import model_with, pad_goal, pad_preference
 from cpomdp_workshop.planner import compass_moves, compass_planner
 from cpomdp_workshop.sim import Flight, fly
 from cpomdp_workshop.world import (
+    LANDING_RADIUS,
     LAUNCH,
     PAD,
     NoiseFn,
@@ -39,12 +43,13 @@ __all__ = [
     "grade_sensor",
     "probe",
     "route_bend",
+    "show_landings",
     "show_probe",
 ]
 
 STRAIGHT_BEND = 0.1
 """A path that strays less than this from the launch-to-pad line counts as straight."""
-LANDED = 0.5
+LANDED = LANDING_RADIUS
 """A flight that ends further than this from the pad has not landed."""
 NARROW_CELL = 80
 """The widest line a stopped cell prints, so Colab does not cut it off."""
@@ -146,7 +151,7 @@ class SensorGrade:
 
     Attributes:
         grade: ``"broken"``, ``"flat"``, ``"straight"``, ``"bends"`` or
-            ``"too curious"``.
+            ``"stops short"``.
         message: what to tell the person who wrote it.
         bend: how far the rocket strayed from the straight line, or ``None`` if it
             did not fly.
@@ -250,11 +255,11 @@ def _match_line(matches: str | None) -> str:
 def grade_sensor(sensor: NoiseFn, params: SensorParams) -> SensorGrade:
     """Grade a noise function by flying a curious rocket with it.
 
-    The rocket models ``sensor`` and flies in it from the default seed, as the
-    attempt cell's rocket does. A probe of what each move would teach is not the
-    grade, because it does not predict the path. The reading noise also enters what
-    each move is expected to read against "on the pad", and at these settings that
-    term does most of the steering.
+    The rocket models ``sensor`` and flies in it from the default seed with its
+    curiosity on, as the attempt cell's curious rocket does. A probe of what each move
+    would teach is not the grade, because it does not predict the path. The reading
+    noise also enters what each move is expected to read against "on the pad", so the
+    pragmatic term steers too.
 
     Args:
         sensor: a noise function ``R(x, params)``.
@@ -280,19 +285,16 @@ def grade_sensor(sensor: NoiseFn, params: SensorParams) -> SensorGrade:
     bend = route_bend(flight)
     distance = flight.distance_to(PAD)
     matches = _matching_reference(sensor, params)
-    path = f"The rocket bends {bend:.2f} off the straight line"
+    path = f"The curious rocket bends {bend:.2f} off the straight line"
     if bend < STRAIGHT_BEND:
         grade = "straight"
         message = (
-            "R(x) varies across the map. The rocket still flies straight, so the "
-            "pad's pull wins at this k. Raise it."
+            "R(x) varies across the map, but the curious rocket still flies "
+            "straight at this k. Try raising it."
         )
     elif distance > LANDED:
-        grade = "too curious"
-        message = (
-            f"{path} and stops {distance:.2f} short of the pad. At this k, reading "
-            "near the beacon is worth more than reaching the pad."
-        )
+        grade = "stops short"
+        message = f"{path} and stops {distance:.2f} short of the pad."
     else:
         grade = "bends"
         message = f"{path} and lands {distance:.2f} from the pad."
@@ -314,6 +316,21 @@ def check_my_sensor(sensor: NoiseFn, params: SensorParams) -> None:
     if grade.grade == "broken":
         raise ValueError(textwrap.fill(grade.message, width=NARROW_CELL))
     print(grade.message)
+
+
+def show_landings(flights: Mapping[str, Flight]) -> None:
+    """Print where each flight ended, and whether it landed.
+
+    A flight has landed if it ends within ``LANDED`` of the pad, the circle the plots
+    draw round it.
+
+    Args:
+        flights: each flight under its rocket's name.
+    """
+    for name, flight in flights.items():
+        distance = flight.distance_to(PAD)
+        landed = "landed" if distance < LANDED else "did not land"
+        print(f"{name:<14} ended {distance:.2f} from the pad, {landed}")
 
 
 BeliefTrack = tuple[np.ndarray, np.ndarray]

@@ -5,7 +5,8 @@ a reading of where they are. They differ in the reading. The 1960 rocket's readi
 equally noisy everywhere, so no move can teach it more than another. It is handed a
 state to reach and steers by LQR. The curious rocket's reading depends on where it is.
 It is handed a reading to prefer and searches the compass moves for the plan that
-best trades getting there against seeing clearly.
+best trades getting there against seeing clearly. How tightly it prefers that reading
+sets the trade, and switching its curiosity off leaves only the getting there.
 """
 
 import numpy as np
@@ -36,6 +37,8 @@ from cpomdp_workshop.world import (
 )
 
 __all__ = [
+    "BLACKOUT_PRECISION",
+    "CURIOUS_PRECISION",
     "THRUSTER_COST",
     "curious_rocket",
     "model_with",
@@ -46,6 +49,20 @@ __all__ = [
 ]
 
 THRUSTER_COST = 100.0  # effort
+
+CURIOUS_PRECISION = 0.1  # λ
+"""How tightly the curious rocket prefers to read "on the pad", λ.
+
+Expected free energy carries no separate weight on its epistemic term, so this
+precision is the exchange rate between what a move is expected to teach and how close
+it is expected to bring the reading to the pad. The pragmatic term scales with it and
+the epistemic term does not. At one, the pull of the pad and the reading's own noise
+outweigh what any move teaches, and switching curiosity off changes almost no move. At
+0.1 the two terms compete.
+"""
+
+BLACKOUT_PRECISION = 1.0  # λ
+"""The precision the blackout task's rockets prefer the pad at, as it was measured."""
 
 _IDENTITY = np.eye(2)
 
@@ -101,9 +118,13 @@ def pad_goal() -> StateGoal:
     )
 
 
-def pad_preference() -> Preference:
-    """The pad as a reading to prefer, which is what a compass search scores."""
-    return Preference(np.asarray(PAD), precision=_IDENTITY)
+def pad_preference(precision: float = CURIOUS_PRECISION) -> Preference:
+    """The pad as a reading to prefer, which is what a compass search scores.
+
+    Args:
+        precision: λ, how tightly the reading is preferred, on both axes.
+    """
+    return Preference(np.asarray(PAD), precision=precision * _IDENTITY)
 
 
 def the_1960_rocket() -> Agent:
@@ -112,7 +133,12 @@ def the_1960_rocket() -> Agent:
 
 
 def curious_rocket(
-    beacon_gain: float, sensor: NoiseFn = reference_sensor, *, horizon: int = 1
+    beacon_gain: float,
+    sensor: NoiseFn = reference_sensor,
+    *,
+    horizon: int = 1,
+    curiosity: bool = True,
+    precision: float = CURIOUS_PRECISION,
 ) -> Agent:
     """A rocket whose reading depends on where it is, searching the compass moves.
 
@@ -121,14 +147,17 @@ def curious_rocket(
         sensor: the noise field the rocket models. The default has the beacon and
             the blackout. ``beacon_sensor`` is the beacon alone.
         horizon: how many moves ahead the search looks, H.
+        curiosity: whether the epistemic term counts. Off, the same rocket ranks
+            its plans by the pragmatic term alone.
+        precision: λ, how tightly it prefers to read the pad.
 
     Returns:
         An agent that prefers to read the pad and plans every step over every
         compass plan of length ``horizon``.
     """
     model = model_with(sensor, default_params(beacon_gain))
-    planner = compass_planner(model, horizon=horizon)
-    return Agent(model, pad_preference(), selector=planner)
+    planner = compass_planner(model, horizon=horizon, curiosity=curiosity)
+    return Agent(model, pad_preference(precision), selector=planner)
 
 
 def one_node(model: LinearGaussianModel) -> CouplingGraphBackend:

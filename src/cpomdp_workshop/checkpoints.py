@@ -28,20 +28,32 @@ def after_session_1() -> dict[str, object]:
 
 
 def after_session_2() -> dict[str, object]:
-    """Session 1's names, plus the beacon sensor and the rocket flown under it."""
+    """Session 1's names, plus the beacon sensor and one rocket flown both ways.
+
+    The rocket flies once with curiosity on and once with it off, as the attempt cell
+    flies it.
+    """
     params = default_params(SESSION_2_GAIN)
     curious_model = model_with(beacon_sensor, params)
+    preference = pad_preference()
     planner = compass_planner(curious_model)
-    curious = Agent(curious_model, pad_preference(), selector=planner)
+    curious = Agent(curious_model, preference, selector=planner)
+    incurious = Agent(
+        curious_model,
+        preference,
+        selector=compass_planner(curious_model, curiosity=False),
+    )
     return {
         **after_session_1(),
         "my_sensor": beacon_sensor,
         "beacon_gain": SESSION_2_GAIN,
         "params": params,
         "curious_model": curious_model,
+        "preference": preference,
         "planner": planner,
         "curious": curious,
-        "flight": fly(curious),
+        "incurious": incurious,
+        "flights": {"curiosity on": fly(curious), "curiosity off": fly(incurious)},
     }
 
 

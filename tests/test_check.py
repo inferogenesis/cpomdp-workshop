@@ -14,8 +14,10 @@ from cpomdp_workshop.check import (
     check_my_sensor,
     grade_sensor,
     route_bend,
+    show_landings,
 )
 from cpomdp_workshop.planner import compass_planner
+from cpomdp_workshop.plot import curiosity_pair
 from cpomdp_workshop.sim import fly
 from cpomdp_workshop.world import (
     LAUNCH,
@@ -32,19 +34,25 @@ def numpy_beacon(x, params):
     return jnp.eye(2) * (params["noise_floor"] + params["beacon_gain"] * capped)
 
 
-def test_a_weak_beacon_leaves_the_path_straight():
-    assert grade_sensor(beacon_sensor, default_params(0.02)).grade == "straight"
+def flat_route_params(k):
+    # Every point of the straight route is past a cap of 1, so the noise is flat
+    # along it and no move there teaches more than another.
+    return {**default_params(k), "beacon_cap": jnp.asarray(1.0)}
 
 
-def test_a_strong_beacon_bends_the_path_and_lands():
-    grade = grade_sensor(beacon_sensor, default_params(0.4))
+def test_a_route_with_flat_noise_stays_straight():
+    assert grade_sensor(beacon_sensor, flat_route_params(0.08)).grade == "straight"
+
+
+def test_the_starting_beacon_bends_the_path_and_lands():
+    grade = grade_sensor(beacon_sensor, default_params(0.08))
     assert grade.grade == "bends"
     assert grade.matches == "beacon_sensor"
 
 
 def test_a_beacon_too_strong_stops_the_rocket_short():
-    grade = grade_sensor(beacon_sensor, default_params(0.6))
-    assert grade.grade == "too curious"
+    grade = grade_sensor(beacon_sensor, default_params(0.4))
+    assert grade.grade == "stops short"
     assert grade.distance is not None
     assert grade.distance > 1.0
 
@@ -88,15 +96,15 @@ def unwritten_beacon(x, params):
     return jnp.eye(2) * (params["noise_floor"] + ...)
 
 
-def test_the_starting_k_flies_straight_because_a_landing_wobble_is_no_bend():
-    grade = grade_sensor(beacon_sensor, default_params(0.08))
+def test_a_landing_wobble_is_no_bend():
+    grade = grade_sensor(beacon_sensor, flat_route_params(0.4))
     assert grade.grade == "straight"
     assert grade.bend is not None
     assert grade.bend < STRAIGHT_BEND
 
 
 def test_the_bend_is_measured_only_while_the_rocket_is_away_from_the_pad():
-    model = model_with(beacon_sensor, default_params(0.08))
+    model = model_with(beacon_sensor, flat_route_params(0.4))
     flight = fly(Agent(model, pad_preference(), selector=compass_planner(model)))
     away = np.linalg.norm(flight.path - np.asarray(PAD), axis=1) > LANDED
     assert route_bend(flight) == float(np.abs(flight.path[away, 1]).max())
@@ -176,3 +184,17 @@ def test_a_rocket_that_flies_but_differs_is_told_which_part(
 def test_a_backend_left_unwritten_is_named():
     with pytest.raises(TypeError, match=re.escape("backend is still ...")):
         check_backends(KalmanBackend(model_with()), ...)  # ty: ignore[invalid-argument-type]
+
+
+def test_every_flight_gets_a_line_saying_whether_it_landed(capsys):
+    flights = curiosity_pair(0.4)
+    show_landings(flights)
+    assert capsys.readouterr().out.splitlines() == [
+        "curiosity on   ended 2.79 from the pad, did not land",
+        "curiosity off  ended 0.24 from the pad, landed",
+    ]
+
+
+def test_a_straight_route_is_told_to_raise_k():
+    grade = grade_sensor(beacon_sensor, flat_route_params(0.08))
+    assert "Try raising it" in grade.message

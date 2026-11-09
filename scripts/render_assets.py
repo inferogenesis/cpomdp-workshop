@@ -24,16 +24,24 @@ from deck_layout import metrics
 
 ASSETS = Path(__file__).resolve().parents[1] / "assets"
 
+ROUTE_FILES = {
+    "straight": "route_1_straight.png",
+    "beacon": "route_2_beacon.png",
+    "too_curious": "route_2_too_curious.png",
+    "blackout": "route_3_blackout.png",
+    "rock": "route_4_rock.png",
+}
+"""Each route frame's file, numbered by the task whose slides show it."""
+
 FIGURES = {
     "fig_world_rock.png": plot.preview,
     "tile_task1.png": plot.tile_task1,
     "tile_task2.png": plot.tile_task2,
     "tile_task3.png": plot.tile_task3,
+    "route_2_balance.png": partial(plot.plot_balance, palette=plot.LIGHT),
     **{
-        f"route_{number}_{stage}.png": partial(
-            plot.plot_route, stage, palette=plot.LIGHT
-        )
-        for number, stage in enumerate(plot.ROUTE_STAGES, start=1)
+        name: partial(plot.plot_route, stage, palette=plot.LIGHT)
+        for stage, name in ROUTE_FILES.items()
     },
 }
 

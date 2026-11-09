@@ -28,6 +28,7 @@ from cpomdp_workshop.check import (
     epistemic_spread,
     grade_sensor,
     probe,
+    show_landings,
     show_probe,
 )
 from cpomdp_workshop.checkpoints import (
@@ -110,6 +111,7 @@ __all__ = [
     "preview",
     "probe",
     "reference_sensor",
+    "show_landings",
     "show_probe",
     "symptoms",
     "the_1960_rocket",
