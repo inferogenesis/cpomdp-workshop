@@ -463,7 +463,7 @@ Times are UTC. The table assumes the workshop is at 17:00 on Friday 13 Nov, as D
 
 ## 10. Decisions still owed, and issue drafts
 
-- **Owed:** the Task 3 chat number (draft: the curious rocket's miss on seed 3). The build uses the draft until Dan decides.
+- **Decided 9 Nov, the Task 3 chat number.** It is the `pad_spread` at which the learner's curious rocket stops finding the pad, found by lowering it from 1.5. The draft, the curious rocket's miss, was the same 0.17 for everyone and `preview()` already printed it in cell 2. On seed 3 the curious rocket finds the pad at 0.48 and stops at 0.45.
 - **Decided 9 Nov, no live polls.** The poll questions stay in the notebook for anyone who wants to think about them. No slide gives them time.
 - **Decided 9 Nov, the plug-in mean is a spoken note.** It goes into slide 10's notes in the notes' existing style, and Dan refines the wording by hand. Draft: "The rocket never knows its true position. When it plans, it reads the noise at the mean of where it predicts a move will take it, R(μ⁺). That's a first-order shortcut, least accurate when the belief is wide and the noise changes sharply." cpomdp drops the ½tr(H_R Σ⁺) term by design.
 - **Decided 9 Nov, the date.** The workshop is on Friday 13 Nov at 17:00 UTC. The dates in §9 are guides, not deadlines.

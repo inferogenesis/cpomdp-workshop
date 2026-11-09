@@ -647,6 +647,25 @@ def test_two_moves_ahead_the_incurious_rocket_nears_the_beacon_on_seed_8_alone()
     assert beacon_visits(off for _, off in pairs) == [8]
 
 
+@pytest.mark.parametrize(
+    ("pad_spread", "miss", "visits"),
+    [(0.5, 0.31, True), (0.48, 0.31, True), (0.45, 1.69, False), (0.4, 1.57, False)],
+)
+def test_on_seed_3_the_curious_rocket_stops_finding_the_pad_below_a_spread_of_0_48(
+    pad_spread, miss, visits
+):
+    on, _ = fly_pad_pair(pad_spread=pad_spread)
+    assert round(on.miss, 2) == miss
+    assert (nearest_beacon(on) < 0.5) is visits
+    assert (on.miss < 0.5) is visits
+
+
+@pytest.mark.slow
+def test_over_ten_seeds_a_spread_of_0_4_lands_one_curious_rocket_fewer_than_0_5():
+    assert pad_tally(pad_spread=0.4)[1].on_landed == 6
+    assert pad_tally(pad_spread=0.5)[1].on_landed == 7
+
+
 def test_on_seed_3_a_broadcast_that_carries_far_lets_both_rockets_land():
     on, off = fly_pad_pair(broadcast_gain=0.1)
     assert (round(on.miss, 2), round(off.miss, 2)) == (0.37, 0.06)

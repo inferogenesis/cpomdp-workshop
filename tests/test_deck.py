@@ -66,10 +66,12 @@ SET = {
     "0.1": "the curious rocket's preference precision",
     "0.2": "k, the precision comparison's",
     "0.3": "a preference precision the tuning slide compares",
+    "0.48": "the pad spread at which seed 3's curious rocket still finds the pad",
     "1.5": "the hidden pad's spread, in the world and in the rocket's model",
     "5": "a timer's mark, and the minutes of a brief",
     "0.37": "k, where task 2's curious rocket first stops short on seed 3",
-    "0.45": "k, the last at which task 2's incurious rocket lands on seed 3",
+    "0.45": "task 2's last k at which the incurious rocket lands on seed 3, and "
+    "the pad spread at which task 3's curious rocket stops finding the pad",
     "0.46": "k, where task 2's incurious rocket first stops short on seed 3",
     "0.40": "k, task 2's reference",
     "0.5": "the compass step",

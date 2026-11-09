@@ -557,14 +557,19 @@ curiosity off. Neither rocket knows where the pad is.
 1. In `my_broadcast`, calculate how much noise the broadcast gains with distance from
    the beacon.
 2. Set `prior_cov`, how unsure the rocket starts about its own position and about
-   the pad's. In the world, the true pad strays from the guess by `pad_spread`.
+   the pad's. The cell starts with a `pad_spread` of 1.5, which is also how far the
+   true pad strays from the guess in the world.
 
 Run the cell. `show_misses` prints how far each rocket ended from the true pad, and
 `plot_pad` draws both routes. As before, a rocket has landed if it ends within 0.5 of
 the pad, inside the circle the plot draws round the true pad. Which rocket finds the
 pad? What might explain the difference, when both share one model and the same sensors?
 
-**Share your curious rocket's miss in the workshop chat.**""",
+Then lower `pad_spread` and run the cell again. This changes only how unsure the rocket
+is about the pad. The world still draws the true pad with a spread of 1.5. At what
+`pad_spread` does the curious rocket stop finding the pad? What might explain it?
+
+**Share that `pad_spread` in the workshop chat.**""",
     attempt="""\
 import jax.numpy as jnp
 from cpomdp import Agent, Belief, CallableSensor, LinearGaussianModel
@@ -598,7 +603,7 @@ def my_broadcast(x, params):  # noise on the broadcast, heard at position x
 
 check_my_broadcast(my_broadcast, params)
 
-pad_spread = 1.5  # how far the true pad strays from the guess, one standard deviation
+pad_spread = 1.5  # how unsure the rocket is about the pad. Lower it after a first run
 # The state is four numbers: the rocket's position, then the pad's.
 prior_mean = jnp.array([*LAUNCH, *PAD_GUESS])  # at launch, and the pad at its guess
 prior_cov = ...  # jnp.diag of 0.25, 0.25, then pad_spread**2 twice, in a jnp.array
@@ -614,15 +619,16 @@ preference = radar_preference()  # a radar reading that says the pad is right he
 curious = Agent(model, preference, selector=compass_planner(model))
 incurious = Agent(model, preference, selector=compass_planner(model, curiosity=False))
 flights = {"curiosity on": fly_pad(curious), "curiosity off": fly_pad(incurious)}
-show_misses(flights)  # paste your curious rocket's miss in chat
+print(f"your pad_spread = {pad_spread}")  # paste the one where curiosity on missed
+show_misses(flights)
 plot_pad(flights, my_broadcast, params)""",
     bonuses=(
         Bonus(
             title="How sure is the rocket?",
             question="""\
-In Task 3, the rocket's prior used a `pad_spread` of 1.5, which is also how far the
-true pad strays from the guess in the world. But what if the rocket is more sure of its
-guess than it should be, or less?
+In Task 3, you lowered `pad_spread` until the curious rocket stopped finding the pad on
+one flight. Does the same happen on other flights, and what if the rocket is less sure
+of its guess than it should be?
 
 The cell below flies both rockets over seeds 0 to 9 at three spreads, 0.1, 1.5 and 3.0.
 The world does not change: the true pad is always drawn with a spread of 1.5. Only the

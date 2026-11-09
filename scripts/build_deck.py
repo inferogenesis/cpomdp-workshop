@@ -1241,7 +1241,8 @@ def task_3_timer(deck: Deck) -> None:
         deck, 3,
         (
             f"{FILL_IN} and run the cell.",
-            "Paste your curious rocket’s miss in the chat.",
+            "Lower pad_spread until the curious rocket stops finding the pad. Paste "
+            "that spread in the chat.",
             "Finished early? Try the bonuses.",
         ),
     )  # fmt: skip
@@ -1256,7 +1257,11 @@ def task_3_timer(deck: Deck) -> None:
             "the pad’s.",
             "The cell flies the same rocket with curiosity on and off. show_misses "
             "prints how far each one ended from the true pad, and plot_pad draws "
-            "both routes. The curious rocket’s miss is the number for the chat.",
+            "both routes.",
+            "Then lower pad_spread and run the cell again. That changes only how "
+            "unsure the rocket is about the pad. The world still draws the true pad "
+            "with a spread of 1.5. The spread at which the curious rocket stops "
+            "finding the pad is the number for the chat.",
         )
     )
 
@@ -1295,6 +1300,11 @@ def task_3_result(deck: Deck) -> None:
             "hears where the pad is, and then flies there. It ends "
             f"{on.miss:.2f} from the true pad. The shaded ellipse is where it "
             "believes the pad is by the end.",
+            "You lowered pad_spread until the curious rocket stopped finding the "
+            "pad. On this seed it still finds the pad at a spread of 0.48 and "
+            "stops at 0.45. A rocket that is sure of its guess expects to learn "
+            "nothing at the beacon, so it does not go. We come back to this on the "
+            "next slide.",
             "A rocket lands if it ends within 0.5 of the true pad. Over 10 seeds, "
             "the curious rocket lands on 9 and the incurious one on 3. The median "
             "misses are 0.25 and 0.61. The landing gap is modest on the map, which "
