@@ -107,6 +107,19 @@ def test_a_state_goal_under_a_state_dependent_sensor_is_refused():
         Agent(a_sensed_model(), StateGoal(PAD))
 
 
+@pytest.mark.parametrize(
+    ("cov", "refusal"),
+    [
+        (2.25, "must be a square 2-D matrix"),
+        (2.25 * np.eye(2), "must be 4x4 to match a 4-D mean"),
+    ],
+)
+def test_a_prior_covariance_of_the_wrong_shape_is_refused_by_name(cov, refusal):
+    # Task 3's second line is the prior's covariance, and cpomdp's refusal is the fix.
+    with pytest.raises(ValueError, match=refusal):
+        Belief(mean=np.zeros(4), cov=cov)
+
+
 def test_a_goal_beside_a_selector_is_refused():
     model = a_sensed_model()
     with pytest.raises(TypeError, match="selector= takes a Preference"):

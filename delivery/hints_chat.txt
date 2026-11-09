@@ -56,12 +56,13 @@ You will find how fast it fades in `params["broadcast_gain"]`, and `distance_squ
 fade = params["broadcast_gain"] * distance_squared
 
 [session 3, nudge 2]
-`pad_spread` is the rocket's own uncertainty about where the pad is.
-It is one standard deviation, in the same units as the map, around the rocket's guess.
-In the world, the true pad strays from the guess by 1.5, so a rocket that knows this uses the same number.
+`prior_cov` is how unsure the rocket is, before its first reading, about each of the four numbers in its state.
+The first two are its own position, and each has a variance of 0.25. The last two are the pad's position.
+In the world, the true pad strays from the guess by `pad_spread`, a standard deviation, so the variance to use is `pad_spread` squared.
+`jnp.diag` turns the four variances into the matrix that `Belief` needs.
 
 [session 3, hint 2]
-pad_spread = 1.5
+prior_cov = jnp.diag(jnp.array([0.25, 0.25, pad_spread**2, pad_spread**2]))
 
 [session 3, reference]
 Reference for task 3: the collapsed cell under hint 2. Run it, then the checkpoint.

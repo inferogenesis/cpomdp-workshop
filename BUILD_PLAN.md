@@ -301,7 +301,7 @@ If cpomdp refuses two agents sharing one model, build the model twice.
 
 The brief says, in these words or close to them: "We built this world so that the information the rocket needs is somewhere other than where it wants to go. The radar is coarse on purpose. The broadcast fades on purpose. The rocket's guess is right on average, because we draw the true pad from its own prior." And one more sentence: "The rocket's goal is a radar reading, whose noise doesn't change with position, so this time the noise can't pull the route the way it did in Task 2."
 
-**Attempt** (the two `...` lines are `fade` and `pad_spread`):
+**Attempt** (the two `...` lines are `fade` and `prior_cov`). The cell builds the model inline, as Task 2's does, so the room reads the cpomdp code for the hidden pad. `pad_model` builds the same model for the bonuses, the checkpoint and the deck.
 
 ```python
 params = pad_params()
@@ -317,9 +317,16 @@ def my_broadcast(
 
 
 check_my_broadcast(my_broadcast, params)
-pad_spread = ...  # how unsure the rocket is about where the pad is: type 1.5
-
-model = pad_model(my_broadcast, params, pad_spread)
+pad_spread = 1.5  # how far the true pad strays from the guess, one standard deviation
+prior_mean = jnp.array([*LAUNCH, *PAD_GUESS])
+prior_cov = ...  # jnp.diag of 0.25, 0.25, then pad_spread**2 twice, in a jnp.array
+model = LinearGaussianModel(
+    jnp.eye(4),
+    control_matrix=jnp.vstack([jnp.eye(2), jnp.zeros((2, 2))]),
+    dynamics_noise=jnp.diag(jnp.array([1e-3, 1e-3, 1e-9, 1e-9])),
+    prior=Belief(mean=prior_mean, cov=prior_cov),
+    observation_model=CallableSensor(PAD_READINGS, pad_sensor(my_broadcast), params),
+)
 curious = Agent(model, pad_preference(), selector=compass_planner(model))
 incurious = Agent(
     model, pad_preference(), selector=compass_planner(model, curiosity=False)
@@ -332,8 +339,8 @@ plot_pad(flights, my_broadcast, params)  # paste your curious rocket's miss in c
 
 - Nudge 1 explains why there's no cap this time: the broadcast has to fade, or it can be heard from anywhere.
 - Hint 1: `fade = params["broadcast_gain"] * distance_squared`.
-- Nudge 2 says the spread is the rocket's own uncertainty about the pad.
-- Hint 2: `pad_spread = 1.5`.
+- Nudge 2 says the covariance is the rocket's own uncertainty about its position and about the pad, and that the pad's variance is `pad_spread` squared.
+- Hint 2: `prior_cov = jnp.diag(jnp.array([0.25, 0.25, pad_spread**2, pad_spread**2]))`.
 
 **Chat number** (draft, Dan to confirm): the curious rocket's miss on seed 3.
 
@@ -346,7 +353,7 @@ plot_pad(flights, my_broadcast, params)  # paste your curious rocket's miss in c
 > The incurious rocket missed the pad and the curious one found it. Why?
 >
 > 1. The incurious rocket's radar is worse.
-> 2. It never went where the pad's position can be heard clearly, so it landed on its guess, corrected only by a coarse radar.
+> 2. It never went where the pad's position can be heard clearly, so it had only a coarse radar to correct its guess with.
 > 3. It looked too few moves ahead.
 > 4. Its preference for the pad was too strong.
 >
@@ -461,6 +468,7 @@ Times are UTC. The table assumes the workshop is at 17:00 on Friday 13 Nov, as D
 - **Decided 9 Nov, the plug-in mean is a spoken note.** It goes into slide 10's notes in the notes' existing style, and Dan refines the wording by hand. Draft: "The rocket never knows its true position. When it plans, it reads the noise at the mean of where it predicts a move will take it, R(μ⁺). That's a first-order shortcut, least accurate when the belief is wide and the noise changes sharply." cpomdp drops the ½tr(H_R Σ⁺) term by design.
 - **Decided 9 Nov, the date.** The workshop is on Friday 13 Nov at 17:00 UTC. The dates in §9 are guides, not deadlines.
 - **Decided 9 Nov, `check_my_broadcast` is built.** Task 3 is the harder task, so it gets the check. It may move into a hint later.
+- **Decided 9 Nov, Task 3 builds its model in the cell.** The second line to write is the prior's covariance, in place of `pad_spread = 1.5`.
 - **Decided 9 Nov, how the build lands.** Three stacked pull requests: Task 2, then Task 3, then the release. Each is reviewed on GitHub.
 - **Issue draft, cpomdp:** "`EnumeratedEFESearch`: rank by the pragmatic term alone, or weight the epistemic term, so ablations don't need a hand-rolled selector."
 - **Issue draft, cpomdp:** "Docs: an observation-space preference pays for R(x) in the pragmatic term through ½tr(ΛR). Say so where `Preference` meets `CallableSensor`, and consider allowing a state-space goal under R(x)."

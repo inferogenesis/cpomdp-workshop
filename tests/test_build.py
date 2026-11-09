@@ -125,11 +125,6 @@ def test_the_rocket_starts_at_launch_and_guesses_the_pad_with_its_spread():
     assert np.allclose(np.diag(prior.cov), [0.25, 0.25, 2.25, 2.25])
 
 
-def test_a_pad_spread_left_unwritten_is_named():
-    with pytest.raises(TypeError, match="pad_spread is still"):
-        pad_model(broadcast_noise, pad_params(), ...)  # ty: ignore[invalid-argument-type]
-
-
 def test_the_radar_carries_the_goal_and_the_other_readings_barely_count():
     preference = radar_preference()
     assert np.allclose(preference.target, np.zeros(6))

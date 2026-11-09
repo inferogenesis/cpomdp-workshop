@@ -1,6 +1,7 @@
 import contextlib
 import io
 import re
+from typing import Any
 
 import nbformat
 import numpy as np
@@ -8,8 +9,14 @@ import pytest
 
 import build_notebook
 import lesson
-from cpomdp_workshop import checkpoints
-from cpomdp_workshop.world import default_params, pad_params
+from cpomdp_workshop import checkpoints, pad_pair
+from cpomdp_workshop.build import pad_model
+from cpomdp_workshop.world import (
+    PAD_SPREAD_WORLD,
+    broadcast_noise,
+    default_params,
+    pad_params,
+)
 
 HEAD = ["brief", "attempt", "symptoms", "hint", "hint", "reference"]
 TAIL = ["checkpoint", "poll"]
@@ -324,6 +331,46 @@ def test_task_3_lists_every_setting_the_broadcast_reads_with_its_true_value():
             if line.startswith(f'#   params["{key}"]')
         )
         assert shown(params[key]) in line
+
+
+def test_task_3_builds_its_model_in_the_cell_as_task_2_does():
+    attempt = lesson.SESSION_3.attempt
+    assert "model = LinearGaussianModel(" in attempt
+    assert "CallableSensor(PAD_READINGS, pad_sensor(my_broadcast), params)" in attempt
+    assert "pad_model" not in attempt
+
+
+def test_task_3_leaves_the_fade_and_the_prior_covariance_to_write():
+    assert build_notebook.slots(lesson.SESSION_3.attempt) == ["fade", "prior_cov"]
+
+
+@pytest.mark.slow
+def test_the_model_task_3_builds_is_the_one_the_package_measures():
+    namespace: dict[str, Any] = dict(checkpoints.after_session_2())
+    run_quietly(build_notebook.reference(lesson.SESSION_3, HINTS), namespace)
+    built = namespace["model"]
+    measured = pad_model(broadcast_noise, pad_params(), PAD_SPREAD_WORLD)
+    state = np.array([1.0, 0.5, 4.0, -1.0])
+    for part in ("dynamics_matrix", "control_matrix", "observation_matrix"):
+        assert np.allclose(getattr(built, part), getattr(measured, part))
+    assert np.allclose(built.dynamics_noise, measured.dynamics_noise, atol=1e-12)
+    assert np.allclose(built.prior.mean, measured.prior.mean)
+    assert np.allclose(built.prior.cov, measured.prior.cov)
+    assert np.allclose(
+        built.observation_noise_at(state), measured.observation_noise_at(state)
+    )
+    reference = pad_pair()
+    for name, flight in namespace["flights"].items():
+        assert flight.miss == pytest.approx(reference[name].miss, abs=0.005)
+
+
+def test_task_3_bonus_2_defines_the_capped_broadcast_before_the_line_that_names_it():
+    code = lesson.SESSION_3.bonuses[1].code
+    assert code is not None
+    lines = code.splitlines()
+    defined = lines.index("def capped_broadcast(x, params):")
+    named = next(i for i, line in enumerate(lines) if line.startswith("broadcast = "))
+    assert defined < named
 
 
 def test_the_beacon_setting_is_shown_as_the_array_it_must_be_set_as():

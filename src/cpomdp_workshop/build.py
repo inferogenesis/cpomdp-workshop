@@ -159,12 +159,7 @@ def pad_model(
         A four-dimensional model of the state (x, p), the rocket's position and the
         pad's. A move adds to the rocket's position and leaves the pad alone. The six
         readings are the rocket's position, the radar's p - x and the broadcast p.
-
-    Raises:
-        TypeError: if ``pad_spread`` is still the ``...`` the attempt cell left.
     """
-    if pad_spread is Ellipsis:
-        raise TypeError("pad_spread is still ..., so type a number for it first.")
     zeros = np.zeros((2, 2))
     return LinearGaussianModel(
         np.eye(4),

@@ -74,6 +74,11 @@ Over seeds 0 to 9 the curious rocket lands on 9 and the incurious one on 3, with
 misses of 0.25 and 0.61. The landing gap is small on the map, so the plot prints both
 misses in large type.
 
+The attempt cell builds the model in full, so the room sees that a rocket which has to
+learn where the pad is takes a state of four numbers and six readings. The second line
+to write is the prior's covariance. cpomdp refuses a covariance of the wrong shape and
+its message names the shape it needs, so that mistake has no workshop check.
+
 `check_my_broadcast` grades the learner's broadcast on its values before anything flies.
 The mistake to expect is a broadcast that returns a matrix, as Task 2's sensor did. The
 troubleshooting cell lists it.

@@ -544,6 +544,11 @@ The rocket's goal is a radar reading that says the pad is right where the rocket
 The radar's noise does not change with position, so this time the noise cannot pull the
 route the way it did in Task 2.
 
+The cell builds the rocket's model in full, as Task 2's cell did. This time the state
+holds four numbers, the rocket's position and then the pad's, so the rocket's belief
+covers both. Its prior says where it starts and where it guesses the pad is, and the
+prior's covariance (`prior_cov` in the code) says how unsure it is of each.
+
 As in Task 2, we will fly the same rocket twice, once with curiosity on and once with
 curiosity off. Neither rocket knows where the pad is.
 
@@ -551,25 +556,28 @@ curiosity off. Neither rocket knows where the pad is.
 
 1. In `my_broadcast`, calculate how much noise the broadcast gains with distance from
    the beacon.
-2. Set `pad_spread`, how unsure the rocket is about where the pad is.
+2. Set `prior_cov`, how unsure the rocket starts about its own position and about
+   the pad's. In the world, the true pad strays from the guess by `pad_spread`.
 
 Run the cell. `show_misses` prints how far each rocket ended from the true pad, and
 `plot_pad` draws both routes. As before, a rocket has landed if it ends within 0.5 of
 the pad, inside the circle the plot draws round the true pad. Which rocket finds the
-pad? What might explain the
-difference, when both share one model and the same sensors?
+pad? What might explain the difference, when both share one model and the same sensors?
 
 **Share your curious rocket's miss in the workshop chat.**""",
     attempt="""\
 import jax.numpy as jnp
-from cpomdp import Agent
+from cpomdp import Agent, Belief, CallableSensor, LinearGaussianModel
 
 from cpomdp_workshop import (
+    LAUNCH,
+    PAD_GUESS,
+    PAD_READINGS,
     check_my_broadcast,
     compass_planner,
     fly_pad,
-    pad_model,
     pad_params,
+    pad_sensor,
     plot_pad,
     radar_preference,
     show_misses,
@@ -589,9 +597,19 @@ def my_broadcast(x, params):  # noise on the broadcast, heard at position x
 
 
 check_my_broadcast(my_broadcast, params)
-pad_spread = ...  # how unsure the rocket is about where the pad is: type 1.5
 
-model = pad_model(my_broadcast, params, pad_spread)  # position and pad, 4 numbers
+pad_spread = 1.5  # how far the true pad strays from the guess, one standard deviation
+# The state is four numbers: the rocket's position, then the pad's.
+prior_mean = jnp.array([*LAUNCH, *PAD_GUESS])  # at launch, and the pad at its guess
+prior_cov = ...  # jnp.diag of 0.25, 0.25, then pad_spread**2 twice, in a jnp.array
+model = LinearGaussianModel(
+    jnp.eye(4),  # nothing moves by itself
+    control_matrix=jnp.vstack([jnp.eye(2), jnp.zeros((2, 2))]),  # moves the rocket only
+    dynamics_noise=jnp.diag(jnp.array([1e-3, 1e-3, 1e-9, 1e-9])),  # the pad stays put
+    prior=Belief(mean=prior_mean, cov=prior_cov),
+    # six readings: the rocket's position, the radar, and the broadcast with its noise
+    observation_model=CallableSensor(PAD_READINGS, pad_sensor(my_broadcast), params),
+)
 preference = radar_preference()  # a radar reading that says the pad is right here
 curious = Agent(model, preference, selector=compass_planner(model))
 incurious = Agent(model, preference, selector=compass_planner(model, curiosity=False))
@@ -602,9 +620,9 @@ plot_pad(flights, my_broadcast, params)""",
         Bonus(
             title="How sure is the rocket?",
             question="""\
-In Task 3, you set `pad_spread` to 1.5, which is also how far the true pad strays from
-the guess in the world. But what if the rocket is more sure of its guess than it should
-be, or less?
+In Task 3, the rocket's prior used a `pad_spread` of 1.5, which is also how far the
+true pad strays from the guess in the world. But what if the rocket is more sure of its
+guess than it should be, or less?
 
 The cell below flies both rockets over seeds 0 to 9 at three spreads, 0.1, 1.5 and 3.0.
 The world does not change: the true pad is always drawn with a spread of 1.5. Only the
@@ -641,7 +659,8 @@ def misses(pad_spread, curiosity):
     """How far the rocket ends from the true pad on each seed."""
     found = []
     for seed in seeds:
-        # A rocket can only fly once, so every flight builds a new one.
+        # A rocket can only fly once, so every flight builds a new one. pad_model
+        # builds the same model as your task 3 cell.
         model = pad_model(my_broadcast, params, pad_spread)
         planner = compass_planner(model, curiosity=curiosity)
         rocket = Agent(model, radar_preference(), selector=planner)
@@ -700,10 +719,6 @@ from cpomdp_workshop import (
     radar_preference,
 )
 
-seeds = range(10)
-settings = pad_params()  # change one setting here, such as settings["radar_noise"]
-broadcast = my_broadcast  # or capped_broadcast
-
 
 def capped_broadcast(x, params):
     """Task 2's field on the broadcast: k = 0.08, capped at a squared distance of 4."""
@@ -711,11 +726,17 @@ def capped_broadcast(x, params):
     return params["noise_floor"] + 0.08 * jnp.minimum(distance_squared, 4.0)
 
 
+seeds = range(10)
+settings = pad_params()  # change one setting here, such as settings["radar_noise"]
+broadcast = my_broadcast  # or capped_broadcast
+
+
 def landings(curiosity):
     """On how many seeds the rocket ends within 0.5 of the true pad."""
     landed = 0
     for seed in seeds:
-        # A rocket can only fly once, so every flight builds a new one.
+        # A rocket can only fly once, so every flight builds a new one. pad_model
+        # builds the same model as your task 3 cell.
         model = pad_model(broadcast, settings, 1.5)
         planner = compass_planner(model, curiosity=curiosity)
         rocket = Agent(model, radar_preference(), selector=planner)
@@ -733,8 +754,8 @@ print(f"curiosity off landed {landings(False)} of {len(seeds)}")''',
 The incurious rocket missed the pad and the curious one found it. Why?
 
 1. The incurious rocket's radar is worse.
-2. It never went where the pad's position can be heard clearly, so it landed on its
-   guess, corrected only by a coarse radar.
+2. It never went where the pad's position can be heard clearly, so it had only a
+   coarse radar to correct its guess with.
 3. It looked too few moves ahead.
 4. Its preference for the pad was too strong.
 

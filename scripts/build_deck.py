@@ -1250,8 +1250,10 @@ def task_3_timer(deck: Deck) -> None:
             3,
             "Two lines again. The first is in my_broadcast: how much noise the "
             "broadcast gains with distance from the beacon. There is no cap this "
-            "time. The second is pad_spread, how unsure the rocket is about where "
-            "the pad is. Type 1.5.",
+            "time. The second is prior_cov, how unsure the rocket starts about its "
+            "own position and about the pad’s. The cell builds the whole model, as "
+            "Task 2 did. Its state is four numbers, the rocket’s position and then "
+            "the pad’s.",
             "The cell flies the same rocket with curiosity on and off. show_misses "
             "prints how far each one ended from the true pad, and plot_pad draws "
             "both routes. The curious rocket’s miss is the number for the chat.",
@@ -1286,9 +1288,9 @@ def task_3_result(deck: Deck) -> None:
     page.notes(
         notes(
             f"Planned at {clock('Task 3', 2)}. Kev. Start with the blue route, "
-            "curiosity off. It flies straight to its guess and settles near it, "
-            f"{off.miss:.2f} from the true pad. The coarse radar is all it has to "
-            "correct the guess with.",
+            "curiosity off. It flies to its guess and then on towards the pad, with "
+            "only the coarse radar to correct the guess, and it ends "
+            f"{off.miss:.2f} from the true pad.",
             "Now the amber route, curiosity on. It goes up to the beacon first, "
             "hears where the pad is, and then flies there. It ends "
             f"{on.miss:.2f} from the true pad. The shaded ellipse is where it "
