@@ -6,7 +6,7 @@ import numpy as np
 import pytest
 from matplotlib.colors import to_hex
 from matplotlib.figure import Figure
-from matplotlib.patches import Circle
+from matplotlib.patches import Circle, Ellipse
 
 from cpomdp_workshop.build import curious_rocket, the_1960_rocket
 from cpomdp_workshop.plot import (
@@ -19,9 +19,11 @@ from cpomdp_workshop.plot import (
     LIGHT,
     ROUTE_STAGES,
     curiosity_pair,
+    pad_pair,
     plot_balance,
     plot_beliefs,
     plot_flights,
+    plot_pad,
     plot_path,
     plot_route,
     plot_world,
@@ -125,7 +127,7 @@ def test_the_preview_renders_inside_a_minute():
     figure = preview()
     elapsed = time.perf_counter() - started
     record_timing("preview", elapsed)
-    assert len(impact_markers(figure)) == 1
+    assert legend_texts(figure) == [CURIOSITY_ON, CURIOSITY_OFF]
     assert elapsed < 60
 
 
@@ -289,3 +291,48 @@ def test_a_flight_ends_in_a_dot_unless_it_crashed(route):
 def test_the_pad_carries_its_landing_circle(route):
     circles = [p for p in route["beacon"].axes[0].patches if isinstance(p, Circle)]
     assert [(c.center, c.radius) for c in circles] == [((5.0, 0.0), 0.5)]
+
+
+@pytest.fixture(scope="module")
+def pad_flights():
+    return pad_pair()
+
+
+def texts_of(figure):
+    return [text.get_text() for axes in figure.axes for text in axes.texts]
+
+
+def test_the_pad_plot_prints_each_rockets_miss_in_large_type(pad_flights):
+    figure = plot_pad(pad_flights)
+    readout = [
+        text
+        for axes in figure.axes
+        for text in axes.texts
+        if text.get_text() in {"0.17", "0.85"}
+    ]
+    assert sorted(text.get_text() for text in readout) == ["0.17", "0.85"]
+    assert all(float(text.get_fontsize()) >= 24 for text in readout)
+
+
+def test_the_pad_plot_marks_the_guess_the_true_pad_and_the_final_belief(pad_flights):
+    figure = plot_pad(pad_flights, palette=LIGHT)
+    names = texts_of(figure)
+    for name in ("launch", "beacon", "guess", "true pad"):
+        assert name in names
+    patches = figure.axes[0].patches
+    radii = sorted(p.radius for p in patches if isinstance(p, Circle))
+    assert radii == [0.5, 1.5]  # the landing circle, then the guess's ring
+    assert len([p for p in patches if type(p) is Ellipse]) == 1
+    assert to_hex(figure.get_facecolor()) == LIGHT.background.lower()
+
+
+def test_the_pad_plot_keeps_the_true_pad_on_the_map(pad_flights):
+    axes = plot_pad(pad_flights).axes[0]
+    pad = pad_flights[CURIOSITY_ON].pad
+    assert axes.get_xlim()[0] < pad[0] < axes.get_xlim()[1]
+    assert axes.get_ylim()[0] < pad[1] < axes.get_ylim()[1]
+
+
+def test_the_pad_plot_refuses_no_flights():
+    with pytest.raises(ValueError, match="at least one flight"):
+        plot_pad({})
