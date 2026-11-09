@@ -1,160 +1,466 @@
-# Build a curious rocket · build spec v2, on cpomdp 0.5.1
+# Build a curious rocket · build spec v3: curiosity that steers, on cpomdp 0.5.1
 
-Supersedes `aii_symposium_build_plan.md` (2026-09-14). Written 2026-10-16 against `main`, re-verified 2026-10-17 against `cpomdp==0.5.0` installed from PyPI: every signature in section 3 was read with `inspect` and every number in section 4 was re-measured. Where the two disagree, this one wins. Moved to `cpomdp==0.5.1` on 2026-10-31, where every measured-claims test passes unchanged.
+Written 2026-11-09 against `main` at 52b0e6f (cpomdp-workshop 1.0.0), revised the same evening after a review pass (§2.1 and the C0 gate came out of it). It supersedes v2 wherever the two disagree, and it lifts v2's freeze of 9 Nov for this change only. Every number in section 3 was measured on 9 Nov, most of them on prototypes outside this repo. Treat them as targets: re-measure each one on the real code, then pin it in `tests/test_measured_claims.py` before any prose quotes it. The prototype scripts are in `v3_prototypes.zip` beside this file. They run against `src/` on the pin (`PYTHONPATH=src:.`), and they're the first thing to diff against when a number moves.
 
-Sources for the pedagogy: Software Carpentry's lessons-learned paper, fast.ai's teaching philosophy, the Django Girls organiser manual, Wilson's lesson-design tips, the Carpentries instructor training, SciPy's and NeurIPS's tutorial calls. Sources for the API: the 0.5.0 section of `CHANGELOG.md`, `README.md`, `docs/api/agent.md`, all on `main`.
-
-Dates. Symposium 12–14 Nov 2026. Freeze 2026-11-09. Today 2026-10-16.
+Step 0 of the build: move the current `BUILD_PLAN.md` to `docs/build_plan_v2.md` and commit this file as `BUILD_PLAN.md`. Sections of v2 that this file doesn't restate still hold, in particular v2 §0 (what the evidence says) and §9 (delivery).
 
 ---
 
-## 0. What the evidence says, and what each point changes here
+## 0. Why this change
 
-| What worked, and where it was measured | What it changes in this build |
-| --- | --- |
-| Watching code emerge beats slides. Software Carpentry, 400+ workshops, 12,000 learners: "watching code emerge on the screen is much more convincing than looking at pre-made slides", and learners rated seeing instructors' mistakes and fixes highest. | DanBoringName still writes no code live. One reveal per session opens from a real error (papercut 1's `TypeError`), read aloud and fixed. A `symptoms` cell ships the top five errors with their fixes. |
-| The whole game first. fast.ai: a working result "within the first 30 minutes", then dig down. David Perkins's "elementitis" is what loses people. | Cell 2 is `workshop.preview()`: the finished three-rocket plot with the asteroid, rendered from the package in under a minute, before anyone builds anything. The session then rebuilds that picture in three steps. |
-| Setup is the first failure. Django Girls runs an "installation party" the evening before and says attendees' machines being ready is the most important thing. Carpentries sends setup days ahead and opens early. | Colab link, the question form and the local route on the set-up slide at 17:00 UTC. A 30-minute drop-in on the cpomdp Discord channel the evening before. The uv README a week ahead. Zoom opens 15 minutes early for triage. |
-| Attention has a ceiling. Carpentry's week-long format failed because "by the last two days, attendees' brains are full". Its two-day format with ~50% hands-on is what scaled. SciPy asks for "at least 50% of the time for hands-on exercises". | Two hours: 65 minutes of talk, 45 minutes of code in three 15-minute builds, and 10 minutes left open at the end, every part a whole number of 5 minutes. No scheduled break. The closing section on why cpomdp matters runs 10 minutes. |
-| Formative checks every 10–15 minutes, from every learner, acted on at once. Wilson 2019. Carpentry's red/green sticky notes. | One diagnostic multiple-choice poll at each task boundary, 60 s, wrong answers targeting real misconceptions. Each task closes with "paste one number in chat" (`spread`, your `k`, `max \|difference\|`), so progress is visible without anyone composing a sentence. Zoom ✅/✋ for the quiet signal. |
-| Helpers at 1:8, coaches at 1:3 for novices. Carpentry aims for "at least one helper for every eight learners". Django Girls recommends 3:1 attendee to coach. | Two presenters cover sixteen. Above that, recruit one helper per eight from the Discord channel, briefed on the symptoms cell only, answering in chat. Above forty, the reference cell carries the overflow and the notebook says so. |
-| Faded examples and scaffolds, with the reference path legitimate. Wilson's worked-example fading. Carpentries' "the reference cell is not failure". | `arg = ...` scaffolds, two code hints and the reference cell collapsed for each learner to open when they like, loud checkpoint. |
-| Pre-assessment sorts the room. Carpentry streams learners by a pre-workshop questionnaire. | Not adopted. Registration asks no questions: a questionnaire is invasive and the workshop does not need one. The task-1 scaffold keeps the gloss lines it has. |
-| Materials outlive the session. NeurIPS wants notebooks that stay useful. Carpentry's MOOC and video attempts failed on maintenance cost. | The notebook is built from the package by a script, runs from the recording because its hints are in the notebook, and the package is on PyPI. No videos. |
-| Anonymous channels get the questions the chat does not. Carpentry's minute cards. The virtual-course rule set's living Q&A document. | One anonymous form linked from the notebook header and every task slide. The closing slide invites questions in the chat or out loud. |
+**Task 2's "curious" rocket isn't curious.** At preference precision Λ = I, the epistemic term never changes a move. Flying the same rocket with the epistemic term removed changes 0 of 36 moves at k = 0.08 and k = 0.4, and 1 of 36 at k = 0.2 (seed 3, compass moves).
+
+**The route bends because R(x) is in the pragmatic term.** cpomdp's EFE (`cpomdp/efe.py`):
+
+```text
+μ⁺ = Aμ + Ba          Σ⁺ = AΣAᵀ + Q
+o⁺ = Cμ⁺              S  = CΣ⁺Cᵀ + R(μ⁺)
+pragmatic = ½(o⁺ − o*)ᵀΛ(o⁺ − o*) + ½tr(ΛS)
+epistemic = ½(ln det S − ln det R(μ⁺))
+G = pragmatic − epistemic
+```
+
+For the rocket (A = B = C = I, Λ = λI, R = r(x)I, Σ⁺ = σ²I):
+
+```text
+pragmatic(a) = ½λ|μ + a − o*|²  +  λ·r(μ + a)  +  ½λ·tr(Σ + Q)
+                 distance           noise          same for every move
+epistemic(a) = ln(1 + σ²/r(μ + a))
+```
+
+The noise term is linear in r and scales with λ. The epistemic term is logarithmic in r, bounded by σ², and ignores λ. At λ = 1 the distance and noise terms drown the epistemic one. Today's slide 13 ("stops short") is the noise term on its own: inside the beacon's reach, distance plus noise is smallest at `x* = (o* + 2k·b)/(1 + 2k)`, whatever λ is.
+
+**The blackout hides curiosity in Task 3.** With the blackout in, curiosity on and off fly within 0.38 of each other (seed 3) at every λ tried, and the rock collision counts match within two.
+
+**The fix.**
+
+1. Lower the curious rocket's preference precision to λ = 0.1, the knob that sets the balance between pragmatic and epistemic value.
+2. Give the workshop a curiosity switch, so every curious flight can be shown next to the same rocket with curiosity off.
+3. Task 3 becomes "Find the pad": the pad's position is a latent the rocket has to learn, and curiosity decides whether it lands.
 
 ## 1. Standing rules
 
-- Repo `inferogenesis/cpomdp-workshop`, its own pin, its own CI. Nothing here edits cpomdp src. A papercut found while building goes to a cpomdp issue and is worked around in this repo on the pin.
-- Pin `cpomdp==0.5.1` from PyPI (published 2026-10-31, `warrantlib` 0.3.0 with it). 0.5.1 is the bug-fix release on 0.5.0 and changes no number. Its typing fix let me drop the cast that passed each sensor as an `ObservationModel`. One constant, `WORKSHOP_CPOMDP_VERSION`, read by `pyproject.toml`, cell 1 and the tests. No SHA pinning.
-- Tests first. Every value the deck quotes is asserted before the cell that prints it exists. No number appears in notebook prose unless a check prints it.
-- Do not guess the API. Field names, constructor forms and report fields changed in 0.5.0 and section 3 lists what changed. Read `docs/api/` and the installed package before writing a line that touches cpomdp. The build must not produce papercut 12.
-- `cpomdp._lab` is private (ADR-069). The self-guided p\* cell imports from it, says so in its first line, and is the only place that does.
-- Prose in the notebook, README and hints follows the repo `CLAUDE.md` prose rules. Hints are code, never prose.
-- The deck is generated by `scripts/build_deck.py` and never edited by hand. Section 8 describes it. After a change, render it in PowerPoint or LibreOffice and look at every slide that changed.
+- Nothing here edits cpomdp src. The pin stays `cpomdp==0.5.1`. Gaps go into the issue drafts in §10.
+- The release is cpomdp-workshop **1.1.0** (new features). The dry run uses `1.1.0rc1` from PyPI. Cell 1, the setup slide, the README and `pyproject.toml` move together.
+- Tests first. Each number goes in `test_measured_claims.py` before the notebook, deck or notes quote it.
+- The deck is generated by `scripts/build_deck.py` and never edited by hand. After a change, render it and look at every slide that changed.
+- Work on a branch. Nothing merges to `main` until the gates in §9 pass, and nothing merges during the session.
+- Prose follows the repo `CLAUDE.md` rules.
+- **Ask Dan** at the checkpoints marked in §9. Don't decide those yourself.
 
-## 2. Repo layout
+## 2. What a participant learns
 
-Unchanged from v1 except the pin and one new module.
+| Part | Builds | Sees | Learns |
+| --- | --- | --- | --- |
+| Task 1, unchanged | Kalman filter and LQR on a fixed sensor | A straight route, spread = 0.000000 nats | With fixed noise no move teaches more than another, so a linear-Gaussian rocket has no reason to be curious |
+| Task 2 | R(x) beacon sensor, EFE planner, λ = 0.1 | The same rocket flown with curiosity on and off. On detours to the beacon and still lands. Raising k, the curious rocket stops landing while curiosity off still lands | R(x) restores epistemic value. The on/off pair proves the detour is curiosity. Precision sets the balance. A route can look curious and not be (Task 2 bonus 1) |
+| Task 3 | A 4-D rocket that doesn't know where the pad is | Curiosity on visits the beacon, learns the pad and lands. Curiosity off lands near its guess and misses | Curiosity pays off when what it learns changes where you go. Getting the two terms to balance takes tuning, which is what cpomdp's factor-graph and horizon work is for |
+| Why it matters | Two checks: two backends agree, and the planner scored every plan | | What the numbers do and don't establish |
 
-```text
-src/cpomdp_workshop/
-  __init__.py        # WORKSHOP_CPOMDP_PIN (SHA or version), hello(), preview()
-  world.py  planner.py  build.py  sim.py  check.py  plot.py
-  checkpoints.py  solutions.py  selfguided.py
-  symptoms.py        # the five errors the room will hit, each with its fix, runnable
-notebooks/build_a_curious_rocket.ipynb   # generated, never hand-edited
-delivery/  deck/  submission/  assets/  tests/  .github/workflows/ci.yml
+The deck says the balancing act out loud. A rocket can bend towards the beacon for a pragmatic reason and look curious. Only the on/off comparison tells which term chose the move.
+
+### 2.1 What the deck must say plainly
+
+These are design choices, and every one of them is honest only if the room hears it as a choice. Each has a home in §6.2.
+
+- **λ = 0.1 was chosen so the two terms can compete.** It's also the only knob. EFE carries no separate weight on the epistemic term, so the preference precision is the exchange rate between information and the pull of the pad, and lowering it is the same as weighting information up. Slide 13 says both halves of that.
+- **Task 3's world is built so the information the rocket needs lives away from where it wants to go.** The radar is deliberately coarse, the broadcast is deliberately local, and the rocket's guess is right on average because the true pad is drawn from its prior. Slide 15 and the brief say "we built a world where…", never "it turns out that…".
+- **Task 3's goal sits on the radar so R(x) can't enter the pragmatic term.** Slide 13 teaches that reading noise bends routes through the pragmatic score. Slide 15's notes close the loop: the goal is on a reading whose noise doesn't vary, on purpose, so the pragmatic term can't do the beacon's work here.
+- **The leak is a workaround for a cpomdp limit.** The preference is over readings because cpomdp 0.5.1 refuses a state goal under R(x). Slide 13's notes say so, and §10 files the issue.
+- **Every epistemic number is first-order.** cpomdp reads R at the predicted mean and drops the curvature term. Nothing in the deck calls an epistemic value exact. Slide 10 says "expected information gain" once, so nobody thinks curiosity is a drive added to the equation.
+- **The curiosity switch is a workshop helper, not a cpomdp feature.** The notebook and the notes say which.
+- **Horizons and factor graphs are a direction, not a result.** One measured point (horizon 2 lands 10/10 against 9/10) and no factor-graph evidence at all. Slide 18 names the p* programme as where the evidence would come from.
+
+## 3. Reference numbers, measured 9 Nov
+
+Seeds 0–9 unless stated. A rocket "lands" if it ends within 0.5 of the (true) pad. "Gap" is the largest distance between the curiosity-on and curiosity-off routes at the same step.
+
+**Seed 3 is unverified for most rows.** The notebook and every figure use seed 3, and only a few settings were checked on it. §9 gate C0 covers this: at every k, λ and spread a slide or a hint quotes, seed 3 must behave like the 10-seed median (land where the median lands, miss where it misses, part from the off route where the median parts). Where it doesn't, change the reference seed, say which seed on the slide, and keep the 10-seed counts beside it. Never pick a seed because it looks best.
+
+**Two seed-3 numbers in v2 were measured and still hold:** k = 0.08 at λ = 0.1 (curiosity changes 6 of 36 moves) and the first-decision table below.
+
+### 3.1 Task 2, beacon world (`beacon_sensor`, cap 4)
+
+| k | λ | Curiosity moves the route ≥ 1 | Median gap | On lands | Off lands |
+| --- | --- | --- | --- | --- | --- |
+| 0.08 | 0.1 | 10/10 | 1.53 | 10/10 | 10/10 |
+| 0.08 | 0.3 | 1/10 | 0.38 | 10/10 | 10/10 |
+| 0.08 | 1 | 0/10 | 0.00 | 10/10 | 10/10 |
+| 0.08 | 3 | 0/10 | 0.00 | 10/10 | 10/10 |
+| 0.2 | 0.1 | 10/10 | 2.50 | 10/10 | 9/10 |
+| 0.2 | 0.3 | 8/10 | 1.12 | 10/10 | 9/10 |
+| 0.2 | 1 | 0/10 | 0.38 | 9/10 | 9/10 |
+| 0.2 | 3 | 0/10 | 0.00 | 9/10 | 9/10 |
+
+λ = 0.1 by k: on lands 10/10 at k = 0.2, 8/10 at 0.3 and 0/10 at 0.4, where it stops a median 1.67 short (median end (3.56, 0.85)). Off lands 10/10 at 0.4. At k = 0.6 both stop short: on by 2.08, off by 1.49.
+
+Seed 3, k = 0.08, λ = 0.1: curiosity changes 6 of 36 moves, the gap peaks at 1.53, on passes 0.09 from the beacon and ends 0.23 from the pad, off ends 0.29 from it.
+
+"Looks curious, isn't": λ = 1, k = 0.4, seed 3. Both rockets bend to within 0.66 of the beacon, with curiosity on or off, and 0 of 36 moves differ. Don't round this to "never" across k: at λ = 1 and k = 0.2, seed 3 differs on 1 of 36 moves and the 10-seed median gap is 0.38. Quote the counts.
+
+**Where the two terms stand at λ = 0.1 as k rises.** The curious rocket lands at k ≤ 0.2, lands 8/10 at 0.3 and 0/10 at 0.4, where it holds back a median 1.67 short. The incurious rocket lands at 0.4 and both stop short at 0.6. So the dial has two ends: at λ = 1 the controller wins and curiosity changes nothing, and at λ = 0.1 with k = 0.4 information wins and the rocket won't land. Slides 13 and 14 present these as the two ends of one dial.
+
+**The x\* formula is a static minimiser.** It ignores the cap, the one-step greedy planner and the belief's spread, and it happens to agree with the k = 0.6 flights (1.56 against 1.49 short). Present it as "roughly where the two pragmatic terms alone would settle", not as a prediction.
+
+First decision of the seed-3 flight, k = 0.4, belief mean (1.63, 0.40), sd 1.08. The closed form in §0 matches cpomdp's pragmatic term to three decimals on all nine moves.
+
+| | Distance | Noise λ·r | Epistemic | G |
+| --- | --- | --- | --- | --- |
+| λ = 1, east | 4.207 | 0.508 | 1.194 | 4.690, chosen |
+| λ = 1, north-east | 4.841 | 0.327 | 1.521 | 4.816 |
+| λ = 0.1, east | 0.421 | 0.051 | 1.194 | −0.606 |
+| λ = 0.1, north-east | 0.484 | 0.033 | 1.521 | −0.888, chosen |
+
+G includes ½λ·tr(Σ⁺): 1.169 at λ = 1, 0.117 at λ = 0.1.
+
+Task 2 bonus 2 candidates, k = 0.08, λ = 0.1:
+
+| Change | Gap ≥ 1 | Median gap | On lands | Off lands | On nearest the beacon |
+| --- | --- | --- | --- | --- | --- |
+| None | 10/10 | 1.53 | 10/10 | 10/10 | 0.31 |
+| `beacon_cap` 1 | 0/10 | 0.00 | 10/10 | 10/10 | 1.40 |
+| `beacon_cap` 9 | 10/10 | 1.53 | 1/10 | 5/10 | 0.31 |
+| `dynamics_noise` 1e-2 | 10/10 | 2.90 | 0/10 | 8/10 | 0.15 |
+| `dynamics_noise` 1e-4 | 10/10 | 1.49 | 10/10 | 10/10 | 0.31 |
+| prior cov 25 | 10/10 | 1.53 | 10/10 | 10/10 | 0.31 |
+| prior cov 0.25 | 10/10 | 1.49 | 10/10 | 10/10 | 0.34 |
+
+### 3.2 Task 3, the hidden pad (prototype)
+
+The prototype model, which §4.4 turns into package code:
+
+- State `s = (x, p)`: the rocket's position and the pad's position, 4-D.
+- Dynamics `A = I₄`, `Q = diag(1e-3, 1e-3, 1e-9, 1e-9)`. `B` stacks `I₂` over a 2×2 zero block, so a move shifts the rocket and leaves the pad alone.
+- Three readings, `C` 6×4:
+  - own position `x`, noise 0.05·I
+  - a coarse radar giving `p − x`, noise 25·I (σ = 5)
+  - the beacon's broadcast of `p`, noise `(0.05 + g·|x − beacon|²)·I`, with g = 1 and **no cap**
+- Prior mean `(0, 0, 5, 0)`, cov `diag(0.25, 0.25, s², s²)`, with s = 1.5 the rocket's pad spread.
+- Preference: target 0 on all six readings, precision `blockdiag(1e-9·I, λ·I, 1e-9·I)`, λ = 0.1. The goal sits on the radar, whose noise is fixed, so no R(x) enters the pragmatic term.
+- World: per seed, `rng = RandomState(seed)`, true pad `= (5, 0) + 1.5·rng.randn(2)`, then each step's six readings `C·s + chol(R(s))·rng.randn(6)` from the same stream. 36 steps, compass moves.
+
+| Setting | On lands | On median miss | Off lands | Off median miss | On visits the beacon |
+| --- | --- | --- | --- | --- | --- |
+| Reference (s = 1.5, g = 1, λ = 0.1) | 9/10 | 0.25 | 3/10 | 0.61 | yes, median 0.09 |
+| s = 0.1, overconfident | 1/10 | 1.42 | 1/10 | 1.42 | no, 1.40 |
+| s = 0.5 | 7/10 | 0.30 | 3/10 | 0.70 | yes, 0.28 |
+| s = 3.0 | 10/10 | 0.25 | 5/10 | 0.55 | yes, 0.09 |
+| g = 0.1, broadcast carries far | 10/10 | 0.18 | 10/10 | 0.17 | yes, 0.34 |
+| g = 0.3 | 10/10 | 0.19 | 8/10 | 0.24 | yes, 0.09 |
+| g = 3 | 8/10 | 0.27 | 4/10 | 0.58 | yes, 0.22 |
+| Broadcast capped like Task 2 (k = 0.08, cap 4) | 10/10 | 0.25 | 10/10 | 0.14 | yes, 0.34 |
+| λ = 0.3 | 7/10 | 0.39 | 3/10 | 0.61 | yes, 0.28 |
+| λ = 1 | 3/10 | 0.61 | 3/10 | 0.61 | no, 1.40 |
+| Two moves ahead (81 plans) | 10/10 | 0.22 | 3/10 | 0.61 | on yes (0.17), off no (1.40) |
+
+**The landing gap is modest.** Off lands 3/10 with a median miss of 0.61. On lands 9/10 with a median miss of 0.25. The detour is large and reads on a plot. The 0.36-unit landing gap may not. §9 gate C2 has a sub-check for it, and the honest fix if it fails is to print both misses in large type beside the plot (`plot_pad` carries a readout panel), never to coarsen the radar until the gap looks better.
+
+Two failures found on the way, so don't reintroduce them:
+
+- **The goal on the broadcast reading** leaks R(x) into the pragmatic term, and the rocket parks at (3.8, 0) with the pad at (5, −1.5).
+- **A capped broadcast** is clear from everywhere, and nobody detours.
+
+### 3.3 Timing
+
+- A 36-step flight with cpomdp's compass planner takes 0.4 s, in the 2-D world and the 4-D world alike.
+- Today's whole Task 3 cell takes 1.5 s.
+
+## 4. Package, in build order
+
+### 4.1 `planner.py`: the curiosity switch
+
+`compass_planner(model, *, step=0.5, horizon=1, search=EnumeratedEFESearch, curiosity=True)`.
+
+- **`curiosity=True`** returns what it returns today.
+- **`curiosity=False`** returns a selector over the same compass plan set that ranks plans by the summed pragmatic term alone. Score with `policy_efe_trace` (through `_seams.py`) and break ties exactly as the EFE search does.
+- **Two tests guard the ablation's honesty.** Build the selector with an internal epistemic weight of 1 and it must reproduce `compass_planner`'s flight move for move on seeds 0–9 at k ∈ {0.08, 0.4}. Use it at horizon 1 and 2.
+
+The prototype selector, which matched the compass planner exactly at weight 1:
+
+```python
+def select(self, belief, preference):
+    p, e = jax.vmap(
+        lambda a: split(expected_free_energy(model, belief, a, preference))
+    )(MOVES)
+    return MOVES[int(np.argmin(np.asarray(p) - self.w * np.asarray(e)))]
 ```
 
-## 3. API delta, v1 plan → 0.5.0
+### 4.2 `build.py` and `world.py`: λ = 0.1
 
-Every row was wrong or missing in the September plan. The right-hand column is what the package and notebook use.
+- **A constant:** `CURIOUS_PRECISION = 0.1`, with a docstring that says why.
+- **The reading preference:** `pad_preference()` uses it.
+- **`curious_rocket`:** `curious_rocket(k, sensor=reference_sensor, *, horizon=1, curiosity=True)`.
+- **Checkpoints:** `checkpoints.after_session_2` builds both rockets.
 
-| Topic | September plan said | 0.5.0 |
+### 4.3 `sim.py`
+
+`fly` is unchanged. Add `fly_pad(agent, sensor, params, *, steps=36, seed=3) -> PadFlight`, following the world in §3.2. `PadFlight` holds `path`, `means` (4-D), `covs` (4×4), `pad` (the true pad), and `.miss` (the final distance to the true pad).
+
+### 4.4 The hidden-pad world (`world.py`, `build.py`)
+
+Constants:
+
+- `PAD_GUESS = (5.0, 0.0)`
+- `PAD_SPREAD_WORLD = 1.5`
+- `BROADCAST_GAIN = 1.0`
+- `RADAR_NOISE = 25.0`
+- `OWN_NOISE = 0.05`
+- `PAD_READINGS`, the 6×4 `C`
+
+Functions:
+
+- `pad_params()` and `pad_sensor(s, params)`. The sensor takes a learner's broadcast function and wraps it in the six-reading block noise.
+- `pad_model(broadcast, params, pad_spread)`.
+- `pad_preference()`, on the radar at `CURIOUS_PRECISION`.
+
+The learner never touches `C` or the block noise.
+
+### 4.5 `check.py`
+
+- **Broadcast check:** `check_my_broadcast(fn, params)`, graded like `check_my_sensor`.
+- **Task 3 printout:** both rockets' miss distances, and the line to paste.
+
+### 4.6 `plot.py`
+
+- **Task 2 pair:** `plot_flights` draws Task 2's pair as "curiosity on" (amber) and "curiosity off" (the second series colour). Dashed ink stays reserved for the 1960 rocket.
+- **`plot_pad(flights, broadcast, params)`:**
+  - the broadcast field
+  - launch, the beacon and the guessed pad with its 1σ circle
+  - the true pad
+  - both routes
+  - the curious rocket's final pad-belief ellipse
+  - a readout panel beside the map: each rocket's final miss, in type large enough to read on a shared screen, because the landing gap is small (§3.2)
+- **`preview()`:** draws Task 3's picture (§7.1). Retire `tile_task3`, or redraw it on the hidden-pad world. Drop it if nothing reads it.
+
+### 4.7 `solutions.py`, `selfguided.py`, `symptoms.py`
+
+- **`solutions.py`** gets the bonus cells' helpers (§5).
+- **`selfguided.py`** gets "Two moves ahead" on the hidden-pad world and "Whose detour is it?" (§5.4). The two-node refusal stays.
+- **`symptoms.py`:** symptom 5 (a slider moved without a re-run) goes, since Task 3 loses its slider. Replace it with the commonest error the hidden-pad cell produces in your own runs.
+
+### 4.8 `__init__.py`
+
+Export the new names. `tests/test_api_contract.py` asserts them, plus `curiosity=False`.
+
+## 5. Notebook (`scripts/lesson.py`, `delivery/hints_chat.txt`)
+
+The rhythm doesn't change: two `...` lines per attempt, two hints with nudges, the reference cell, two bonuses and a checkpoint. Then the poll. The texts below are drafts. Keep their facts, fix their wording to the repo prose rules, and replace every number with the measured one.
+
+### 5.1 Task 2
+
+**Brief.** Add one paragraph that introduces λ: "The rocket now prefers to read 'on the pad' only loosely (precision 0.1), so the information a move offers can compete with the pull of the pad." Add one sentence on the on/off pair.
+
+**Attempt.** The two `...` lines stay: `beacon_gain` and `pull`. The comment on `beacon_gain` becomes "type 0.08 first, then raise it until the curious rocket stops landing". Pre-written below them:
+
+```python
+preference = Preference(
+    PAD, precision=0.1 * jnp.eye(2)
+)  # λ: loose enough for curiosity to steer
+curious = Agent(curious_model, preference, selector=compass_planner(curious_model))
+incurious = Agent(
+    curious_model, preference, selector=compass_planner(curious_model, curiosity=False)
+)
+flights = {"curiosity on": fly(curious), "curiosity off": fly(incurious)}
+print(
+    f"your k = {beacon_gain}"
+)  # paste the k where your curious rocket stopped landing
+plot_flights(flights, my_sensor, params)
+```
+
+If cpomdp refuses two agents sharing one model, build the model twice.
+
+**Hints.** Nudge 1 says the curious rocket's path climbs towards the beacon as k rises, and that past some k it stops short while curiosity off still lands. Hint 1 becomes `beacon_gain = 0.4`, the value where they part. Nudge 2 and hint 2 are unchanged.
+
+**Bonus 1, "Turn the preference up"** (replaces "How much does the goal matter?"). The code cell flies on and off at precisions 0.1, 0.3, 1 and 3, with k = 0.08 on seed 3, and prints the gap and the landings. The challenge widens it to k = 0.2 and `range(10)`. The answer carries the §3.1 table and both of these points:
+
+- **Precision 1 is where v2's Task 2 sat.** The spread was above zero and curiosity changed no move.
+- **A route can look curious and not be.** At precision 1 and k = 0.4, both rockets bend to within 0.66 of the beacon, curiosity on or off. The bend is the noise term in the pragmatic score.
+
+**Bonus 2, "What does curiosity need?"** (replaces "What else shapes the route?"). It has three one-line edits, each tied to ln(1 + σ²/r):
+
+- `params["beacon_cap"] = 1.0`: flat noise along the route, so nothing to choose between.
+- `dynamics_noise=1e-2 * jnp.eye(2)`: the rocket never gets sure where it is, and curiosity keeps it from landing.
+- `cov=25 * jnp.eye(2)`: no change, because the first reading resets it and the beacon's field doesn't reach the launch site.
+
+**Ask Dan (C1)** before finishing this bonus. He wants to see it play out. If it's messy, the alternative is a small-horizons bonus ("What changes when the rocket looks further ahead?", horizons 1–3 through `ChunkedEFESearch`). Measure both and show him both.
+
+**Poll 2** (draft):
+
+> At k = 0.4 the curious rocket stops short of the pad, and the same rocket with curiosity off lands. Why?
+>
+> 1. Its sensor is worse than the incurious rocket's.
+> 2. Moves towards the pad lead away from the beacon, so each one teaches less. With a loose preference, the lost information outweighs the pull of the pad.
+> 3. It can't see the pad from near the beacon.
+> 4. It runs out of moves.
+>
+> Answer: 2. Both rockets share one model and one sensor, so 1 is out. Neither runs out of moves in 36 steps.
+
+### 5.2 Task 3, "Find the pad"
+
+**Brief.** The pad's position is now uncertain. The rocket starts with a guess, a coarse radar points it roughly at the pad, and the beacon broadcasts the pad's exact position, clearly only nearby. Two rockets fly the same model, one with curiosity and one without. Cite the Active Inference book's generative model/process distinction (Figure 2.2) where the v2 brief cited it for the rock.
+
+The brief says, in these words or close to them: "We built this world so that the information the rocket needs is somewhere other than where it wants to go. The radar is coarse on purpose. The broadcast fades on purpose. The rocket's guess is right on average, because we draw the true pad from its own prior." And one more sentence: "The rocket's goal is a radar reading, whose noise doesn't change with position, so this time the noise can't pull the route the way it did in Task 2."
+
+**Attempt** (the two `...` lines are `fade` and `pad_spread`):
+
+```python
+params = pad_params()
+# params["beacon"], params["broadcast_gain"] (how fast the broadcast fades), params["noise_floor"]
+
+
+def my_broadcast(
+    x, params
+):  # noise on the beacon's broadcast of the pad's position, heard at x
+    distance_squared = jnp.sum((x - params["beacon"]) ** 2)
+    fade = ...  # broadcast_gain times distance_squared, with no cap this time
+    return params["noise_floor"] + fade
+
+
+check_my_broadcast(my_broadcast, params)
+pad_spread = ...  # how unsure the rocket is about where the pad is: type 1.5
+
+model = pad_model(my_broadcast, params, pad_spread)
+curious = Agent(model, pad_preference(), selector=compass_planner(model))
+incurious = Agent(
+    model, pad_preference(), selector=compass_planner(model, curiosity=False)
+)
+flights = {"curiosity on": fly_pad(curious), "curiosity off": fly_pad(incurious)}
+plot_pad(flights, my_broadcast, params)  # paste your curious rocket's miss in chat
+```
+
+**Hints.**
+
+- Nudge 1 explains why there's no cap this time: the broadcast has to fade, or it can be heard from anywhere.
+- Hint 1: `fade = params["broadcast_gain"] * distance_squared`.
+- Nudge 2 says the spread is the rocket's own uncertainty about the pad.
+- Hint 2: `pad_spread = 1.5`.
+
+**Chat number** (draft, Dan to confirm): the curious rocket's miss on seed 3.
+
+**Bonus 1, "How sure is the rocket?"** The code cell flies both rockets on 10 seeds at spreads 0.1, 1.5 and 3.0 (§3.2). The answer: an overconfident rocket never checks the beacon, because it believes there's nothing to learn, so both miss by a median 1.42. Say plainly that the balance between the two terms is sensitive, and that the deck's tuning slide (§6) picks this up.
+
+**Bonus 2, "When is curiosity worth it?"** Two knobs, each one line. Broadcast gain 0.1, 1 and the Task 2-style capped field, as measured in §3.2. Then the radar's noise: the default 25, and a sharp radar at 1. Measure the radar rows before quoting them. The expected answer is that with a radar that finds the pad on its own, both rockets land and the detour buys nothing. The answer says why the radar is coarse by default: this exercise is about whether a rocket goes to get information that's only available somewhere else. Make the radar good and the question disappears. "Why not use a better radar?" is the first thing a sharp attendee asks, and this bonus is the answer.
+
+**Poll 3** (draft, Dan to confirm):
+
+> The incurious rocket missed the pad and the curious one found it. Why?
+>
+> 1. The incurious rocket's radar is worse.
+> 2. It never went where the pad's position can be heard clearly, so it landed on its guess, corrected only by a coarse radar.
+> 3. It looked too few moves ahead.
+> 4. Its preference for the pad was too strong.
+>
+> Answer: 2. Both share one model and one radar, so 1 is out. 3 is the self-guided "Two moves ahead": looking two moves ahead, the incurious rocket still never checks the beacon. 4 is backwards: at precision 1, the curious rocket stops checking too.
+
+**Checkpoint 3** restores the hidden-pad names (`params`, `my_broadcast`, `pad_spread`, `model`, both rockets, `flights`) on top of checkpoint 2.
+
+### 5.3 Coda
+
+The cell runs both checks:
+
+```python
+print(
+    check_backends(KalmanBackend(model_with()), one_node(model_with()))
+)  # the two methods agree
+print(curious.selector.certificate)
+print(workshop.axis_certificate())
+```
+
+`curious` here is Task 3's curious rocket. Confirm its certificate prints the compass set. If it doesn't, use checkpoint 2's rocket.
+
+### 5.4 Self-guided
+
+1. **"Two moves ahead"** moves to the hidden-pad world, with both rockets at horizon 2. Curious lands 10/10, incurious still never visits the beacon (3/10).
+2. **"A model one filter cannot hold"** is unchanged.
+3. **New, "Whose detour is it?"** This runs in the v2 blackout world (`reference_sensor`) at λ = 0.1. Fly on and off, then mark each step where removing the epistemic term changes the move (`efe_split`, plus a small `decided_by` helper). The blackout's noise-avoidance lesson lives here.
+
+## 6. Figures and deck
+
+### 6.1 Figures (`scripts/render_assets.py`)
+
+| File | What |
+| --- | --- |
+| `route_2_beacon.png` | Redraw: Task 2 on/off, k = 0.08, λ = 0.1, seed 3 |
+| `route_2_balance.png` | New: k = 0.4, seed 3, two panels. λ = 1 (on and off coincide and still bend) beside λ = 0.1 (they split) |
+| `route_2_too_curious.png` | New: k = 0.4, λ = 0.1, seed 3, on stops short and off lands |
+| `route_3_pad.png` | New: Task 3 on/off, seed 3, with the guess, the true pad and the belief ellipse. Also the preview |
+| `route_3_blackout.png`, `route_4_rock.png`, `fig_world_rock.png` | Keep only what the self-guided cell or a slide still reads, and drop the rest |
+
+### 6.2 Deck, 25 slides
+
+| # | Slide | Change |
 | --- | --- | --- |
-| Model fields | `dynamics=`, `control=`, `sensor_model=`, `sensor_noise=`, `observation=` | `dynamics_matrix=`, `control_matrix=`, `observation_matrix=`, `dynamics_noise=`, `observation_noise=`, `observation_model=CallableSensor(...)`. Beside a sensor, `observation_matrix` and `observation_noise` are optional and read from the sensor. A value passed beside the sensor must equal the sensor's at `prior.mean` or construction raises (ADR-064, ADR-071). |
-| Papercut 1 | sensor passed into the noise slot gives a raw `TypeError` | Fixed. `observation_noise=CallableSensor(...)` now raises `TypeError: observation_noise takes a matrix, got CallableSensor, an ObservationModel. Pass it as observation_model.` The regression test asserts that message. |
-| The 1960 rocket | `Agent(model, StateGoal(pad))` | `StateGoal(pad, precision=I, effort=100·I)`. With the default effort the LQR gain is 0.618 and the rocket crosses the rock in one step. At `effort = 100·I` the gain is 0.0951 and the impact lands on step 6 for every seed 0–9. The effort is the thruster cost and the brief says so in one line. `A · target = target` holds with `A = I`. |
-| The curious rocket | `Agent(model, ObservationGoal(...), selector=compass_planner(model))` | A goal beside `selector=` is refused (ADR-080). Pass `Agent(model, Preference(pad, precision=I), selector=compass_planner(model))`. The `Preference` is read in observation space by the search drivers. |
-| Compass planner | `RecedingHorizonSelector(EnumeratedEfeSearch(model, actions, horizon=1))` | The classes are `EnumeratedEFESearch`, `ChunkedEFESearch`, `ExhaustiveEFESearch` and `FFGEFESelector`, upper-case EFE. The changelog prose spells them otherwise and the code wins. `EnumeratedEFESearch(model, action_set, horizon=1)`, `RecedingHorizonSelector(search)`, `search.evaluate(belief, preference)`. Measured: 36 steps at nine policies in 0.4 s, three rockets in about 1.5 s. The progress bar goes. Horizon 2 runs six steps in 0.8 s and `ChunkedEFESearch` at horizon 3 the same, so the trapped-agent-escapes bonus is a live beat. |
-| Backend swap | `CouplingGraphBackend(one_node(model))` passed to `Agent(..., backend=)` | `backend=` is gone. `CouplingGraph(dims=[2], couplings=[], observation_models={0: FixedSensor(I, observation_noise=0.05·I)})`, then `CouplingGraphBackend(graph, [GaussianTransition(I, dynamics_noise=1e-3·I)], prior=prior, control_matrix=I)`, then `Agent.from_backend(backend, goal)`. `infer_states(observation, prior, action)` on both backends. Measured agreement with `KalmanBackend` on one step: 7e-16 on mean and covariance. `infer_root(readings, prior)` and `stack_observations` exist on the graph path. |
-| Probe | `SensorReport` with `flattens`, `epistemic_varies`, `epistemic_range`, `noise_spread` | `probe_model(model, belief, actions)` → `ProbeReport` with fields `observation_noise_varies`, `observation_noise_spread`, `dynamics_noise_varies`, `dynamics_noise_spread`, `epistemic_varies`, `epistemic_range`, plus `flattens` as a property and `summary()` as a method. The deck's `spread = 0.000000 nats` is `max − min` of `epistemic_range`. The 1960 rocket measures (4.3947, 4.3947), the k = 0.08 rocket (2.4490, 2.4692). |
-| RxInfer beat | any model | Dropped. The workshop shows cpomdp, so nothing runs or prints RxInfer. The speaker notes mention it in the comparison of packages. |
-| Agent introspection | none | `print(agent)` gives `Agent(objective=StateGoal, selector=LQRSelector(controller=LQRController(gain=[[0.0951, 0.0], [0.0, 0.0951]])), backend=KalmanBackend)`. `check_agent` prints it. `agent.selector.cost_per_cycle` reads 9 at horizon 1 and 162 at horizon 2. |
-| Model mutation | checkpoints rebuilt agents by assignment | `agent.model`, `backend.model` are read-only. Checkpoints build fresh objects. |
-| Python | ≥ 3.10 | ≥ 3.11, `jax >= 0.4.36`. Installs clean on 3.13 with jax 0.11.2. Cell 1 asserts both and prints them. Check the Colab default runtime at build time. |
-| Research apparatus | `cpomdp.harness`, `cpomdp.constructors`, `cpomdp.backends.degraded` as public | All under `cpomdp._lab`, private. Self-guided cell only. |
-| Disclosure in the 0.5.0 deck | "the notebook pins 0.4.4, the last release before that line" | 0.5.0 contains src written under the post-0.4.4 regime. The caption becomes: "today's notebook pins 0.5.0. Some of its src was written by Claude Code under the review described." The Q&A answer for the release the room runs becomes "some of it". Decision D2 from v1 is closed by this spec. |
+| 1 | Title | Pill 3 becomes "3  the hidden pad" |
+| 2 | Who we are | None |
+| 3 | Two hours, three tasks | Task 3's subtitle becomes "the hidden pad". Times unchanged |
+| 4 | How we will work | None |
+| 5 | Get set up | Pin `==1.1.0` |
+| 6 | What we will build | `route_3_pad.png`. Text: by the end of Task 3 we'll have built two rockets that differ only in curiosity, and one of them finds the pad |
+| 7–9 | Task 1 | None |
+| 10 | Making information gain depend on the action | Port Dan's live edit: the bold line becomes "Most real world sensors blur with range." Notes gain a λ paragraph and the §0 equation in words. Say "expected information gain" once, with "curiosity" as the gloss for it. Keep v2's line that with R(x) the joint model is no longer fully Gaussian |
+| 11 | Task 2 · Over to you | Steps: 1 "Fill in the two lines marked ... and start with k = 0.08." 2 "Raise k until the curious rocket stops landing. Paste that k in the chat." 3 unchanged |
+| 12 | Task 2 · Discussion | New figure and reference numbers. Questions: "How did the two routes differ?" and "At what k did the curious rocket stop landing?" Poll 2 |
+| 13 | Curious, or just avoiding noise? | New. `route_2_balance.png`. Text: the pragmatic score pays for distance and noise and scales with λ. The epistemic score pays for information and doesn't. At λ = 1 the route still bends and switching curiosity off changes almost nothing: quote the measured counts (0 of 36 moves at k = 0.4, 1 of 36 at k = 0.2). Two sentences the slide carries: "We chose the precision so the two terms can compete. There is no other knob in expected free energy." Notes: the preference is over readings because cpomdp refuses a state goal under R(x), which is why noise reaches the pragmatic term at all |
+| 14 | Why does the curious rocket stop short? | Replaces v2 slide 13. `route_2_too_curious.png`. At k = 0.4 curiosity off lands and curiosity on holds back where readings are sharper. Frame 13 and 14 as the two ends of one dial: too little weight on information and it's a controller, too much and it's a tourist |
+| 15 | Task 3 · Find the pad | New brief. Three cards: the guess, the radar, the broadcast. A line under them: "We built this world so the information the rocket needs is away from where it wants to go." Amber question: "Which rocket finds the pad?" Notes: the goal is a radar reading with fixed noise, chosen on purpose so the pragmatic term can't do the beacon's work, and the radar is coarse on purpose |
+| 16 | Task 3 · Over to you | Steps: 1 "Fill in the two lines marked ... and run the cell." 2 "Paste your curious rocket's miss in the chat." 3 "Finished early? Try the bonuses." |
+| 17 | Who found the pad? | `route_3_pad.png`, both seed-3 misses in large type, and the 10-seed landings (9 vs 3) with the median misses (0.25 vs 0.61). The 10-seed counts stay on the slide whatever the reference seed shows. Poll 3 |
+| 18 | The balance takes tuning | New, from Dan's brief. The window that works: λ 0.1 steers, 0.3 partly, 1 never. Spread 0.1 never checks. A far-carrying broadcast makes curiosity pointless. Then a direction, labelled as one: cpomdp's longer horizons and factor-graph backends are where we expect this balance to get less volatile, and the p* programme is where the evidence would come from. The one measured point: looking two moves ahead, the curious rocket lands 10/10 instead of 9/10. No factor-graph evidence exists in this workshop (`one_node` shows equivalence to the Kalman filter, not stability), so the slide says "expect" and "planned", never "makes" |
+| 19 | Do the two methods agree about where the rocket is? | Moved from Task 3. Notes: "This is the first number the final cell prints." |
+| 20–23 | PROVED, What did cpomdp let us do?, What else, Research next | Text unchanged. Slide 22's maze note can point back to Task 3 |
+| 24 | Three more experiments to try in Colab | Three cards from §5.4 |
+| 25 | Any questions? | None |
 
-| Certificate text | `PROVED (finite set, \|A\|^H = 9, visited 9)` | `PROVED (set compass-9, \|A\|^H = 9^1 = 9, visited 9)`. The set's `version` string is printed, so name it `compass-9`. The coda's 78125 line takes the same form. |
-| EFESelector | 1-D only | Still 1-D. The error now names the path: `EFESelector searches a 1-D action grid (p=1); got p=2. For p>1 use EnumeratedEFESearch with a declared FiniteActionSet`. That is what papercut 3 asked for. |
+Every number on a slide comes from a measured-claims test. `tests/test_deck.py` passes on the regenerated `.pptx`.
 
-Two corrections that are not 0.5.0's doing. The earlier pymdp name map was wrong on pymdp's side: `A` is the observation likelihood, `B` the transition, `C` the preference, `D` the prior. The map is `A → observation_matrix`, `B → dynamics_matrix` with `control_matrix`, `C → StateGoal` or `Preference`, `D → prior`. And `compass_planner` is nine moves (stay plus eight compass directions at step 0.5), not `cue_maze.axis_action_set`, which gives five in 2-D.
+## 7. Tests
 
-## 4. The reference world
+- **`test_measured_claims.py`:**
+  - A seed-3 assertion beside every 10-seed assertion a slide quotes, so C0 fails in CI rather than on the day.
+  - Remove the v2 Task 3 claims (blackout clearances, rock seeds, the parameter-search bonus) unless the self-guided cell still prints them.
+  - Remove the v2 slide-13 k = 0.6 claim.
+  - Add every number §5 and §6 quote, re-measured.
+  - Assert the gate in §9 C2 as a test, so it fails loudly if a change breaks it.
+- **`test_planner.py`:** the two ablation tests in §4.1.
+- **`test_sim.py`, `test_build.py`, `test_world.py`, `test_plot.py`, `test_check.py`:** the new functions, including headless renders of `plot_pad` and `preview`.
+- **`test_notebook.py`:**
+  - The generated notebook runs under `nbclient` on the reference path.
+  - Each attempt has exactly two `...` lines.
+  - Every checkpoint restores a namespace that runs the next reference cell, the coda and the self-guided cells.
+- **`test_api_contract.py`:** `curiosity=False` and the new exports.
+- **CI:** green on the pinned job before any gate counts.
 
-Geometry, parameters, seeds and k values are unchanged from v1 section 2 except the 1960 rocket's effort, which is new. Measured on 0.5.0, seed 3: k = 0 impacts on step 6 (every seed 0–9 at `effort = 100·I`). k = 0.08 clears the rock, peaks at y = 1.71 and ends at (4.83, 0.09). k = 0.20 clears, peaks at 1.91 and ends at (5.18, 0.15). Session 2 at k = 0.4 peaks at 1.41 and ends at (5.12, 0.21). If any claim moves again, the deck follows the measurement.
+## 8. Delivery documents
 
-Launch (0, 0), pad (5, 0), beacon (2.5, 1.4), blackout (2.5, 0), rock radius 0.42 on the blackout. `R(x) = I · (R0 + k·min(‖x − beacon‖², cap) + M·exp(−‖x − blackout‖² / s))`, `R0 = 0.05`, `cap = 4`, `M = 60`, `s = 0.45`. Model: `LinearGaussianModel(I, control_matrix=I, dynamics_noise=1e-3·I, prior=Belief([0, 0], 4·I), observation_model=CallableSensor(I, R, p))`, with `observation_matrix=I, observation_noise=0.05·I` in place of the sensor for the 1960 rocket. 1960 goal `StateGoal(pad, precision=I, effort=100·I)`. Curious goal `Preference(pad, precision=I)` with `selector=RecedingHorizonSelector(EnumeratedEFESearch(model, COMPASS, horizon=1))`, `COMPASS = FiniteActionSet(stay + 8 directions at 0.5, version="compass-9")`. Observations drawn at the true state, hazard checked on the true state, T = 36, seed 3. Session 3 `k ∈ {0, 0.08, 0.20}`. Session 2 reference `k = 0.4`.
+- `delivery/hints_chat.txt`: sessions 2 and 3 as in §5.
+- `delivery/facilitator_notes.md`:
+  - the new Task 2 and 3 talk tracks
+  - the balancing-act line
+  - the fallback in §9
+- `delivery/slide_copy.md` and `README.md`: the hidden pad replaces the blackout and the rock, and the pin moves to 1.1.0.
 
-## 5. Package, in build order
+## 9. Gates, checkpoints with Dan, and the fallback
 
-1. `world.py`: constants, `reference_sensor`, `beacon_sensor`, `default_params(k)`.
-2. `planner.py`: `compass_planner(model, step=0.5, horizon=1)`. Test: nine actions. Certificate string `PROVED (set compass-9, |A|^H = 9^1 = 9, visited 9)`. One trace across two plans (`jax` trace counter, the pattern `tests/test_search_compilation.py` uses upstream).
-3. `build.py`: `model_with(sensor=None, p=None)` using the 0.5.0 field names, `the_1960_rocket()` with `effort=100·I`, `curious_rocket(k)`, `one_node(model)` returning the `CouplingGraph` and `CouplingGraphBackend` pair from section 3. Test: `probe_model` on the 1960 rocket reports `flattens = True` and a spread of 0.000000 nats. On `curious_rocket(0.08)`, `flattens = False` and a spread above 0.01 nats.
-4. `sim.py`: `fly(agent, sensor, p, T=36, seed=3, hazard=None) -> Flight`. Tests: k = 0 impacts at step 6 across seeds 0–9. k = 0.08 and 0.20 clear the rock. Session 2 at k = 0.4 reaches the beacon's height and ends within 0.3 of the pad.
-5. `check.py`: `check_agent` (prints the agent, then arrival), `check_my_sensor` (graded), `check_backends(model, *backends)` (mean, cov, `max |difference|`). Test: Kalman and one-node graph agree below 1e-9.
-6. `plot.py`: `plot_path`, `plot_world`, the tiles, and `preview()` for cell 2. Palette from v1. Test: renders headless. Crash marker at k = 0. `preview` under 60 s on the CI runner.
-7. `symptoms.py`: the five errors the 5 Nov Colab walk-through hit, each as what you see, its cause and its fix: a `...` left in a cell. A `NameError` after a restart. `min`, `math` or `np` inside a sensor. A setting in `params` given as a tuple. A slider moved without a re-run. The first four carry the line that raises. Test: that line's error contains the words quoted, and every printed line fits 80 columns. The earlier five (noise slot, goal beside `selector=`, `StateGoal` under `R(x)`, wrong-length `Preference`, `agent.model = ...`) sit in lines the attempt cells already write, so nobody hits them.
-8. `checkpoints.py`: `after_session_1/2/3`, building fresh objects. Test: a fresh namespace plus a checkpoint runs the next reference cell.
-9. `solutions.py`: three reference cells. Bonus cells (momentum, Coriolis, clear-sky rock, `horizon=2` through `ChunkedEfeSearch`, `policy_efe_trace`, Λ sweep). Test: each runs under 60 s except `horizon=2`, marked slow.
-10. `selfguided.py`: two-node `CouplingGraph` with the flatten refusal. CheA tree. A `warrantlib` example with `record_check`. The p\* shape cell on `cpomdp._lab.harness` labelled private and *computed, not certified*. `savemat` plus `trajectories.m`. Test: `to_flat_model()` raises `IncompatibleLinearizationError` naming the mean-shifting coupling.
-11. `delivery/hints_chat.txt`: the six hint lines and three reference-cell lines, the one place they live. The notebook's collapsed cells are generated from it.
+Times are UTC. The table assumes the workshop is at 17:00 on Friday 13 Nov, as Dan's notes say. v2's drop-in date implies Thursday 12 Nov, so **confirm the date with Dan first**. If it's the 12th, the dry run moves to Wednesday evening and the release and merge to Thursday 10:00.
 
-## 6. Notebook
-
-Generated by `scripts/build_notebook.py` with `nbformat`. Cells, in order:
-
-1. Install and assert: pin, Python ≥ 3.11, `jax` version, `workshop.hello()`. Nothing else.
-2. `workshop.preview()`. The finished picture. One markdown line above it: *this is what you will have built by 1:32.*
-3. Per session, the six-cell rhythm: brief, attempt (`arg = ...`, goal and planner pre-filled with one comment each), hint 1, hint 2, reference, bonus, checkpoint. The attempt cell ends with the one number to paste in chat.
-4. After each checkpoint, the poll cell: a markdown cell with the question and four answers, and the Zoom poll mirrors it.
-5. `workshop.symptoms()` as a collapsed cell under each session, and once in the header.
-6. Self-guided tail below the last checkpoint, fenced.
-
-Session 3's `k` is a `# @param` slider, 0 to 0.4 in steps of 0.02, default 0.08. The notebook runs as a script under uv with sliders inert. Pre-run, with the outputs of the reference, checkpoint and troubleshooting cells cleared, so no number a learner pastes in chat is on screen before they run it. Shared from GitHub through Colab.
-
-## 7. Tests that gate everything
-
-`tests/test_measured_claims.py` carries one assertion per quoted value: task-1 probe strings, certificate string, impact step, clearances, session-2 arc, backend agreement, flatten-refusal message, timing of `plot_world` and `preview` recorded to JSON. `tests/test_api_contract.py` asserts the 0.5.0 forms in section 3: field names accepted, old names refused, goal-beside-selector refused, `from_backend` present, `probe_model` report fields. This file is what fails first on the next cpomdp release. `tests/test_notebook.py` executes the generated notebook under `nbclient` on the reference path and asserts the cell rhythm, every hint dropping into its slot, every checkpoint restoring a namespace that runs the next reference cell.
-
-CI: `pinned` job on the SHA or version, required. `main` job tracking cpomdp `main` nightly, allowed to fail, posting the measured-claims diff.
-
-## 8. The deck
-
-Remade on 2026-10-28 from the 0.5.0 deck, on the light theme of Inferogenesis's site. `scripts/build_deck.py` builds it from the package, `lesson.py` and the route frames, and one agenda table in it times every slide, in UTC from a 17:00 start. `tests/test_deck.py` fails if the committed `.pptx` is not what the script builds. Revised on 2026-10-31 from a live edit of the deck: the three code slides went, because the room reads the code on its own screen while the timer slide is up. The current deck has 26 slides.
-
-| Part | Starts, length | Slides |
+| By | What | Gate |
 | --- | --- | --- |
-| Welcome | 17:00, 10 min | 1. Build a curious rocket · 2. Who we are · 3. Two hours, three tasks · 4. How we will work · 5. Get set up · 6. What we will build |
-| Task 1 | 17:10, 30 min | 7. Task 1 · The 1960 rocket · 8. Task 1 · Over to you · 9. Task 1 · Discussion |
-| Task 2 | 17:40, 30 min | 10. Making information gain depend on the action · 11. Task 2 · Over to you · 12. Task 2 · Discussion · 13. Why does the rocket stop short of the pad? |
-| Task 3 | 18:10, 30 min | 14. Task 3 · The blackout · 15. Task 3 · Over to you · 16. Why do the curious rockets detour before the rock? · 17. What changes when we add the rock? · 18. What happens if we move the rock into clear sky? · 19. Do the two methods agree about where the rocket is? |
-| Why it matters | 18:40, 10 min | 20. What does PROVED mean here? · 21. What did cpomdp let us do? · 22. What else can we model with cpomdp? · 23. Where the research goes next |
-| Questions | 18:50, 10 min | 24. Two more experiments to try in Colab · 25. Any questions? |
+| Tue 10 Nov | §4.1, §4.2, Task 2 (§5.1), figures, deck slides 10–14, tests green | **C0, seed check:** at every k, λ and spread a slide or hint quotes, seed 3 behaves like the 10-seed median. Where it doesn't, the reference seed changes, the slide names it, and the 10-seed counts stay. This gate applies again to Task 3 at C2. **C1, ask Dan:** show him Task 2 bonus 2's three outputs and the small-horizons alternative. He picks |
+| Wed 11 Nov 12:00 | Task 3 (§4.3–4.7, §5.2), its slides and tests | **C2:** curious lands ≥ 8/10 and incurious ≤ 4/10 on seeds 0–9, with all tests green, and C0 passes for the reference seed. **Sub-check:** render `route_3_pad.png` and look at it. If the landing gap doesn't read at slide size, the misses go in the readout panel and on slide 17 in large type. The radar is not made coarser to widen the gap. Fail the main check, and Task 3 ships as the fallback below |
+| Wed 11 Nov | Publish `1.1.0rc1` to PyPI. Point the branch notebook's cell 1 at it | Colab opens the branch notebook and runs cell 1 |
+| Thu 12 Nov | Dry run from the branch's Colab URL. Time Kev and one person who hasn't seen the notebook through Task 3 | **C3:** both finish Task 3's two lines and read the plot within 15 minutes. Fail, and cut scope with Dan or take the fallback |
+| Thu 12 Nov 18:00 | Publish 1.1.0, move every pin, merge to `main` | CI green on `main`, and Colab's `main` link runs end to end |
+| Workshop day 12:00 | Last merge | Nothing after this |
 
-Each task is a 5-minute brief, 15 minutes of code and 10 minutes of discussion. The agenda slide shows each part's minutes and each block's UTC times. The timer slide stays up while the room codes: its bar fills over 15 minutes from when the slide shows, with no click, and then tells the room to run the checkpoint. Leaving the slide restarts the bar. The timer slide says how the notebook marks the two lines (`...`) and where the hints sit.
+**Fallback, "Whose detour is it?"** Task 3 stays in the v2 blackout world at λ = 0.1 and flies curiosity on and off. Its two lines are the blackout's `blindness` (v2's line) and the call that marks which term chose each move (§5.4 item 3). Slides 15–18 tell that story, with the rock dropped. Keep the v2 blackout code working until C2 has passed, so this path stays open.
 
-The notes on slide 21 mention RxInfer in the comparison of packages, and slide 2's notes in the presenter's background. Nothing runs it. The reveal of papercut 1 has no slide. The timer slides point at `workshop.symptoms()`.
+## 10. Decisions still owed, and issue drafts
 
-Dan gives the AI-use disclosure aloud from the notes on slide 2.
+- **Owed:** the Task 3 chat number (draft: the curious rocket's miss on seed 3).
+- **Owed:** poll 2's and poll 3's wording (drafts in §5).
+- **Owed:** slide 10's notes gaining the plug-in-mean paragraph. Draft: "The rocket never knows its true position. When it plans, it reads the noise at the mean of where it predicts a move will take it, R(μ⁺). That's a first-order shortcut, least accurate when the belief is wide and the noise changes sharply." cpomdp drops the ½tr(H_R Σ⁺) term by design.
+- **Owed:** the workshop date (§9).
+- **Issue draft, cpomdp:** "`EnumeratedEFESearch`: rank by the pragmatic term alone, or weight the epistemic term, so ablations don't need a hand-rolled selector."
+- **Issue draft, cpomdp:** "Docs: an observation-space preference pays for R(x) in the pragmatic term through ½tr(ΛR). Say so where `Preference` meets `CallableSensor`, and consider allowing a state-space goal under R(x)."
 
-## 9. Delivery, before, during, after
-
-Before. The uv README and Colab link a week ahead on the cpomdp Discord channel, with the no-generative-AI request in the same message. A 30-minute install drop-in on Discord the evening before. Helpers recruited at one per eight registered above sixteen, briefed on `symptoms` only. Zoom open 15 minutes early.
-
-During, in UTC. Install at 17:00 while Kev frames, with the Colab link and the question form pasted into the chat together. Task 1 at 17:10, task 2 at 17:40, task 3 at 18:10, each with its timer slide up for the 15 minutes of code. Nobody pastes hints. Each learner opens the collapsed hint cells when they like. One number in chat at each task close. One poll at each boundary, 60 s, Kev reads the split. Why it matters at 18:40. Questions from 18:50, and anyone may leave early. No scheduled break. If the room needs one, it comes out of the open time. The question form is anonymous unless the asker leaves an email for a written reply. Whoever is not presenting watches its responses, answers quick ones in the chat and parks long ones for a written answer within 48 hours. No breakout rooms. No individual debugging from the front.
-
-After. Recording, notebook, package, slides and notes posted to the Discord channel and the README within 48 hours.
-
-## 10. Decisions still owed
-
-- D1 Repo location (default: separate repo).
-- D3 Slide 6, keep or replace with the four tiles (the `preview` cell makes the tile slide less necessary. Recommend keep).
-- D6 Whether the sponsors URL belongs on a slide or in the notes.
-- D8 The asteroid in the abstract: keep the spoiler or let "a blackout zone" carry it.
-- D9 Helper recruitment: whether to ask the Discord channel at all, or cap registration at sixteen.
-
-## 11. Order and dates
-
-| By | Milestone | Gate |
-| --- | --- | --- |
-| 19 Oct | Repo, pin `cpomdp==0.5.0`, `world`, `planner`, `build`, `sim`. `test_api_contract.py` and `test_measured_claims.py` green on the pin | tests |
-| 23 Oct | `check`, `plot`, `preview`, `symptoms`, checkpoints. Figures regenerated | figures match the deck's |
-| 27 Oct | Notebook generated, runs on Colab and under uv. README. Hints file. Deck edits from section 8 | `test_notebook.py`, render check |
-| 30 Oct | Self-guided tail. Delivery artefacts | `test_notebook.py` runs the tail |
-| 2 Nov | Dry run 1, solo, timed | timings written down |
-| 5–8 Nov | Dry runs 2 and 3, one with live handoffs. Kev has run the notebook once. Helpers briefed | handoff token agreed |
-| 9 Nov | Freeze. Typo fixes only | tag `v2026.11` |
-| 11 Nov | Install drop-in on Discord, evening | attendance noted |
+Put both issue drafts in the PR description for Dan to file.
