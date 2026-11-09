@@ -11,19 +11,24 @@ from cpomdp_workshop.check import (
     STRAIGHT_BEND,
     check_agent,
     check_backends,
+    check_my_broadcast,
     check_my_sensor,
+    grade_broadcast,
     grade_sensor,
     route_bend,
     show_landings,
+    show_misses,
 )
 from cpomdp_workshop.planner import compass_planner
 from cpomdp_workshop.plot import curiosity_pair
-from cpomdp_workshop.sim import fly
+from cpomdp_workshop.sim import PadFlight, fly
 from cpomdp_workshop.world import (
     LAUNCH,
     PAD,
     beacon_sensor,
+    broadcast_noise,
     default_params,
+    pad_params,
     reference_sensor,
 )
 
@@ -198,3 +203,67 @@ def test_every_flight_gets_a_line_saying_whether_it_landed(capsys):
 def test_a_straight_route_is_told_to_raise_k():
     grade = grade_sensor(beacon_sensor, flat_route_params(0.08))
     assert "Try raising it" in grade.message
+
+
+def test_the_workshops_broadcast_matches_itself(capsys):
+    check_my_broadcast(broadcast_noise, pad_params())
+    assert "matches the workshop's broadcast_noise" in capsys.readouterr().out
+
+
+def test_a_capped_broadcast_is_told_to_keep_fading():
+    def capped(x, params):
+        distance_squared = jnp.sum((x - params["beacon"]) ** 2)
+        return params["noise_floor"] + jnp.minimum(distance_squared, 4.0)
+
+    grade = grade_broadcast(capped, pad_params())
+    assert grade.grade == "capped"
+    assert "no cap" in grade.message
+
+
+def test_a_flat_broadcast_gives_no_reason_to_visit_the_beacon():
+    assert grade_broadcast(lambda x, p: p["noise_floor"], pad_params()).grade == "flat"
+
+
+def test_a_broadcast_with_another_gain_differs():
+    def doubled(x, params):
+        return params["noise_floor"] + 2 * jnp.sum((x - params["beacon"]) ** 2)
+
+    assert grade_broadcast(doubled, pad_params()).grade == "differs"
+
+
+def test_an_unwritten_broadcast_stops_the_cell_and_names_the_line():
+    def unwritten(x, params):
+        return params["noise_floor"] + ...
+
+    with pytest.raises(ValueError, match=re.escape("still holds ...")) as raised:
+        check_my_broadcast(unwritten, pad_params())
+    assert max(len(line) for line in str(raised.value).splitlines()) <= 80
+
+
+def test_a_broadcast_that_returns_a_matrix_is_told_it_needs_one_number():
+    grade = grade_broadcast(lambda x, p: p["noise_floor"] * jnp.eye(2), pad_params())
+    assert grade.grade == "broken"
+    assert "one number" in grade.message
+
+
+def test_a_numpy_broadcast_is_caught_before_it_flies():
+    def numpy_fade(x, params):
+        return params["noise_floor"] + np.sum((np.asarray(x) - params["beacon"]) ** 2)
+
+    grade = grade_broadcast(numpy_fade, pad_params())
+    assert grade.grade == "broken"
+    assert "jnp" in grade.message
+
+
+def test_the_misses_are_printed_one_rocket_to_a_line(capsys):
+    def ended(miss):
+        path = np.array([[0.0, 0.0], [miss, 0.0]])
+        return PadFlight(
+            path, np.zeros((1, 4)), np.zeros((1, 4, 4)), False, None, np.zeros(2)
+        )
+
+    show_misses({"curiosity on": ended(0.17), "curiosity off": ended(0.85)})
+    assert capsys.readouterr().out.splitlines() == [
+        "curiosity on   ended 0.17 from the true pad, landed",
+        "curiosity off  ended 0.85 from the true pad, did not land",
+    ]
