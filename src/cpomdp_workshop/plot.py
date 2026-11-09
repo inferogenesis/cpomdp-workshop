@@ -32,7 +32,7 @@ from matplotlib.figure import Figure
 from matplotlib.patches import Circle, Ellipse
 from numpy.typing import ArrayLike
 
-from cpomdp_workshop.build import curious_rocket, the_1960_rocket
+from cpomdp_workshop.build import BLACKOUT_PRECISION, curious_rocket, the_1960_rocket
 from cpomdp_workshop.sim import DEFAULT_SEED, ROCK, Flight, Hazard, fly
 from cpomdp_workshop.world import (
     BEACON,
@@ -330,7 +330,9 @@ def world_flights(
         if beacon_gain == 0:
             rocket = the_1960_rocket()
         else:
-            rocket = curious_rocket(beacon_gain, sensor, horizon=horizon)
+            rocket = curious_rocket(
+                beacon_gain, sensor, horizon=horizon, precision=BLACKOUT_PRECISION
+            )
         flights[beacon_gain] = fly(rocket, seed=seed, hazard=hazard)
     return flights
 

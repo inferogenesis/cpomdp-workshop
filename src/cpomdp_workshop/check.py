@@ -2,8 +2,9 @@
 
 Each check is a pure function the tests assert on, paired with a ``check_`` or
 ``show_`` function that prints its result. A sensor is graded by flying a rocket with
-it. One that varies and still leaves the path straight is told which way to move k.
-A sensor that cannot fly stops the cell, so its fix is the last thing on screen.
+it. One that varies and still leaves the path straight is told that nothing along the
+route is worth a detour. A sensor that cannot fly stops the cell, so its fix is the
+last thing on screen.
 """
 
 import textwrap
@@ -250,11 +251,11 @@ def _match_line(matches: str | None) -> str:
 def grade_sensor(sensor: NoiseFn, params: SensorParams) -> SensorGrade:
     """Grade a noise function by flying a curious rocket with it.
 
-    The rocket models ``sensor`` and flies in it from the default seed, as the
-    attempt cell's rocket does. A probe of what each move would teach is not the
-    grade, because it does not predict the path. The reading noise also enters what
-    each move is expected to read against "on the pad", and at these settings that
-    term does most of the steering.
+    The rocket models ``sensor`` and flies in it from the default seed with its
+    curiosity on, as the attempt cell's curious rocket does. A probe of what each move
+    would teach is not the grade, because it does not predict the path. The reading
+    noise also enters what each move is expected to read against "on the pad", so the
+    pragmatic term steers too.
 
     Args:
         sensor: a noise function ``R(x, params)``.
@@ -284,8 +285,8 @@ def grade_sensor(sensor: NoiseFn, params: SensorParams) -> SensorGrade:
     if bend < STRAIGHT_BEND:
         grade = "straight"
         message = (
-            "R(x) varies across the map. The rocket still flies straight, so the "
-            "pad's pull wins at this k. Raise it."
+            "R(x) varies across the map, but the rocket still flies straight. Along "
+            "its route no move teaches more than another at this setting."
         )
     elif distance > LANDED:
         grade = "too curious"

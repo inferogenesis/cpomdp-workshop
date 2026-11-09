@@ -24,6 +24,7 @@ from cpomdp import (
 from cpomdp_workshop import WORKSHOP_CPOMDP_VERSION
 from cpomdp_workshop._seams import RecedingHorizonSelector
 from cpomdp_workshop.build import (
+    BLACKOUT_PRECISION,
     curious_rocket,
     model_with,
     one_node,
@@ -52,6 +53,11 @@ from cpomdp_workshop.world import (
 )
 
 I = np.eye(2)
+V2_PRECISION = 1.0  # the v2 Task 2 claims the deck still quotes, until it is rewritten
+
+
+def blackout_rocket(beacon_gain):
+    return curious_rocket(beacon_gain, precision=BLACKOUT_PRECISION)
 
 
 def rounded(values, places=2):
@@ -147,21 +153,21 @@ def test_the_1960_rocket_hits_the_rock_on_step_six_whatever_the_noise_does(seed)
 
 
 def test_the_default_slider_rocket_clears_the_rock_and_lands():
-    flight = fly(curious_rocket(0.08), hazard=ROCK)
+    flight = fly(blackout_rocket(0.08), hazard=ROCK)
     assert flight.crashed is False
     assert round(float(flight.path[:, 1].max()), 2) == 1.71
     assert rounded(flight.final) == (4.83, 0.09)
 
 
 def test_the_k_point_two_rocket_clears_the_rock_and_lands():
-    flight = fly(curious_rocket(0.20), hazard=ROCK)
+    flight = fly(blackout_rocket(0.20), hazard=ROCK)
     assert flight.crashed is False
     assert round(float(flight.path[:, 1].max()), 2) == 1.91
     assert rounded(flight.final) == (5.18, 0.15)
 
 
 def test_session_two_bends_the_flight_path_up_to_the_beacon():
-    flight = fly(curious_rocket(0.4, beacon_sensor))
+    flight = fly(curious_rocket(0.4, beacon_sensor, precision=V2_PRECISION))
     assert round(float(flight.path[:, 1].max()), 2) == 1.41
     assert flight.path[:, 1].max() >= BEACON[1]
     assert rounded(flight.final) == (5.12, 0.21)
@@ -174,12 +180,14 @@ def test_session_two_bends_the_flight_path_up_to_the_beacon():
 def test_a_rocket_too_curious_to_land_stays_short_however_far_it_looks(
     horizon, short_of_the_pad
 ):
-    flight = fly(curious_rocket(0.6, beacon_sensor, horizon=horizon))
+    flight = fly(
+        curious_rocket(0.6, beacon_sensor, horizon=horizon, precision=V2_PRECISION)
+    )
     assert round(flight.distance_to(PAD), 2) == short_of_the_pad
 
 
 def build(beacon_gain):
-    return the_1960_rocket() if beacon_gain == 0 else curious_rocket(beacon_gain)
+    return the_1960_rocket() if beacon_gain == 0 else blackout_rocket(beacon_gain)
 
 
 @pytest.mark.slow
@@ -199,8 +207,8 @@ def test_in_clear_sky_the_rock_is_hit_on_the_curious_rockets_routes(
 
 
 def test_a_rock_never_changes_a_route_only_ends_it():
-    free = fly(curious_rocket(0.08), seed=2)
-    hit = fly(curious_rocket(0.08), seed=2, hazard=CLEAR_SKY_ROCK)
+    free = fly(blackout_rocket(0.08), seed=2)
+    hit = fly(blackout_rocket(0.08), seed=2, hazard=CLEAR_SKY_ROCK)
     assert hit.crashed is True
     assert np.array_equal(hit.path, free.path[: len(hit.path)])
 
@@ -209,15 +217,15 @@ def test_a_rock_never_changes_a_route_only_ends_it():
 def test_most_curious_routes_pass_below_the_blackout():
     below = 0
     for seed in range(30):
-        y = fly(curious_rocket(0.08), seed=seed).path[:, 1]
+        y = fly(blackout_rocket(0.08), seed=seed).path[:, 1]
         below += bool(y[np.argmax(np.abs(y))] < 0)
     assert below == 19
 
 
 def test_the_beacon_sensor_bends_the_path_to_the_beacon_and_lands(capsys):
-    check_my_sensor(beacon_sensor, default_params(0.4))
+    check_my_sensor(beacon_sensor, default_params(0.08))
     assert capsys.readouterr().out.strip() == (
-        "The rocket bends 1.41 off the straight line and lands 0.24 from the pad. "
+        "The rocket bends 1.41 off the straight line and lands 0.23 from the pad. "
         "It matches the workshop's beacon_sensor."
     )
 
@@ -257,7 +265,8 @@ def test_noise_fixed_in_place_never_tells_the_moves_apart(noise, prior):
 def fly_with(sensor, beacon_gain, hazard=None, **changes):
     params = {**default_params(beacon_gain), **changes}
     model = model_with(sensor, params)
-    rocket = Agent(model, pad_preference(), selector=compass_planner(model))
+    preference = pad_preference(BLACKOUT_PRECISION)  # v2's bonuses and the blackout
+    rocket = Agent(model, preference, selector=compass_planner(model))
     return fly(rocket, hazard=hazard)
 
 
@@ -266,10 +275,6 @@ def test_a_small_cap_keeps_the_beacons_route_straight():
     # of 1, so the noise is flat along it and nothing pulls the rocket off it.
     params = {**default_params(0.4), "beacon_cap": jnp.asarray(1.0)}
     assert grade_sensor(beacon_sensor, params).grade == "straight"
-
-
-def test_the_starting_k_of_task_2_flies_straight():
-    assert grade_sensor(beacon_sensor, default_params(0.08)).grade == "straight"
 
 
 def test_a_large_cap_leaves_the_beacons_rocket_well_short_of_the_pad():
@@ -308,7 +313,7 @@ def test_over_ten_seeds_the_curious_rockets_clip_the_rock_a_few_times(
     hits = [
         seed
         for seed in range(10)
-        if fly(curious_rocket(beacon_gain), seed=seed, hazard=ROCK).crashed
+        if fly(blackout_rocket(beacon_gain), seed=seed, hazard=ROCK).crashed
     ]
     assert hits == hit_on_seeds
 
