@@ -9,7 +9,7 @@ import pytest
 import build_notebook
 import lesson
 from cpomdp_workshop import checkpoints
-from cpomdp_workshop.world import default_params
+from cpomdp_workshop.world import default_params, pad_params
 
 HEAD = ["brief", "attempt", "symptoms", "hint", "hint", "reference"]
 TAIL = ["checkpoint", "poll"]
@@ -154,8 +154,9 @@ def test_one_bonus_of_tasks_1_and_2_is_worked_in_the_attempt_cell(number, which)
     assert lesson.SESSIONS[number - 1].bonuses[which - 1].code is None
 
 
-def test_bonus_1_of_task_3_starts_from_a_seed_loop():
-    code = lesson.SESSION_3.bonuses[0].code
+@pytest.mark.parametrize("which", [1, 2])
+def test_each_bonus_of_task_3_starts_from_a_seed_loop(which):
+    code = lesson.SESSION_3.bonuses[which - 1].code
     assert code is not None
     assert "for seed in seeds" in code
 
@@ -271,8 +272,6 @@ def test_the_notebook_runs_end_to_end_on_the_reference_path():
 COMMITTED = nbformat.read(build_notebook.NOTEBOOK, as_version=4)
 GIVES_AWAY = {"reference", "checkpoint", "symptoms"}
 """Cells whose saved output would show a result before the learner runs anything."""
-FORM_WIDTH = 68
-"""The widest code line Colab shows beside a slider form without cutting it off."""
 
 
 def test_no_saved_output_gives_a_result_away():
@@ -307,16 +306,24 @@ def test_getting_started_heads_off_the_colab_warning_and_lost_edits():
     assert "Save a copy in Drive" in text
 
 
-def test_the_slider_task_says_to_run_the_cell_again():
-    assert "run the cell again" in lesson.SESSION_3.brief
+def test_task_3_says_the_world_was_built_and_that_neither_rocket_knows_the_pad():
+    brief = lesson.SESSION_3.brief
+    assert "We built this world" in brief
+    assert "on purpose" in brief
+    assert "Neither rocket knows where the pad is" in brief
 
 
-def test_the_slider_cell_fits_beside_its_form():
-    lines = build_notebook.reference(lesson.SESSION_3, HINTS).splitlines()
-    lines += lesson.SESSION_3.attempt.splitlines()
-    # A cut-off form spec loses nothing the learner reads.
-    read = [line for line in lines if "# @param" not in line]
-    assert max(len(line) for line in read) <= FORM_WIDTH
+def test_task_3_lists_every_setting_the_broadcast_reads_with_its_true_value():
+    attempt = lesson.SESSION_3.attempt
+    params = pad_params()
+    for key in ("beacon", "broadcast_gain", "noise_floor"):
+        assert f'params["{key}"]' in attempt
+        line = next(
+            line
+            for line in attempt.splitlines()
+            if line.startswith(f'#   params["{key}"]')
+        )
+        assert shown(params[key]) in line
 
 
 def test_the_beacon_setting_is_shown_as_the_array_it_must_be_set_as():

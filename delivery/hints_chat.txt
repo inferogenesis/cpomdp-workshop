@@ -47,23 +47,21 @@ pull = params["beacon_gain"] * jnp.minimum(distance_squared, params["beacon_cap"
 Reference for task 2: the collapsed cell under hint 2. Run it, then the checkpoint.
 
 [session 3, nudge 1]
-`blindness` is the extra noise the blackout adds at position x.
-It's strongest at the centre of the blackout and fades with distance, in a bell shape.
-`jnp.exp(-d / w)` equals 1 when d is 0 and falls towards 0 as d grows, more slowly when w is larger.
-Here, d is `from_blackout`, w is `width`, and `height` sets how strong the peak is.
+`fade` is the extra noise on the broadcast at position x.
+In Task 2, the beacon's noise stopped growing at a cap. This time there is no cap.
+The broadcast has to keep fading with distance, or the rocket could hear it clearly from anywhere.
+You will find how fast it fades in `params["broadcast_gain"]`, and `distance_squared` is already worked out.
 
 [session 3, hint 1]
-blindness = height * jnp.exp(-from_blackout / width)
+fade = params["broadcast_gain"] * distance_squared
 
 [session 3, nudge 2]
-A backend is the engine that updates the rocket's belief after each reading.
-`KalmanBackend(model)` is the classic Kalman filter.
-cpomdp's other engine passes messages on a graph, the form it uses for models made of several linked parts.
-`one_node` rewrites a model as a graph with just one node, so the same rocket can run on that engine.
-Use `model`, the 1960 rocket's model from Task 1, which the checkpoint has restored for you.
+`pad_spread` is the rocket's own uncertainty about where the pad is.
+It is one standard deviation, in the same units as the map, around the rocket's guess.
+In the world, the true pad strays from the guess by 1.5, so a rocket that knows this uses the same number.
 
 [session 3, hint 2]
-backend = one_node(model)
+pad_spread = 1.5
 
 [session 3, reference]
 Reference for task 3: the collapsed cell under hint 2. Run it, then the checkpoint.
