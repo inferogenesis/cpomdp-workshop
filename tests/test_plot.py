@@ -10,11 +10,15 @@ from matplotlib.patches import Circle
 
 from cpomdp_workshop.build import curious_rocket, the_1960_rocket
 from cpomdp_workshop.plot import (
+    CURIOSITY_OFF,
+    CURIOSITY_ON,
     CURIOUS_COLOURS,
     DARK,
     IMPACT_MARKER,
     LIGHT,
     ROUTE_STAGES,
+    curiosity_pair,
+    plot_balance,
     plot_beliefs,
     plot_flights,
     plot_path,
@@ -139,8 +143,8 @@ def map_of(figure):
     )
 
 
-def test_the_route_is_built_up_in_four_frames():
-    assert ROUTE_STAGES == ("straight", "beacon", "blackout", "rock")
+def test_the_route_is_built_up_in_five_frames():
+    assert ROUTE_STAGES == ("straight", "beacon", "too_curious", "blackout", "rock")
 
 
 def test_every_route_frame_draws_the_same_map(route):
@@ -151,7 +155,8 @@ def test_every_route_frame_draws_the_same_map(route):
     ("stage", "legend"),
     [
         ("straight", ["1960 rocket"]),
-        ("beacon", ["1960 rocket", "k = 0.40"]),
+        ("beacon", ["curiosity on", "curiosity off"]),
+        ("too_curious", ["curiosity on", "curiosity off"]),
         ("blackout", ["1960 rocket", "k = 0.08", "k = 0.20"]),
         ("rock", ["1960 rocket, hit on step 6", "k = 0.08", "k = 0.20"]),
     ],
@@ -183,13 +188,14 @@ def test_the_1960_route_is_the_same_line_until_the_rock(route):
         return np.asarray(line.get_xydata())
 
     first = dashed(route["straight"])
-    for stage in ("beacon", "blackout"):
-        np.testing.assert_array_equal(dashed(route[stage]), first)
+    np.testing.assert_array_equal(dashed(route["blackout"]), first)
     np.testing.assert_array_equal(dashed(route["rock"]), first[:7])
 
 
 def test_an_unknown_route_frame_is_refused():
-    with pytest.raises(ValueError, match="straight, beacon, blackout, rock"):
+    with pytest.raises(
+        ValueError, match="straight, beacon, too_curious, blackout, rock"
+    ):
         plot_route("moon")
 
 
@@ -234,3 +240,33 @@ def test_paths_near_the_edge_of_the_map_keep_the_usual_map():
     axes = plot_world().axes[0]
     assert axes.get_xlim() == (-0.6, 5.6)
     assert axes.get_ylim() == (-1.1, 2.5)
+
+
+def test_curiosity_on_is_amber_and_curiosity_off_is_blue(route):
+    lines = {
+        line.get_label(): to_hex(line.get_color())
+        for line in route["beacon"].axes[0].get_lines()
+    }
+    assert lines[CURIOSITY_ON] == to_hex(CURIOUS_COLOURS[0])
+    assert lines[CURIOSITY_OFF] == to_hex(CURIOUS_COLOURS[1])
+
+
+def test_the_curiosity_pair_flies_one_rocket_with_its_curiosity_on_and_off():
+    pair = curiosity_pair(0.08)
+    assert list(pair) == [CURIOSITY_ON, CURIOSITY_OFF]
+    assert not np.array_equal(pair[CURIOSITY_ON].path, pair[CURIOSITY_OFF].path)
+
+
+def test_the_balance_figure_puts_the_two_precisions_side_by_side():
+    figure = plot_balance(palette=LIGHT)
+    panels = [axes for axes in figure.axes if axes.get_title(loc="left")]
+    assert [axes.get_title(loc="left") for axes in panels] == [
+        "precision 1",
+        "precision 0.1",
+    ]
+    for axes in panels:
+        legend = axes.get_legend()
+        assert legend is not None
+        names = [text.get_text() for text in legend.get_texts()]
+        assert names == [CURIOSITY_ON, CURIOSITY_OFF]
+    assert to_hex(figure.get_facecolor()) == LIGHT.background.lower()
