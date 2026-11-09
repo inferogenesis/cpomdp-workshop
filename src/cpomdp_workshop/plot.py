@@ -676,11 +676,12 @@ def pad_pair(
 
 
 def _pad_extent(flights: Mapping[str, PadFlight]) -> Extent:
-    """The usual map, widened to hold every path, the true pad and the guess's ring."""
+    """The usual map, widened to hold every path, each ring and the landing circle."""
     points = [flight.path for flight in flights.values()]
     points += [flight.pad[None, :] for flight in flights.values()]
-    ring = PAD_SPREAD_WORLD * np.array([[1, 0], [-1, 0], [0, 1], [0, -1]])
-    points.append(np.asarray(PAD_GUESS) + ring)
+    compass = np.array([[1, 0], [-1, 0], [0, 1], [0, -1]])
+    points.append(np.asarray(PAD_GUESS) + PAD_SPREAD_WORLD * compass)
+    points += [flight.pad + LANDING_RADIUS * compass for flight in flights.values()]
     points = np.vstack(points)
     return (
         _widened(_BALANCE_EXTENT[0], points[:, 0]),
@@ -704,7 +705,7 @@ def _draw_pad_landmarks(axes: Axes, pad: np.ndarray, palette: Palette) -> None:
     )  # fmt: skip
     _landing_zone(axes, pad, palette)
     _mark(
-        axes, pad, "true pad", (0, -17), "center", palette.ink, palette,
+        axes, pad, "true pad", (0, -34), "center", palette.ink, palette,
         marker="X", size=11, edge=1,
     )  # fmt: skip
 

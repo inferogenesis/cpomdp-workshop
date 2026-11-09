@@ -554,7 +554,9 @@ curiosity off. Neither rocket knows where the pad is.
 2. Set `pad_spread`, how unsure the rocket is about where the pad is.
 
 Run the cell. `show_misses` prints how far each rocket ended from the true pad, and
-`plot_pad` draws both routes. Which rocket finds the pad? What might explain the
+`plot_pad` draws both routes. As before, a rocket has landed if it ends within 0.5 of
+the pad, inside the circle the plot draws round the true pad. Which rocket finds the
+pad? What might explain the
 difference, when both share one model and the same sensors?
 
 **Share your curious rocket's miss in the workshop chat.**""",
