@@ -51,6 +51,7 @@ from cpomdp_workshop.plot import (
     CURIOSITY_OFF,
     CURIOSITY_ON,
     curiosity_pair,
+    pad_pair,
 )
 from deck_kit import (
     AMBER,
@@ -154,7 +155,7 @@ AGENDA = (
     Block("Welcome", (Part("introductions and setup", "talk", 10),)),
     Block("Task 1", TASK_PARTS, "the 1960 rocket"),
     Block("Task 2", TASK_PARTS, "the beacon"),
-    Block("Task 3", TASK_PARTS, "the blackout"),
+    Block("Task 3", TASK_PARTS, "the hidden pad"),
     Block("Why it matters", (Part("what cpomdp adds, and what's next", "talk", 10),)),
     Block("Questions", (Part("questions, or leave early", "open", 10),)),
 )
@@ -419,7 +420,7 @@ def title(deck: Deck) -> None:
         (
             ("1  the 1960 rocket", INK),
             ("2  the beacon", AMBER),
-            ("3  the blackout", BLUE),
+            ("3  the hidden pad", BLUE),
         )
     ):
         page.pill(MARGIN + index * 4.1, 5.9, 3.8, 0.7, label, colour=colour, size=20)
@@ -707,14 +708,13 @@ def setup(deck: Deck) -> None:
 
 def preview(deck: Deck) -> None:
     """Cell 2's picture, the whole game first."""
-    page = route_page(deck, "What we will build", "welcome", "route_4_rock.png")
+    page = route_page(deck, "What we will build", "welcome", "route_3_pad.png")
     page.text(
         ROUTE_COLUMN, CONTENT_TOP, RIGHT - ROUTE_COLUMN, 4.7,
         [
-            "By the end of Task 3, we will have built the models that produce these "
-            "three rocket paths.",
-            "The dashed line shows the 1960 rocket. The coloured lines show two "
-            "versions of the curious rocket.",
+            "By the end of Task 3, we will have built two rockets that differ only "
+            "in curiosity.",
+            "Neither knows where the landing pad is. One of them finds it.",
             [
                 Run("Run the second code cell to see the preview: "),
                 Run("workshop.preview()", font=CODE_FONT),
@@ -1174,52 +1174,63 @@ def task_2_meaning(deck: Deck) -> None:
 
 
 def task_3_brief(deck: Deck) -> None:
-    """The blackout, and the rock none of the rockets models."""
-    page = deck.page("Task 3 · The blackout", "task 3")
+    """The hidden pad, and the three readings the rocket has to find it with."""
+    page = deck.page("Task 3 · Find the pad", "task 3")
     page.text(
         MARGIN, CONTENT_TOP, FULL_WIDTH, 0.65,
-        ["The direct route to the landing pad now crosses a blackout region."],
+        ["The rocket no longer knows where the landing pad is."],
         size=22,
     )  # fmt: skip
     card_row(
-        page, 2.45, 2.45,
+        page, 2.3, 2.3,
         (
             headed(
-                "The beacon",
-                [Run("Near the beacon, sensor noise is "), Run("lower", bold=True),
-                 Run(" and readings are "), Run("more reliable", bold=True), Run(".")],
+                "The guess",
+                "The rocket starts with a guess at where the pad is, and it knows "
+                "how unsure that guess is.",
             ),
             headed(
-                "The blackout",
-                [Run("Near the centre of the blackout, sensor noise is "),
-                 Run("higher", bold=True), Run(" and readings are "),
-                 Run("less reliable", bold=True), Run(".")],
+                "The radar",
+                "A coarse radar points roughly from the rocket towards the pad. Its "
+                "noise is the same everywhere.",
                 colour=BLUE,
             ),
             headed(
-                "The rock",
-                "A rock sits inside the blackout. All three rockets plan their "
-                "moves without knowing it is there.",
+                "The broadcast",
+                "The beacon broadcasts the pad’s exact position. The broadcast is "
+                "clear near the beacon and fades with distance.",
+                colour=AMBER,
             ),
         ),
     )  # fmt: skip
-    question(
-        page, 5.45,
-        "Will all three rockets take the same route through the blackout?",
+    page.text(
+        MARGIN, 4.85, FULL_WIDTH, 0.8,
+        ["We built this world so the information the rocket needs is away from "
+         "where it wants to go."],
+        size=20,
     )  # fmt: skip
+    question(page, 5.85, "Which rocket finds the pad?", height=0.55)
     page.notes(
         notes(
-            f"Planned at {clock('Task 3')}. Kev. In Task 2, the beacon made "
-            "observations more reliable nearby. Now we add a blackout on the "
-            "straight line to the pad, where the noise rises sharply towards its "
-            "centre.",
-            "The rock sits inside the blackout. In the language of Active Inference "
-            "(Figure 2.2), it belongs to the generative process. It is part of the "
-            "world the rockets fly through. All three plan their moves without "
-            "knowing it is there.",
-            "We will compare the 1960 rocket with two curious rockets. The slider "
-            "sets k for yours, and the other uses k = 0.20. Leave the route "
-            "question with participants as they start Task 3.",
+            f"Planned at {clock('Task 3')}. Kev. In Task 2, the rocket knew where "
+            "the pad was, and curiosity only changed its route. Now the pad is "
+            "hidden. The rocket starts with a guess and has to learn where the pad "
+            "really is.",
+            "It has three sensors. It reads its own position. A coarse radar points "
+            "roughly towards the pad. And the beacon broadcasts the pad’s exact "
+            "position, clearly only nearby.",
+            "Say this plainly: we built this world. The radar is coarse on purpose. "
+            "The broadcast fades on purpose. The rocket’s guess is right on average, "
+            "because we draw the true pad from its own prior. In the language of "
+            "Active Inference (Figure 2.2), the true pad belongs to the generative "
+            "process, and the rocket’s generative model holds only a belief about "
+            "it.",
+            "One more choice to say out loud. The rocket’s goal is a radar reading, "
+            "the one that says the pad is right here. The radar’s noise does not "
+            "change with position. We chose that on purpose, so the pragmatic score "
+            "cannot do the beacon’s work the way it bent the route in Task 2.",
+            "We fly the same rocket twice again, once with curiosity on and once "
+            "with it off. Leave the question with participants as they start Task 3.",
         )
     )
 
@@ -1230,134 +1241,139 @@ def task_3_timer(deck: Deck) -> None:
         deck, 3,
         (
             f"{FILL_IN} and run the cell.",
-            "Paste max |difference| in the chat.",
-            "Then move the k slider and watch the routes. Finished early? Try the "
-            "bonuses.",
+            "Paste your curious rocket’s miss in the chat.",
+            "Finished early? Try the bonuses.",
         ),
     )  # fmt: skip
     page.notes(
         timer_notes(
             3,
-            "Two lines again: the blackout's extra noise in my_world, and the 1960 "
-            "rocket's model as a graph of one node. The slider sets k for your "
-            "rocket. There's a rock in the blackout, and none of the rockets knows.",
-            "plot_world flies three rockets past the rock. check_backends flies the "
-            "1960 rocket on the Kalman filter and on the graph, and prints the "
-            "largest difference between them. That's the number for the chat.",
+            "Two lines again. The first is in my_broadcast: how much noise the "
+            "broadcast gains with distance from the beacon. There is no cap this "
+            "time. The second is pad_spread, how unsure the rocket is about where "
+            "the pad is. Type 1.5.",
+            "The cell flies the same rocket with curiosity on and off. show_misses "
+            "prints how far each one ended from the true pad, and plot_pad draws "
+            "both routes. The curious rocket’s miss is the number for the chat.",
         )
     )
 
 
-def task_3_blackout(deck: Deck) -> None:
-    """The third route frame, the blackout before the rock."""
-    page = route_page(
-        deck,
-        "Why do the curious rockets detour before the rock?",
-        "task 3",
-        "route_3_blackout.png",
-    )
+def task_3_result(deck: Deck) -> None:
+    """The reference pair on the hidden pad, with the ten-seed counts beside it."""
+    pair = pad_pair()
+    on, off = pair[CURIOSITY_ON], pair[CURIOSITY_OFF]
+    page = route_page(deck, "Who found the pad?", "task 3", "route_3_pad.png")
     route_strip(
         page,
-        caption="Seed 3. Darker green shows higher sensor noise "
-        "for the rocket with k = 0.08.",
+        caption="Reference flights, seed 3. The dashed ring is where the true pad "
+        "is drawn from. A rocket lands if it ends inside the circle round the pad.",
     )
-    page.text(
-        ROUTE_COLUMN, CONTENT_TOP, RIGHT - ROUTE_COLUMN, 5.0,
-        [
-            "The 1960 rocket flies with the same sensor noise everywhere. Its "
-            "dashed path runs almost straight to the pad.",
-            "For the two curious rockets, readings are more reliable near the "
-            "beacon. Their planners take that reliability into account, and both "
-            "routes bend towards the beacon on the way to the pad.",
-        ],
-        size=20, space_after=18,
-    )  # fmt: skip
-    page.notes(
-        notes(
-            f"Planned at {clock('Task 3', 2)}. Kev. Return to the prediction from "
-            "the briefing. Trace the dashed line first. The 1960 rocket takes the "
-            "direct route in a world where its sensor has one noise level.",
-            "Now trace the two coloured lines. Both pass near the beacon in this "
-            "run. As in Task 2, each planner scores the readings it expects "
-            "after a move. Readings near the beacon are more reliable, and the "
-            "centre of the blackout is particularly noisy. That helps explain "
-            "the detours we see here.",
-            "Now let us put the rock in the blackout and see what happens to "
-            "those same flights.",
-        )
-    )
-
-
-def task_3_rock(deck: Deck) -> None:
-    """Show the same flights with the rock."""
-    page = route_page(
-        deck, "What changes when we add the rock?", "task 3", "route_4_rock.png"
-    )
-    route_strip(page, caption="Reference flights, seed 3")
     width = RIGHT - ROUTE_COLUMN
     page.text(
-        ROUTE_COLUMN, CONTENT_TOP, width, 4.8,
+        ROUTE_COLUMN, CONTENT_TOP, width, 0.35, ["Over 10 seeds"],
+        size=15, colour=MUTED,
+    )  # fmt: skip
+    page.text(
+        ROUTE_COLUMN, 1.9, width, 2.6,
         [
-            "The 1960 rocket follows the direct route until it hits the rock "
-            "on step 6.",
-            "In this run, both curious rockets follow the same curves as before "
-            "and clear the rock.",
+            "With curiosity on, the rocket lands on 9 seeds, with a median miss of "
+            "0.25.",
+            "With curiosity off, it lands on 3, with a median miss of 0.61.",
         ],
-        size=20, space_after=18,
+        size=19, space_after=12,
     )  # fmt: skip
     page.notes(
         notes(
-            "Kev. Follow the dashed line to the star. The 1960 rocket hits the rock "
-            "on step 6. Trace the two coloured routes past the rock to the pad. "
-            "These are the reference flights for seed 3.",
-            "Look back at the previous plot. Both rockets had "
-            "already taken the detour before we added the rock. Those routes "
-            "happened to carry them clear of it on this run.",
-            "Next, compare ten flights with the rock in two different places.",
+            f"Planned at {clock('Task 3', 2)}. Kev. Start with the blue route, "
+            "curiosity off. It flies straight to its guess and settles near it, "
+            f"{off.miss:.2f} from the true pad. The coarse radar is all it has to "
+            "correct the guess with.",
+            "Now the amber route, curiosity on. It goes up to the beacon first, "
+            "hears where the pad is, and then flies there. It ends "
+            f"{on.miss:.2f} from the true pad. The shaded ellipse is where it "
+            "believes the pad is by the end.",
+            "A rocket lands if it ends within 0.5 of the true pad. Over 10 seeds, "
+            "the curious rocket lands on 9 and the incurious one on 3. The median "
+            "misses are 0.25 and 0.61. The landing gap is modest on the map, which "
+            "is why the misses are printed large.",
+            "Curiosity pays off here because what the rocket learns changes where "
+            "it goes. The notebook has a question to think about under Checkpoint 3.",
         )
     )
 
 
-def task_3_meaning(deck: Deck) -> None:
-    """Compare the collision counts for the same ten seeds in two rock locations."""
-    page = deck.page("What happens if we move the rock into clear sky?", "task 3")
+def task_3_tuning(deck: Deck) -> None:
+    """How narrow the window is in which curiosity pays, and where that might ease."""
+    page = deck.page("The balance takes tuning", "task 3")
     page.text(
-        MARGIN, CONTENT_TOP, FULL_WIDTH, 0.75,
-        ["We repeated the same ten flights for each rocket, changing only the "
-         "position of the rock."],
-        size=21,
+        MARGIN, CONTENT_TOP, FULL_WIDTH, 0.55,
+        ["The curious rocket over 10 seeds, as we change one setting at a time. "
+         "With curiosity off, it lands on 3."],
+        size=20,
     )  # fmt: skip
     page.table(
         MARGIN,
-        2.5,
-        (4.55, 3.8, FULL_WIDTH - 8.35),
-        2.8,
+        2.15,
+        (4.6, 2.6, FULL_WIDTH - 7.2),
+        2.75,
         (
-            ("Collisions in 10 flights", "Rock in the blackout", "Rock in clear sky"),
-            ("1960 rocket", "10", "0"),
-            ("Curious rocket, k = 0.08", "2", "6"),
-            ("Curious rocket, k = 0.20", "3", "5"),
+            ("Setting", "Curious lands", "Visits the beacon"),
+            ("As built: precision 0.1, spread 1.5", "9", "9"),
+            ("Precision 0.3", "7", "6"),
+            ("Precision 1", "3", "1"),
+            ("Spread 0.1, an overconfident rocket", "1", "0"),
         ),
     )
     page.text(
-        MARGIN, 5.85, FULL_WIDTH, 1.0,
-        ["Each rocket followed its original path until a collision ended its "
-         "flight. Moving the rock changed which paths crossed it."],
-        size=21,
+        MARGIN, 5.05, FULL_WIDTH, 0.6,
+        ["With a broadcast that carries far, both rockets land on all 10 seeds, "
+         "and curiosity buys nothing."],
+        size=19,
+    )  # fmt: skip
+    page.text(
+        MARGIN, 5.8, FULL_WIDTH, 1.2,
+        ["As a direction for future work, we expect cpomdp’s longer horizons and "
+         "factor-graph backends to make this balance less fragile. Looking two "
+         "moves ahead, the curious rocket lands on all 10 seeds."],
+        size=19, bold=True, colour=AMBER,
     )  # fmt: skip
     page.notes(
         notes(
-            "Kev. Follow the rocket with k = 0.08. It hit the rock on two flights "
-            "in the blackout and six when we moved it into clear sky. We used the "
-            "same sensor noise map both times. Moving the rock placed it in the "
-            "path of more of those flights."
+            "Dan. Task 3 works inside a window, and it is worth showing the room how "
+            "narrow that window is.",
+            "The precision first. At 0.1 the curious rocket lands on 9 of 10 seeds. "
+            "At 0.3 it lands on 7 and visits the beacon on 6. At 1 it lands on 3, "
+            "the same as the rocket with curiosity off, and it visits the beacon on "
+            "1 seed only. That is the seed where the pad lies that way, and the "
+            "rocket with curiosity off passes the beacon there too.",
+            "Then the rocket’s own uncertainty. With a spread of 0.1 the rocket is "
+            "overconfident. It believes there is nothing to learn, visits the beacon "
+            "on no seed, and lands on 1 seed of 10.",
+            "And the world. If the broadcast carries far, both rockets hear the pad "
+            "from where they are and both land on all 10 seeds. Curiosity buys "
+            "nothing. The same holds with a sharp radar, which is why ours is "
+            "coarse. Bonus 2 lets you try both.",
+            "So the balance between the two scores takes tuning. Where do we expect "
+            "that to ease? What follows is a direction for future work, and we have "
+            "not shown it. cpomdp’s longer "
+            "planning horizons and its factor-graph backends are where we expect "
+            "the balance to become less fragile, and the p* research programme is "
+            "where the evidence would come from. That work is planned.",
+            "We have one measured point. Looking two moves ahead, the curious rocket "
+            "lands on all 10 seeds, where one move ahead it lands on 9. We have no "
+            "factor-graph evidence in this workshop. The one-node check on the next "
+            "slide shows that the graph engine matches the Kalman filter. It does "
+            "not show that graphs make curiosity more stable.",
         )
     )
 
 
 def backends(deck: Deck) -> None:
     """Show the difference participants measured with the two inference methods."""
-    page = deck.page("Do the two methods agree about where the rocket is?", "task 3")
+    page = deck.page(
+        "Do the two methods agree about where the rocket is?", "why it matters"
+    )
     page.text(
         MARGIN, CONTENT_TOP, FULL_WIDTH, 0.9,
         ["We ran the 1960 rocket model using a Kalman filter, then ran the same "
@@ -1383,9 +1399,9 @@ def backends(deck: Deck) -> None:
     )  # fmt: skip
     page.notes(
         notes(
-            "Keyboard. This is the number you shared in Task 3. With one node, "
-            "the graph should reproduce the familiar Kalman filter result. That "
-            "gives us a case we can check before we use the graph to connect "
+            "Keyboard. This is the first number the final cell prints. With one "
+            "node, the graph should reproduce the familiar Kalman filter result. "
+            "That gives us a case we can check before we use the graph to connect "
             "several variables."
         )
     )
@@ -1570,8 +1586,8 @@ def programmes(deck: Deck) -> None:
 
 
 def keep_going(deck: Deck) -> None:
-    """Two optional experiments in Colab and their follow-up resources."""
-    page = deck.page("Two more experiments to try in Colab", "questions")
+    """Three optional experiments in Colab and their follow-up resources."""
+    page = deck.page("Three more experiments to try in Colab", "questions")
     page.text(
         MARGIN, CONTENT_TOP, FULL_WIDTH, 0.65,
         [[Run("Open the "), Run("Self-guided", bold=True),
@@ -1583,20 +1599,27 @@ def keep_going(deck: Deck) -> None:
         (
             headed(
                 "Let the rocket look two moves ahead",
-                "Fly the same rockets again. This time, each rocket considers 81 "
-                "pairs of moves before choosing its next move. Compare the flight "
-                "paths with the ones you saw in Task 3.",
+                "Fly Task 3’s two rockets again. This time, each considers 81 pairs "
+                "of moves before choosing its next move. Does the rocket with "
+                "curiosity off go to the beacon now?",
                 colour=AMBER,
             ),
             headed(
                 "Give the rocket a probe to tow",
-                "The probe takes readings as it follows the rocket. How reliable "
-                "those readings are depends on where the probe is. Run the example "
-                "to see why a single fixed Kalman filter cannot reproduce this model.",
+                "The probe takes readings as it follows the rocket. Run the example "
+                "to see why a single fixed Kalman filter cannot reproduce this "
+                "model.",
                 colour=GREEN,
             ),
+            headed(
+                "Whose detour is it?",
+                "Put a patch of very noisy readings on the straight route and fly "
+                "the rocket with curiosity on and off. The cell counts the moves "
+                "that curiosity decided.",
+                colour=BLUE,
+            ),
         ),
-        size=19,
+        size=18,
     )  # fmt: skip
     page.notes(
         "You can try either exercise in your own time. Within 48 hours, we will "
@@ -1664,9 +1687,8 @@ SLIDES: tuple[Callable[[Deck], None], ...] = (
     task_2_meaning,
     task_3_brief,
     task_3_timer,
-    task_3_blackout,
-    task_3_rock,
-    task_3_meaning,
+    task_3_result,
+    task_3_tuning,
     backends,
     coda,
     where_cpomdp_sits,

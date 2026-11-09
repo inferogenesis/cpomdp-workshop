@@ -28,7 +28,6 @@ from cpomdp_workshop import (
     plot,
 )
 from cpomdp_workshop.check import backend_differences
-from cpomdp_workshop.solutions import CLEAR_SKY_ROCK
 
 PROSE = ("title", "text", "card", "pill", "placeholder")
 DRAWING = "http://schemas.openxmlformats.org/drawingml/2006/main"
@@ -46,14 +45,13 @@ MEASURED = {
     "0.24": "test_at_k_0_4_the_curious_rocket_stops_short_and_the_incurious_one_lands",
     "2.79": "test_at_k_0_4_the_curious_rocket_stops_short_and_the_incurious_one_lands",
     "1.67": "test_at_k_0_4_no_curious_rocket_lands_and_every_incurious_one_does",
-    "6": "test_the_1960_rocket_hits_the_rock_on_step_six_whatever_the_noise_does",
-    "1.71": "test_the_default_slider_rocket_clears_the_rock_and_lands",
-    "4.83": "test_the_default_slider_rocket_clears_the_rock_and_lands",
-    "0.09": "test_the_default_slider_rocket_clears_the_rock_and_lands",
-    "1.91": "test_the_k_point_two_rocket_clears_the_rock_and_lands",
-    "5.18": "test_the_k_point_two_rocket_clears_the_rock_and_lands",
-    "0.15": "test_the_k_point_two_rocket_clears_the_rock_and_lands",
-    "5": "test_in_clear_sky_the_rock_is_hit_on_the_curious_rockets_routes",
+    "0.09": "test_at_k_0_08_curiosity_flies_to_the_beacon_and_both_rockets_land",
+    "0.17": "test_on_seed_3_the_curious_rocket_finds_the_pad_and_the_other_misses",
+    "0.85": "test_on_seed_3_the_curious_rocket_finds_the_pad_and_the_other_misses",
+    "0.25": "test_gate_c2_curious_lands_on_8_or_more_seeds_and_incurious_on_4_or_fewer",
+    "0.61": "test_gate_c2_curious_lands_on_8_or_more_seeds_and_incurious_on_4_or_fewer",
+    "7": "test_over_ten_seeds_the_hidden_pads_balance_holds_only_in_a_window",
+    "6": "test_the_curious_rocket_checks_the_beacon_on_fewer_seeds_outside_the_window",
     "9": "test_the_search_is_decided_rather_than_sampled",
     "81": "test_two_moves_ahead_scores_eighty_one_plans_a_step",
     "78125": "test_the_coda_certificate_covers_every_seven_step_axis_plan",
@@ -64,18 +62,17 @@ MEASURED = {
 
 SET = {
     "0.08": "k, the slider's default",
-    "0.20": "k, the second curious rocket",
     "0.4": "k, task 2's reference, where its two rockets part",
     "0.1": "the curious rocket's preference precision",
     "0.2": "k, the precision comparison's",
+    "0.3": "a preference precision the tuning slide compares",
+    "1.5": "the hidden pad's spread, in the world and in the rocket's model",
+    "5": "a timer's mark, and the minutes of a brief",
     "0.37": "k, where task 2's curious rocket first stops short on seed 3",
     "0.45": "k, the last at which task 2's incurious rocket lands on seed 3",
     "0.46": "k, where task 2's incurious rocket first stops short on seed 3",
     "0.40": "k, task 2's reference",
-    "0.6": "k, too curious to land",
     "0.5": "the compass step",
-    "4.2": "the clear-sky rock's x",
-    "0.7": "the clear-sky rock's y, below the line",
     "0": "the first seed, and the start of a timer's bar",
     "1": "a task, checkpoint, seed, step or answer number",
     "2": "a task, checkpoint, seed, step or answer number",
@@ -124,9 +121,8 @@ def pictures(slide):
 
 
 @pytest.mark.slow
-def test_the_deck_has_twenty_six_slides_each_with_notes(deck):
-    # Task 2 gained a slide. The hidden pad's Task 3 takes one away again.
-    assert len(deck.slides) == 26
+def test_the_deck_has_twenty_five_slides_each_with_notes(deck):
+    assert len(deck.slides) == 25
     for slide in deck.slides:
         assert slide.notes_slide.notes_text_frame.text.strip()
 
@@ -298,15 +294,17 @@ def test_the_route_frames_build_up_in_one_place(deck):
         build_deck.task_1_result: "straight",
         build_deck.task_2_result: "beacon",
         build_deck.task_2_meaning: "too_curious",
-        build_deck.task_3_blackout: "blackout",
-        build_deck.task_3_rock: "rock",
+        build_deck.task_3_result: "pad",
+        build_deck.preview: "pad",
     }
-    places = set()
+    corners, sizes = set(), set()
     for slide, stage in route.items():
         (picture,) = pictures(slide_of(deck, slide))
         assert picture.name.endswith(f"_{stage}.png")
-        places.add((picture.left, picture.top, picture.width, picture.height))
-    assert len(places) == 1
+        corners.add((picture.left, picture.top, picture.width))
+        sizes.add((stage == "pad", picture.height))
+    assert len(corners) == 1
+    assert len(sizes) == 2  # the pad's figure carries its readout, so it is shorter
 
 
 def test_the_graph_slide_shows_the_measured_maximum_difference(deck):
@@ -318,12 +316,6 @@ def test_the_graph_slide_shows_the_measured_maximum_difference(deck):
     assert output.text_frame.text == f"max |difference| = {difference:.1e}"
 
 
-def test_the_clear_sky_rock_is_where_the_slide_says():
-    (x, y), _ = CLEAR_SKY_ROCK
-    assert (x, y) == (4.2, -0.7)
-
-
-@pytest.mark.slow
 def test_every_number_in_the_prose_and_notes_is_measured_or_set(deck):
     numbers = {
         token.replace(",", "")
