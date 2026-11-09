@@ -4,8 +4,9 @@ A two-hour hands-on workshop on [cpomdp](https://github.com/inferogenesis/cpomdp
 continuous active inference in Python, for the 6th Applied Active Inference Symposium.
 You build three rockets. The first is the 1960 controller, a Kalman filter with a goal,
 and the library reports that no move can teach it more than another. The second reads its
-position through a sensor that depends on where it is, and bends its path toward a
-beacon. In the third, three rockets fly past a rock none of them was told about.
+position through a sensor that depends on where it is, and is flown with its curiosity
+on and off, so the detour to a beacon can be put down to curiosity. The third does not
+know where the landing pad is, and curiosity decides whether it finds it.
 
 ## Open it
 
