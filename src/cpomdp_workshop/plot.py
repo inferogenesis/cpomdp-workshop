@@ -4,8 +4,9 @@ The sensor field is drawn as ``log10 R(x)`` in one muted green ramp, stronger wh
 the reading is noisier, so the blackout stands out around the rock and the beacon sits
 in the quietest patch. The 1960 rocket is a dashed ink line. The curious rockets take
 amber, then blue, in the order given, so a rocket with curiosity on is amber beside the
-same rocket with it off in blue. Text is ink or muted, never a series colour, and a
-figure with more than one rocket carries a legend.
+same rocket with it off in blue. A flight ends in a dot of its colour, or in a star
+where it crashed. Text is ink or muted, never a series colour, and a figure with more
+than one rocket carries a legend.
 
 The neutral colours come from a [`Palette`][cpomdp_workshop.plot.Palette]. Figures
 are drawn on [`DARK`][cpomdp_workshop.plot.DARK], the notebook's. The slides draw
@@ -60,6 +61,7 @@ __all__ = [
     "CURIOSITY_ON",
     "CURIOUS_COLOURS",
     "DARK",
+    "END_MARKER",
     "IMPACT_MARKER",
     "LIGHT",
     "ROUTE_STAGES",
@@ -127,6 +129,7 @@ ROCK_FILL = "#5A625D"
 FIELD_SCALE = Normalize(np.log10(NOISE_FLOOR), np.log10(NOISE_FLOOR + BLACKOUT_GAIN))
 
 IMPACT_MARKER = "*"
+END_MARKER = "o"
 CURIOUS_COLOURS = (AMBER, BLUE)
 
 ROUTE_STAGES = ("straight", "beacon", "too_curious", "blackout", "rock")
@@ -150,6 +153,8 @@ _ROUTE_LEGEND: Literal["lower left"] = "lower left"  # the corner no route cross
 Extent = tuple[tuple[float, float], tuple[float, float]]
 
 _EXTENT: Extent = ((-0.6, 5.6), (-1.1, 2.5))
+# Half-width panels leave the launch site's name less room before the axis labels.
+_BALANCE_EXTENT: Extent = ((-1.1, 5.6), (-1.1, 2.5))
 _FIELD_SAMPLES = (125, 73)
 _PATH_MARGIN = 0.3
 
@@ -308,7 +313,7 @@ def _draw_flight(
     dashed: bool,
     inline: bool,
 ) -> None:
-    """One path, ending in an impact star if it crashed.
+    """One path, ending in a dot, or in an impact star if it crashed.
 
     The impact step goes in the legend entry, or beside the star when ``inline``.
     """
@@ -319,9 +324,14 @@ def _draw_flight(
         linestyle=(0, (5, 3)) if dashed else "solid", solid_capstyle="round",
         label=label, zorder=4,
     )  # fmt: skip
-    if not flight.crashed:
-        return
     x, y = flight.final
+    if not flight.crashed:
+        axes.plot(
+            x, y, marker=END_MARKER, ms=7, color=colour,
+            markeredgecolor=palette.panel, markeredgewidth=1.5, linestyle="none",
+            label="_end", zorder=6,
+        )  # fmt: skip
+        return
     axes.plot(
         x, y, marker=IMPACT_MARKER, ms=16, color=colour,
         markeredgecolor=palette.panel,
@@ -625,8 +635,8 @@ def plot_balance(*, palette: Palette = DARK) -> Figure:
     params = default_params(BALANCE_GAIN)
     mesh = None
     for axes, precision in zip(panels, _BALANCE_PRECISIONS, strict=True):
-        _style_map(axes, f"precision {precision:g}", palette, _EXTENT)
-        mesh = _field_mesh(axes, beacon_sensor, params, palette)
+        _style_map(axes, f"precision {precision:g}", palette, _BALANCE_EXTENT)
+        mesh = _field_mesh(axes, beacon_sensor, params, palette, _BALANCE_EXTENT)
         _draw_landmarks(axes, None, palette)
         flights = curiosity_pair(BALANCE_GAIN, precision=precision)
         _draw_flights(axes, flights, None, palette, inline=False)

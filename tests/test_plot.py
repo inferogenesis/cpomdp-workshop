@@ -14,6 +14,7 @@ from cpomdp_workshop.plot import (
     CURIOSITY_ON,
     CURIOUS_COLOURS,
     DARK,
+    END_MARKER,
     IMPACT_MARKER,
     LIGHT,
     ROUTE_STAGES,
@@ -270,3 +271,15 @@ def test_the_balance_figure_puts_the_two_precisions_side_by_side():
         names = [text.get_text() for text in legend.get_texts()]
         assert names == [CURIOSITY_ON, CURIOSITY_OFF]
     assert to_hex(figure.get_facecolor()) == LIGHT.background.lower()
+
+
+def test_a_flight_ends_in_a_dot_unless_it_crashed(route):
+    def ends(figure):
+        return [
+            line
+            for line in figure.axes[0].get_lines()
+            if line.get_label() == "_end" and line.get_marker() == END_MARKER
+        ]
+
+    assert len(ends(route["beacon"])) == 2
+    assert len(ends(route["rock"])) == 2  # the 1960 rocket ends in a star instead
