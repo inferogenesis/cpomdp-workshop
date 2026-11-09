@@ -30,7 +30,9 @@ from cpomdp_workshop.build import (
     curious_rocket,
     model_with,
     one_node,
+    pad_model,
     pad_preference,
+    radar_preference,
     the_1960_rocket,
 )
 from cpomdp_workshop.check import (
@@ -44,7 +46,7 @@ from cpomdp_workshop.check import (
 )
 from cpomdp_workshop.planner import compass_moves, compass_planner
 from cpomdp_workshop.selfguided import two_node_backend
-from cpomdp_workshop.sim import ROCK, fly
+from cpomdp_workshop.sim import ROCK, fly, fly_pad
 from cpomdp_workshop.solutions import (
     CLEAR_SKY_ROCK,
     axis_certificate,
@@ -54,7 +56,9 @@ from cpomdp_workshop.world import (
     BEACON,
     PAD,
     beacon_sensor,
+    broadcast_noise,
     default_params,
+    pad_params,
     reference_sensor,
 )
 
@@ -726,3 +730,146 @@ def test_on_seed_3_the_rockets_part_only_for_k_from_0_37_to_0_45(
 def test_at_k_0_5_neither_rocket_lands_on_any_seed():
     _, tally = over_ten_seeds(0.5)
     assert (tally.on_landed, tally.off_landed) == (0, 0)
+
+
+# --- Task 3: the hidden pad, flown with curiosity on and off ----------------------
+
+
+def capped_broadcast(x, params):
+    # Task 2's field on the broadcast: k = 0.08 with a cap of 4.
+    distance_squared = jnp.sum((x - params["beacon"]) ** 2)
+    return params["noise_floor"] + 0.08 * jnp.minimum(distance_squared, 4.0)
+
+
+def fly_pad_pair(
+    seed=3,
+    *,
+    pad_spread=1.5,
+    precision=CURIOUS_PRECISION,
+    horizon=1,
+    broadcast=broadcast_noise,
+    **settings,
+):
+    params = {**pad_params(), **{k: jnp.asarray(v) for k, v in settings.items()}}
+    flights = []
+    for curiosity in (True, False):
+        model = pad_model(broadcast, params, pad_spread)
+        planner = compass_planner(model, horizon=horizon, curiosity=curiosity)
+        rocket = Agent(model, radar_preference(precision), selector=planner)
+        flights.append(fly_pad(rocket, seed=seed))
+    return flights
+
+
+class PadTally(NamedTuple):
+    on_landed: int
+    on_median_miss: float
+    off_landed: int
+    off_median_miss: float
+
+
+def pad_tally(**settings):
+    pairs = [fly_pad_pair(seed, **settings) for seed in range(10)]
+    on = np.array([flight.miss for flight, _ in pairs])
+    off = np.array([flight.miss for _, flight in pairs])
+    tally = PadTally(
+        int((on < 0.5).sum()),
+        round(float(np.median(on)), 2),
+        int((off < 0.5).sum()),
+        round(float(np.median(off)), 2),
+    )
+    return pairs, tally
+
+
+def beacon_visits(flights):
+    # The seeds, counted from zero, whose flight passes within 0.5 of the beacon.
+    return [seed for seed, f in enumerate(flights) if nearest_beacon(f) < 0.5]
+
+
+def test_on_seed_3_the_curious_rocket_finds_the_pad_and_the_incurious_one_misses():
+    on, off = fly_pad_pair()
+    assert (round(on.miss, 2), round(off.miss, 2)) == (0.17, 0.85)
+    assert round(nearest_beacon(on), 2) == 0.17
+    assert round(nearest_beacon(off), 2) == 1.40
+
+
+@pytest.mark.slow
+def test_gate_c2_curious_lands_on_8_or_more_seeds_and_incurious_on_4_or_fewer():
+    pairs, tally = pad_tally()
+    assert tally.on_landed >= 8
+    assert tally.off_landed <= 4
+    assert tally == PadTally(9, 0.25, 3, 0.61)
+    visits = [nearest_beacon(on) for on, _ in pairs]
+    assert round(float(np.median(visits)), 2) == 0.09
+    # The incurious rocket nears the beacon on seed 8 alone, where the pad lies that
+    # way.
+    assert beacon_visits(off for _, off in pairs) == [8]
+
+
+@pytest.mark.parametrize(
+    ("pad_spread", "misses"), [(0.1, (2.76, 2.76)), (3.0, (0.17, 0.48))]
+)
+def test_on_seed_3_an_overconfident_rocket_never_checks_the_beacon(pad_spread, misses):
+    on, off = fly_pad_pair(pad_spread=pad_spread)
+    assert (round(on.miss, 2), round(off.miss, 2)) == misses
+    checks = pad_spread > 0.1
+    assert (nearest_beacon(on) < 0.5) is checks
+
+
+@pytest.mark.slow
+@pytest.mark.parametrize(
+    ("settings", "expected"),
+    [
+        ({"pad_spread": 0.1}, PadTally(1, 1.42, 1, 1.42)),
+        ({"pad_spread": 0.5}, PadTally(7, 0.30, 3, 0.70)),
+        ({"pad_spread": 3.0}, PadTally(10, 0.25, 5, 0.55)),
+        ({"broadcast_gain": 0.1}, PadTally(10, 0.18, 10, 0.17)),
+        ({"broadcast_gain": 0.3}, PadTally(10, 0.19, 8, 0.24)),
+        ({"broadcast_gain": 3.0}, PadTally(8, 0.27, 4, 0.58)),
+        ({"broadcast": capped_broadcast}, PadTally(10, 0.25, 10, 0.14)),
+        ({"radar_noise": 1.0}, PadTally(10, 0.23, 10, 0.17)),
+        ({"precision": 0.3}, PadTally(7, 0.39, 3, 0.61)),
+        ({"precision": 1.0}, PadTally(3, 0.61, 3, 0.61)),
+        ({"horizon": 2}, PadTally(10, 0.22, 3, 0.61)),
+    ],
+    ids=lambda value: (
+        ",".join(f"{k}={getattr(v, '__name__', v)}" for k, v in value.items())
+        if isinstance(value, dict)
+        else None
+    ),
+)
+def test_over_ten_seeds_the_hidden_pads_balance_holds_only_in_a_window(
+    settings, expected
+):
+    assert pad_tally(**settings)[1] == expected
+
+
+def test_on_seed_3_a_broadcast_that_carries_far_lets_both_rockets_land():
+    on, off = fly_pad_pair(broadcast_gain=0.1)
+    assert (round(on.miss, 2), round(off.miss, 2)) == (0.37, 0.06)
+
+
+def test_on_seed_3_a_sharp_radar_lands_both_rockets_without_the_beacon():
+    on, off = fly_pad_pair(radar_noise=1.0)
+    assert (round(on.miss, 2), round(off.miss, 2)) == (0.38, 0.38)
+    assert round(nearest_beacon(on), 2) == 1.40
+
+
+@pytest.mark.slow
+def test_with_a_sharp_radar_the_curious_rocket_still_detours_on_four_seeds():
+    pairs, _ = pad_tally(radar_noise=1.0)
+    assert beacon_visits(on for on, _ in pairs) == [2, 4, 6, 8]
+    assert beacon_visits(off for _, off in pairs) == [8]
+
+
+def test_on_seed_3_a_tight_preference_stops_the_curious_rocket_checking():
+    # Seed 3 already stops checking at 0.3, where seven of ten seeds still land.
+    for precision in (0.3, 1.0):
+        on, _ = fly_pad_pair(precision=precision)
+        assert round(nearest_beacon(on), 2) == 1.40
+        assert on.miss > 0.5
+
+
+def test_on_seed_3_two_moves_ahead_the_incurious_rocket_still_skips_the_beacon():
+    on, off = fly_pad_pair(horizon=2)
+    assert (round(on.miss, 2), round(off.miss, 2)) == (0.17, 0.85)
+    assert round(nearest_beacon(off), 2) == 1.40
