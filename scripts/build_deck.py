@@ -10,11 +10,11 @@ built. The room reads the code on its own screen, so no slide repeats it. ``AGEN
 holds the plan on 5-minute steps from ``START``, and every clock time on the agenda
 slide and in the notes is read from it, in UTC.
 
-The slides carry the route figures and what the cells print. Polls come from
-``lesson.py``, printed output from running the package on the pinned release, figures
-from ``assets/``. Every number in the prose and the notes is
-asserted in ``tests/test_measured_claims.py`` or named in the deck test as set. The
-build refuses to write a deck whose shapes run off a slide, overlap or overflow.
+The slides carry the route figures and what the cells print. Printed output comes from
+running the package on the pinned release, figures from ``assets/``. Every number in
+the prose and the notes is asserted in ``tests/test_measured_claims.py`` or named in
+the deck test as set. The build refuses to write a deck whose shapes run off a slide,
+overlap or overflow.
 
 The presenters' photos are never committed. The committed deck shows an empty frame
 for each. When ``deck/photos/`` holds them, the build also writes a presenting copy
@@ -23,7 +23,6 @@ with each photo in its frame, and git ignores both the photos and that copy.
 
 import contextlib
 import io
-import re
 import sys
 from collections.abc import Callable
 from dataclasses import dataclass
@@ -33,7 +32,6 @@ from pathlib import Path
 from cpomdp import KalmanBackend
 from pptx.enum.text import MSO_ANCHOR, PP_ALIGN
 
-import lesson
 from cpomdp_workshop import (
     WORKSHOP_CPOMDP_VERSION,
     after_session_3,
@@ -50,7 +48,6 @@ from cpomdp_workshop import (
 from cpomdp_workshop._seams import RecedingHorizonSelector
 from deck_kit import (
     AMBER,
-    AMBER_MARK,
     BLUE,
     CODE_FONT,
     CONTENT_TOP,
@@ -237,24 +234,6 @@ def captured(function: Callable[..., object], *args: object) -> str:
     return buffer.getvalue().rstrip("\n")
 
 
-def plain(markdown: str) -> str:
-    """A lesson poll as plain text for the notes pane."""
-    text = markdown.replace("<details><summary>Answer</summary>", "Answer.")
-    text = text.replace("</details>", "")
-    text = re.sub(r"^#+\s*", "", text, flags=re.MULTILINE)
-    text = text.replace("`", "").replace("*", "")
-    paragraphs = []
-    for block in re.split(r"\n\s*\n", text.strip()):
-        lines: list[str] = []
-        for line in block.splitlines():
-            if lines and not re.match(r"\d+\. ", line.strip()):
-                lines[-1] += f" {line.strip()}"
-            else:
-                lines.append(line.strip())
-        paragraphs.append("\n".join(lines))
-    return "\n\n".join(paragraphs)
-
-
 def notes(*paragraphs: str) -> str:
     """Speaker notes, one paragraph per argument."""
     return "\n\n".join(paragraphs)
@@ -263,24 +242,6 @@ def notes(*paragraphs: str) -> str:
 def linked(url: str, *, size: float = 14) -> Run:
     """A URL as a run that opens it, in the code face, without its scheme."""
     return Run(url.removeprefix("https://"), font=CODE_FONT, size=size, link=url)
-
-
-def paste_card(
-    page: Page, x: float, y: float, w: float, h: float, paste: str, *, stacked: bool
-) -> None:
-    """The number the room pastes in chat when a task closes.
-
-    Stacked puts the number under its label, for a narrow column.
-    """
-    value = Run(paste, font=CODE_FONT)
-    if stacked:
-        paragraphs = [[Run("Paste in chat", colour=MUTED)], [value]]
-    else:
-        paragraphs = [[Run("Paste in chat  ", colour=MUTED), value]]
-    page.card(
-        x, y, w, h, paragraphs,
-        size=17, line=AMBER_MARK, anchor=MSO_ANCHOR.MIDDLE, space_after=2,
-    )  # fmt: skip
 
 
 FILL_IN = "Fill in the two lines marked "
@@ -388,13 +349,6 @@ def callout(page: Page, label: str, value: Run, gloss: str) -> None:
         [[Run(label, colour=MUTED)], [value], [Run(gloss)]],
         size=17, space_after=6, anchor=MSO_ANCHOR.MIDDLE,
     )  # fmt: skip
-
-
-def task_close(page: Page, paste: str, poll: int) -> None:
-    """The close of a task: the number to paste, then the poll."""
-    width = RIGHT - ROUTE_COLUMN
-    paste_card(page, ROUTE_COLUMN, 4.65, width, 1.05, paste, stacked=True)
-    page.pill(ROUTE_COLUMN, 5.98, width, 0.55, f"Poll {poll} · 60 s", size=16)
 
 
 def headed(heading: str, *lines: Paragraph, colour: str = INK) -> list[Paragraph]:
@@ -608,7 +562,7 @@ def how_we_work(deck: Deck) -> None:
         headed(
             "Share your result",
             "Paste the number requested at the end of the task into the chat. "
-            "We will then take a one-minute poll.",
+            "Each task closes with a question in the notebook to think about.",
         ),
     )
     for index, paragraphs in enumerate(cards):
@@ -886,10 +840,6 @@ def task_1_result(deck: Deck) -> None:
         ROUTE_COLUMN, 4.85, width, 1.4,
         ["If you tried the bonus exercises, what changed and what stayed the same?"],
         size=19, bold=True,
-    )  # fmt: skip
-    page.text(
-        ROUTE_COLUMN, 6.65, width, 0.35, ["Poll 1 · 60 seconds"],
-        size=16, colour=AMBER,
     )  # fmt: skip
     page.notes(
         notes(
@@ -1251,7 +1201,7 @@ def task_3_blackout(deck: Deck) -> None:
 
 
 def task_3_rock(deck: Deck) -> None:
-    """Show the same flights with the rock, then run poll 3."""
+    """Show the same flights with the rock."""
     page = route_page(
         deck, "What changes when we add the rock?", "task 3", "route_4_rock.png"
     )
@@ -1267,18 +1217,12 @@ def task_3_rock(deck: Deck) -> None:
         ],
         size=20, space_after=18,
     )  # fmt: skip
-    page.text(
-        ROUTE_COLUMN, 6.65, width, 0.35, ["Poll 3 · 60 seconds"],
-        size=16, colour=AMBER,
-    )  # fmt: skip
     page.notes(
         notes(
             "Kev. Follow the dashed line to the star. The 1960 rocket hits the rock "
             "on step 6. Trace the two coloured routes past the rock to the pad. "
             "These are the reference flights for seed 3.",
-            "Run poll 3 for 60 seconds. When the poll closes, read the split.",
-            plain(lesson.SESSION_3.poll),
-            "After the poll: Look back at the previous plot. Both rockets had "
+            "Look back at the previous plot. Both rockets had "
             "already taken the detour before we added the rock. Those routes "
             "happened to carry them clear of it on this run.",
             "Next, compare ten flights with the rock in two different places.",
