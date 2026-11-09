@@ -1,6 +1,6 @@
 [project]
 name = "cpomdp-workshop"
-version = "1.0.0"
+version = "1.1.0"
 description = "Build a curious rocket — the AII 2026 symposium workshop for cpomdp."
 readme = "README.md"
 requires-python = ">=3.11"
