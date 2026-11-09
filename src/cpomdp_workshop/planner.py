@@ -8,24 +8,36 @@ by its version.
 
 A smaller set of five, stay plus the four axis moves, is what the coda searches seven
 steps deep.
+
+The curiosity switch is a workshop helper, not a cpomdp feature. With curiosity off,
+the planner ranks the same plans by the pragmatic term alone, so a flight with it off
+is the same rocket with the epistemic term taken out of every decision.
 """
 
+import itertools
 from collections.abc import Callable
+from typing import Literal, overload
 
+import jax
+import jax.numpy as jnp
 import numpy as np
-from cpomdp import LinearGaussianModel
+from cpomdp import Belief, LinearGaussianModel, Preference
+from jax import Array
 
 from cpomdp_workshop._seams import (
     EnumeratedEFESearch,
     ExhaustiveEFESearch,
     FiniteActionSet,
+    PolicyEFETrace,
     RecedingHorizonSelector,
+    policy_efe_trace,
 )
 
 __all__ = [
     "AXIS_VERSION",
     "COMPASS_VERSION",
     "STEP",
+    "WeightedEFESelector",
     "axis_actions",
     "compass_actions",
     "compass_moves",
@@ -84,13 +96,125 @@ def compass_moves(step: float = STEP) -> list[np.ndarray]:
     return list(_stay_and_move(_COMPASS_BEARINGS, step))
 
 
+class WeightedEFESelector:
+    """Ranks every plan by its pragmatic term minus a weight on its epistemic term.
+
+    Expected free energy is the pragmatic term minus the epistemic term, so a weight
+    of one ranks plans as cpomdp's search does and a weight of zero ranks them by the
+    pragmatic term alone. It re-plans on the current belief at every step and takes
+    the first move of the best plan. Plans are enumerated in the order cpomdp's
+    search enumerates them, and a tie goes to the earlier plan, as it does there.
+
+    Args:
+        model: the rocket's generative model. It needs a control matrix.
+        actions: the declared moves each step of a plan chooses from.
+        horizon: how many moves each plan makes, H.
+        epistemic_weight: w, the weight on the epistemic term.
+    """
+
+    def __init__(
+        self,
+        model: LinearGaussianModel,
+        actions: FiniteActionSet,
+        *,
+        horizon: int,
+        epistemic_weight: float,
+    ) -> None:
+        self._model = model
+        self._horizon = horizon
+        self._epistemic_weight = epistemic_weight
+        moves = np.asarray(actions.actions)
+        self._plans = jnp.asarray(
+            [list(plan) for plan in itertools.product(moves, repeat=horizon)]
+        )  # (|A|^H, H, p)
+        self._scores = jax.jit(self._score_every_plan)
+
+    def _weighted(self, trace: PolicyEFETrace) -> Array:
+        """One plan's pragmatic term minus w times its epistemic term, summed."""
+        return jnp.sum(trace.pragmatic - self._epistemic_weight * trace.epistemic)
+
+    def _score_every_plan(self, belief: Belief, preference: Preference) -> Array:
+        return jax.vmap(
+            lambda plan: self._weighted(
+                policy_efe_trace(self._model, belief, plan, preference)
+            )
+        )(self._plans)
+
+    def select(self, belief: Belief, preference: Preference) -> Array:
+        """Score every plan from ``belief`` and return the best plan's first move.
+
+        Raises:
+            ValueError: if no plan scores below infinity, so there is nothing to pick.
+        """
+        scores = self._scores(belief, preference)
+        masked = jnp.where(jnp.isnan(scores), jnp.inf, scores)
+        best = int(jnp.argmin(masked))
+        if not bool(masked[best] < jnp.inf):
+            raise ValueError("no plan scored below infinity, so no move can be picked.")
+        return self._plans[best, 0]
+
+    @property
+    def model(self) -> LinearGaussianModel:
+        """The model the plans are scored on."""
+        return self._model
+
+    @property
+    def horizon(self) -> int:
+        """How many moves each plan makes, H."""
+        return self._horizon
+
+    @property
+    def n_plans(self) -> int:
+        """How many plans every step scores, ``|A|^H``."""
+        return int(self._plans.shape[0])
+
+    @property
+    def epistemic_weight(self) -> float:
+        """w, the weight on the epistemic term."""
+        return self._epistemic_weight
+
+
+@overload
+def compass_planner(
+    model: LinearGaussianModel,
+    *,
+    step: float = ...,
+    horizon: int = ...,
+    search: Callable[..., ExhaustiveEFESearch] = ...,
+    curiosity: Literal[True] = ...,
+) -> RecedingHorizonSelector: ...
+
+
+@overload
+def compass_planner(
+    model: LinearGaussianModel,
+    *,
+    step: float = ...,
+    horizon: int = ...,
+    search: Callable[..., ExhaustiveEFESearch] = ...,
+    curiosity: Literal[False],
+) -> WeightedEFESelector: ...
+
+
+@overload
+def compass_planner(
+    model: LinearGaussianModel,
+    *,
+    step: float = ...,
+    horizon: int = ...,
+    search: Callable[..., ExhaustiveEFESearch] = ...,
+    curiosity: bool,
+) -> RecedingHorizonSelector | WeightedEFESelector: ...
+
+
 def compass_planner(
     model: LinearGaussianModel,
     *,
     step: float = STEP,
     horizon: int = 1,
     search: Callable[..., ExhaustiveEFESearch] = EnumeratedEFESearch,
-) -> RecedingHorizonSelector:
+    curiosity: bool = True,
+) -> RecedingHorizonSelector | WeightedEFESelector:
     """Score every compass plan the rocket could fly, then take the first move.
 
     Args:
@@ -98,15 +222,22 @@ def compass_planner(
         step: how far one move travels.
         horizon: how many moves ahead to look, H. The search scores ``9 ** horizon``
             plans on every step, so this is where the compute goes.
-        search: the exhaustive search to plan with. ``ChunkedEFESearch`` scores the
-            plans a block at a time, for horizons whose plans do not fit in memory at
-            once. Either gives the same move.
+        search: the exhaustive search to plan with when curiosity is on.
+            ``ChunkedEFESearch`` scores the plans a block at a time, for horizons
+            whose plans do not fit in memory at once. Either gives the same move.
+        curiosity: whether the epistemic term counts. Off, the same plans are ranked
+            by the pragmatic term alone.
 
     Returns:
-        A selector that re-plans on the current belief at every step. After its
-        first plan it carries the certificate that says the search covered every
-        plan rather than a sample of them.
+        With curiosity on, cpomdp's selector, which re-plans on the current belief at
+        every step. After its first plan it carries the certificate that says the
+        search covered every plan rather than a sample of them. With curiosity off, a
+        [`WeightedEFESelector`][cpomdp_workshop.planner.WeightedEFESelector] with no
+        weight on the epistemic term.
     """
-    return RecedingHorizonSelector(
-        search(model, compass_actions(step), horizon=horizon)
-    )
+    actions = compass_actions(step)
+    if not curiosity:
+        return WeightedEFESelector(
+            model, actions, horizon=horizon, epistemic_weight=0.0
+        )
+    return RecedingHorizonSelector(search(model, actions, horizon=horizon))
