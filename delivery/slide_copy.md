@@ -20,21 +20,22 @@ is on the landing pad.
 *Will the rocket change its route when some locations provide more reliable
 observations?*
 
-## Slide before Task 3 · What happens when observations become unreliable?
+## Slide before Task 3 · What if the rocket does not know where the pad is?
 
-**The beacon**
-Observations become more reliable as the rocket approaches the beacon.
+**The guess**
+The rocket starts with a guess at where the pad is, and it knows how unsure that guess
+is.
 
-**The blackout**
-Observations become increasingly noisy towards the centre of the blackout.
+**The radar**
+A coarse radar points roughly from the rocket towards the pad. Its noise is the same
+everywhere.
 
-**An additional challenge**
-There is a rock inside the blackout, but none of the rockets has any representation of
-it in its model.
+**The broadcast**
+The beacon broadcasts the pad's exact position. The broadcast is clear near the beacon
+and fades with distance.
 
 **Question for participants**
-*How might the rockets respond, and what can their trajectories tell us about their
-behaviour?*
+*Which rocket finds the pad, the one with curiosity on or the one with curiosity off?*
 
 ## Closing slide · A working model is the beginning, not the end
 

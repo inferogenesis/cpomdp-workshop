@@ -2,9 +2,10 @@
 
 The list comes from a walk-through of the notebook on Colab. It names what people
 actually see, which is mostly a ``...`` left in a cell, a runtime that restarted, or
-NumPy inside a sensor. A symptom that raises carries the line that raises it, and a
-test checks that the words quoted under "You see" are in that error. The printout
-fits a narrow Colab cell.
+NumPy inside a sensor. The fifth is the mistake the hidden-pad cell invites: a
+broadcast that returns a matrix, as task 2's sensor did. A symptom that raises carries
+the line that raises it, and a test checks that the words quoted under "You see" are
+in that error. The printout fits a narrow Colab cell.
 """
 
 from dataclasses import dataclass
@@ -12,8 +13,8 @@ from dataclasses import dataclass
 import jax.numpy as jnp
 from cpomdp import Belief, KalmanBackend, LinearGaussianModel
 
-from cpomdp_workshop.check import check_my_sensor
-from cpomdp_workshop.world import LAUNCH, beacon_sensor, default_params
+from cpomdp_workshop.check import check_my_broadcast, check_my_sensor
+from cpomdp_workshop.world import LAUNCH, beacon_sensor, default_params, pad_params
 
 __all__ = ["SYMPTOMS", "Symptom", "symptoms"]
 
@@ -49,7 +50,7 @@ SYMPTOMS = (
         "ellipsis",
     ),
     Symptom(
-        "NameError: name 'model' is not defined (or my_sensor, my_world)",
+        "NameError: name 'model' is not defined (or my_sensor, my_broadcast)",
         "the runtime restarted or disconnected, which clears every name",
         "run the checkpoint above the task, then the task's cell",
         "KalmanBackend(model)",
@@ -57,7 +58,7 @@ SYMPTOMS = (
     ),
     Symptom(
         "JAX cannot trace it, or an error naming a Tracer or Concretization",
-        "Python's min, or math or np, inside a sensor or my_world",
+        "Python's min, or math or np, inside my_sensor or my_broadcast",
         "use jnp.minimum, jnp.exp and jnp.sum instead",
         "check_my_sensor(lambda x, params: jnp.eye(2) * "
         "(0.05 + min(jnp.sum(x**2), 1.0)), default_params(0.4))",
@@ -71,9 +72,12 @@ SYMPTOMS = (
         'params["beacon"] is a tuple',
     ),
     Symptom(
-        "the plot stays the same after you move the k slider",
-        "moving a slider does not run the cell",
-        "run the cell again after each move",
+        "my_broadcast is not a broadcast yet: it returned shape (2, 2)",
+        "my_broadcast multiplies by jnp.eye(2), as my_sensor did in task 2",
+        'return one number, params["noise_floor"] + fade',
+        "check_my_broadcast(lambda x, params: jnp.eye(2) * "
+        '(params["noise_floor"] + jnp.sum(x**2)), pad_params())',
+        "it returned shape (2, 2)",
     ),
 )
 
@@ -87,9 +91,11 @@ def _namespace() -> dict[str, object]:
         "KalmanBackend": KalmanBackend,
         "LinearGaussianModel": LinearGaussianModel,
         "beacon_sensor": beacon_sensor,
+        "check_my_broadcast": check_my_broadcast,
         "check_my_sensor": check_my_sensor,
         "default_params": default_params,
         "jnp": jnp,
+        "pad_params": pad_params,
         "prior": Belief(mean=jnp.asarray(LAUNCH), cov=4 * jnp.eye(2)),
     }
 

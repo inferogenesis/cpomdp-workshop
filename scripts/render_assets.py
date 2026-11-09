@@ -17,6 +17,8 @@ from pathlib import Path
 # Before pyplot is imported: the figures are written, never shown.
 os.environ.setdefault("MPLBACKEND", "Agg")
 
+from matplotlib.figure import Figure
+
 import timer_clip
 from build_deck import TASK_MINUTES
 from cpomdp_workshop import plot
@@ -28,17 +30,20 @@ ROUTE_FILES = {
     "straight": "route_1_straight.png",
     "beacon": "route_2_beacon.png",
     "too_curious": "route_2_too_curious.png",
-    "blackout": "route_3_blackout.png",
-    "rock": "route_4_rock.png",
 }
-"""Each route frame's file, numbered by the task whose slides show it."""
+"""Each route frame the slides show, numbered by the task whose slides show it."""
+
+
+def hidden_pad() -> Figure:
+    """Task 3's reference pair on the hidden pad, on the slides' palette."""
+    return plot.plot_pad(plot.pad_pair(), palette=plot.LIGHT)
+
 
 FIGURES = {
-    "fig_world_rock.png": plot.preview,
     "tile_task1.png": plot.tile_task1,
     "tile_task2.png": plot.tile_task2,
-    "tile_task3.png": plot.tile_task3,
     "route_2_balance.png": partial(plot.plot_balance, palette=plot.LIGHT),
+    "route_3_pad.png": hidden_pad,
     **{
         name: partial(plot.plot_route, stage, palette=plot.LIGHT)
         for stage, name in ROUTE_FILES.items()

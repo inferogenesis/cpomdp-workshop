@@ -4,19 +4,27 @@ from cpomdp import Agent, CouplingGraphBackend
 
 from cpomdp_workshop import _seams
 from cpomdp_workshop.build import (
+    CURIOUS_PRECISION,
     THRUSTER_COST,
     curious_rocket,
     model_with,
     one_node,
     pad_goal,
+    pad_model,
     pad_preference,
+    radar_preference,
     the_1960_rocket,
 )
 from cpomdp_workshop.world import (
+    LAUNCH,
     NOISE_FLOOR,
     PAD,
+    PAD_GUESS,
+    PAD_READINGS,
     beacon_sensor,
+    broadcast_noise,
     default_params,
+    pad_params,
     reference_sensor,
 )
 
@@ -102,3 +110,24 @@ def test_one_node_carries_the_same_plant():
 def test_the_1960_rocket_flies_on_the_graph_backend():
     agent = Agent.from_backend(one_node(model_with()), pad_goal())
     assert "backend=CouplingGraphBackend" in repr(agent)
+
+
+def test_a_move_shifts_the_rocket_and_leaves_the_pad_where_it_is():
+    model = pad_model(broadcast_noise, pad_params(), 1.5)
+    assert np.allclose(model.dynamics_matrix, np.eye(4))
+    assert np.allclose(model.control_matrix, np.vstack([np.eye(2), np.zeros((2, 2))]))
+    assert np.allclose(model.observation_matrix, PAD_READINGS)
+
+
+def test_the_rocket_starts_at_launch_and_guesses_the_pad_with_its_spread():
+    prior = pad_model(broadcast_noise, pad_params(), 1.5).prior
+    assert np.allclose(prior.mean, [*LAUNCH, *PAD_GUESS])
+    assert np.allclose(np.diag(prior.cov), [0.25, 0.25, 2.25, 2.25])
+
+
+def test_the_radar_carries_the_goal_and_the_other_readings_barely_count():
+    preference = radar_preference()
+    assert np.allclose(preference.target, np.zeros(6))
+    weights = np.diag(np.asarray(preference.precision))
+    assert np.allclose(weights[2:4], CURIOUS_PRECISION)
+    assert (weights[[0, 1, 4, 5]] < 1e-6).all()

@@ -9,12 +9,19 @@ from cpomdp_workshop.world import (
     BEACON_CAP,
     BLACKOUT,
     BLACKOUT_GAIN,
+    BROADCAST_GAIN,
     LAUNCH,
     NOISE_FLOOR,
+    OWN_NOISE,
     PAD,
+    PAD_READINGS,
+    RADAR_NOISE,
     ROCK_RADIUS,
     beacon_sensor,
+    broadcast_noise,
     default_params,
+    pad_params,
+    pad_sensor,
     reference_sensor,
 )
 
@@ -78,3 +85,39 @@ def test_the_launch_to_pad_line_runs_through_the_rock():
 def test_a_k_left_unwritten_is_named():
     with pytest.raises(TypeError, match=re.escape("beacon_gain is still ...")):
         default_params(...)  # ty: ignore[invalid-argument-type]
+
+
+def test_the_hidden_pad_is_read_three_ways():
+    state = np.array(
+        [1.0, 2.0, 5.5, -0.5]
+    )  # the rocket at (1, 2), the pad at (5.5, -0.5)
+    readings = np.asarray(PAD_READINGS) @ state
+    assert np.allclose(readings, [1.0, 2.0, 4.5, -2.5, 5.5, -0.5])
+
+
+def test_the_broadcast_is_clearest_on_the_beacon_and_fades_without_a_cap():
+    params = pad_params()
+    on_beacon = float(broadcast_noise(jnp.asarray(BEACON), params))
+    far = float(broadcast_noise(jnp.asarray([BEACON[0] + 10.0, BEACON[1]]), params))
+    assert on_beacon == pytest.approx(NOISE_FLOOR)
+    assert far == pytest.approx(NOISE_FLOOR + BROADCAST_GAIN * 100.0)
+
+
+def test_the_pad_sensor_wraps_a_broadcast_in_the_six_readings_noise():
+    noise = pad_sensor(broadcast_noise)(jnp.asarray([*BEACON, 5.0, 0.0]), pad_params())
+    noise = np.asarray(noise)
+    expected = [OWN_NOISE] * 2 + [RADAR_NOISE] * 2 + [NOISE_FLOOR] * 2
+    assert np.allclose(noise, np.diag(expected))
+
+
+def test_the_pad_params_hold_what_the_broadcast_and_the_radar_read():
+    params = pad_params()
+    assert set(params) == {
+        "beacon",
+        "broadcast_gain",
+        "noise_floor",
+        "radar_noise",
+        "own_noise",
+    }
+    assert np.allclose(params["beacon"], BEACON)
+    assert float(params["radar_noise"]) == RADAR_NOISE

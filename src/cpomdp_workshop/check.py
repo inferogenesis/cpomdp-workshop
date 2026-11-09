@@ -5,12 +5,14 @@ Each check is a pure function the tests assert on, paired with a ``check_`` or
 it. One that varies and still leaves the path straight is told to raise k. A sensor
 that cannot fly stops the cell, so its fix is the last thing on screen. The grade is
 about the curious rocket alone, so ``show_landings`` prints where every flight of a
-cell ended.
+cell ended. Task 3's broadcast is graded on its values alone, because the cell flies it
+straight afterwards.
 """
 
 import textwrap
-from collections.abc import Mapping
+from collections.abc import Callable, Mapping
 from dataclasses import dataclass
+from typing import TypeVar
 
 import jax
 import jax.numpy as jnp
@@ -20,32 +22,41 @@ from cpomdp import probe_model as _probe_model
 
 from cpomdp_workshop.build import model_with, pad_goal, pad_preference
 from cpomdp_workshop.planner import compass_moves, compass_planner
-from cpomdp_workshop.sim import Flight, fly
+from cpomdp_workshop.sim import Flight, PadFlight, fly
 from cpomdp_workshop.world import (
+    BEACON,
     LANDING_RADIUS,
     LAUNCH,
     PAD,
+    BroadcastFn,
     NoiseFn,
     SensorParams,
     beacon_sensor,
+    broadcast_noise,
     reference_sensor,
 )
 
 __all__ = [
     "LANDED",
     "STRAIGHT_BEND",
+    "BroadcastGrade",
     "SensorGrade",
     "backend_differences",
     "check_agent",
     "check_backends",
+    "check_my_broadcast",
     "check_my_sensor",
     "epistemic_spread",
+    "grade_broadcast",
     "grade_sensor",
     "probe",
     "route_bend",
     "show_landings",
+    "show_misses",
     "show_probe",
 ]
+
+AnyFlight = TypeVar("AnyFlight", bound=Flight)
 
 STRAIGHT_BEND = 0.1
 """A path that strays less than this from the launch-to-pad line counts as straight."""
@@ -318,6 +329,18 @@ def check_my_sensor(sensor: NoiseFn, params: SensorParams) -> None:
     print(grade.message)
 
 
+def _show_endings(
+    flights: Mapping[str, AnyFlight],
+    distance: Callable[[AnyFlight], float],
+    ending: str,
+) -> None:
+    """One line per flight: how far it ended from its target, and whether it landed."""
+    for name, flight in flights.items():
+        ended = distance(flight)
+        landed = "landed" if ended < LANDED else "did not land"
+        print(f"{name:<14} ended {ended:.2f} from {ending}, {landed}")
+
+
 def show_landings(flights: Mapping[str, Flight]) -> None:
     """Print where each flight ended, and whether it landed.
 
@@ -327,10 +350,117 @@ def show_landings(flights: Mapping[str, Flight]) -> None:
     Args:
         flights: each flight under its rocket's name.
     """
-    for name, flight in flights.items():
-        distance = flight.distance_to(PAD)
-        landed = "landed" if distance < LANDED else "did not land"
-        print(f"{name:<14} ended {distance:.2f} from the pad, {landed}")
+    _show_endings(flights, lambda flight: flight.distance_to(PAD), "the pad")
+
+
+@dataclass(frozen=True)
+class BroadcastGrade:
+    """What a broadcast noise function does across the map.
+
+    Attributes:
+        grade: ``"broken"``, ``"flat"``, ``"capped"``, ``"differs"`` or ``"matches"``.
+        message: what to tell the person who wrote it.
+    """
+
+    grade: str
+    message: str
+
+
+_FAR_FROM_BEACON = np.asarray(BEACON) + np.outer([10.0, 20.0], [1.0, 0.0])
+"""Two points far along one line from the beacon. A capped broadcast reads the same
+at both."""
+
+
+def _broken_broadcast(broadcast: BroadcastFn, params: SensorParams) -> str | None:
+    """Why ``broadcast`` is not a noise level the search can use, or ``None``."""
+    setting = _tuple_setting(params)
+    if setting is not None:
+        return setting
+    for point in np.vstack([_ROUTE, _FIELD]):
+        where = f"({point[0]:.1f}, {point[1]:.1f})"
+        try:
+            noise = np.asarray(broadcast(point, params), dtype=float)
+        except Exception as error:  # the learner's code, any failure is the finding
+            if "ellipsis" in str(error):
+                return "a line in it still holds ... where the code should be."
+            return f"calling it at {where} raised {type(error).__name__}: {error}"
+        if noise.shape != ():
+            return (
+                f"it returned shape {noise.shape} at {where}. It needs one number, "
+                'params["noise_floor"] + fade.'
+            )
+        if not np.isfinite(noise) or noise <= 0:
+            return f"it returned {float(noise)} at {where}. A noise is above zero."
+    return _untraceable(broadcast, params)
+
+
+def grade_broadcast(broadcast: BroadcastFn, params: SensorParams) -> BroadcastGrade:
+    """Grade a broadcast noise function on its values, without flying it.
+
+    Args:
+        broadcast: the broadcast's noise heard at a position, ``broadcast(x, params)``.
+        params: from [`pad_params`][cpomdp_workshop.pad_params].
+
+    Returns:
+        A [`BroadcastGrade`][cpomdp_workshop.check.BroadcastGrade].
+    """
+    problem = _broken_broadcast(broadcast, params)
+    if problem is not None:
+        name = getattr(broadcast, "__name__", "the broadcast")
+        return BroadcastGrade("broken", f"{name} is not a broadcast yet: {problem}")
+    points = np.vstack([_ROUTE, _FIELD])
+    levels = np.array([float(broadcast(point, params)) for point in points])
+    if np.allclose(levels, levels[0], atol=1e-12):
+        return BroadcastGrade(
+            "flat",
+            "The broadcast is equally clear everywhere, so the rocket has no reason "
+            "to visit the beacon.",
+        )
+    near, far = (float(broadcast(point, params)) for point in _FAR_FROM_BEACON)
+    if np.isclose(near, far):
+        return BroadcastGrade(
+            "capped",
+            "The broadcast stops fading far from the beacon. It should keep fading "
+            "with distance, with no cap this time.",
+        )
+    reference = np.array([float(broadcast_noise(point, params)) for point in points])
+    if np.allclose(levels, reference, atol=1e-12):
+        return BroadcastGrade(
+            "matches",
+            "The broadcast is clearest at the beacon and fades with distance. It "
+            "matches the workshop's broadcast_noise.",
+        )
+    return BroadcastGrade(
+        "differs",
+        "The broadcast varies across the map. It does not match the workshop's "
+        "broadcast_noise, so your misses can differ from the reference's.",
+    )
+
+
+def check_my_broadcast(broadcast: BroadcastFn, params: SensorParams) -> None:
+    """Print what ``broadcast`` does across the map, or stop the cell.
+
+    Args:
+        broadcast: the broadcast's noise heard at a position, ``broadcast(x, params)``.
+        params: from [`pad_params`][cpomdp_workshop.pad_params].
+
+    Raises:
+        ValueError: if the broadcast cannot be flown. The message names the fix,
+            wrapped to fit a narrow cell.
+    """
+    grade = grade_broadcast(broadcast, params)
+    if grade.grade == "broken":
+        raise ValueError(textwrap.fill(grade.message, width=NARROW_CELL))
+    print(grade.message)
+
+
+def show_misses(flights: Mapping[str, PadFlight]) -> None:
+    """Print how far each hidden-pad rocket ended from the true pad.
+
+    Args:
+        flights: each flight under its rocket's name.
+    """
+    _show_endings(flights, lambda flight: flight.miss, "the true pad")
 
 
 BeliefTrack = tuple[np.ndarray, np.ndarray]

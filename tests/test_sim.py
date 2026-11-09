@@ -1,9 +1,34 @@
 import numpy as np
 import pytest
+from cpomdp import Agent
+from numpy.random import RandomState
 
-from cpomdp_workshop.build import curious_rocket, the_1960_rocket
-from cpomdp_workshop.sim import DEFAULT_STEPS, ROCK, Flight, _hits, fly
-from cpomdp_workshop.world import LAUNCH, NOISE_FLOOR, default_params, reference_sensor
+from cpomdp_workshop.build import (
+    curious_rocket,
+    pad_model,
+    radar_preference,
+    the_1960_rocket,
+)
+from cpomdp_workshop.planner import compass_planner
+from cpomdp_workshop.sim import (
+    DEFAULT_STEPS,
+    ROCK,
+    Flight,
+    PadFlight,
+    _hits,
+    fly,
+    fly_pad,
+)
+from cpomdp_workshop.world import (
+    LAUNCH,
+    NOISE_FLOOR,
+    PAD_GUESS,
+    PAD_SPREAD_WORLD,
+    broadcast_noise,
+    default_params,
+    pad_params,
+    reference_sensor,
+)
 
 
 def test_a_flight_records_the_launch_site_and_one_row_per_move():
@@ -104,3 +129,38 @@ def test_the_route_gap_stops_at_the_shorter_flight():
     short = a_flight([[0, 0], [1, 0]])
     long = a_flight([[0, 0], [1, 1], [9, 9]])
     assert short.route_gap(long) == 1.0
+
+
+def a_pad_rocket(curiosity=True):
+    model = pad_model(broadcast_noise, pad_params(), PAD_SPREAD_WORLD)
+    planner = compass_planner(model, curiosity=curiosity)
+    return Agent(model, radar_preference(), selector=planner)
+
+
+def test_the_true_pad_is_drawn_from_the_rockets_own_prior_spread():
+    flight = fly_pad(a_pad_rocket(), steps=2, seed=5)
+    expected = np.asarray(PAD_GUESS) + PAD_SPREAD_WORLD * RandomState(5).randn(2)
+    assert np.allclose(flight.pad, expected)
+
+
+def test_a_pad_flight_keeps_four_dimensional_beliefs_and_its_miss():
+    flight = fly_pad(a_pad_rocket(), steps=3)
+    assert isinstance(flight, PadFlight)
+    assert flight.path.shape == (4, 2)
+    assert flight.means.shape == (3, 4)
+    assert flight.covs.shape == (3, 4, 4)
+    assert flight.miss == flight.distance_to(flight.pad)
+
+
+def test_both_pad_rockets_meet_the_same_pad_and_the_same_readings():
+    on = fly_pad(a_pad_rocket(), steps=1)
+    off = fly_pad(a_pad_rocket(curiosity=False), steps=1)
+    assert np.array_equal(on.pad, off.pad)
+    assert np.array_equal(on.means[0], off.means[0])
+
+
+def test_a_pad_rocket_that_has_flown_is_refused_a_second_flight():
+    rocket = a_pad_rocket()
+    fly_pad(rocket, steps=1)
+    with pytest.raises(ValueError, match="has flown already"):
+        fly_pad(rocket)

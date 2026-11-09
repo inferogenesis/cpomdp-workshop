@@ -16,8 +16,8 @@ using `cpomdp`, a Python library for continuous active inference. We'll begin wi
 rocket that uses a Kalman filter to estimate its position and a linear quadratic
 regulator (LQR) to guide it towards a landing pad. Next, we'll introduce a sensor whose
 reliability depends on where the rocket flies and investigate how this changes its
-behaviour. Finally, we'll compare three rockets navigating an environment containing an
-obstacle that none of them knows is there.
+behaviour. Finally, we will hide the landing pad and compare two rockets that differ
+only in curiosity.
 
 Work through the notebook from top to bottom, running the code cells as you go. Each
 task includes two lines of code for you to complete, along with two hints and a
@@ -69,7 +69,7 @@ PREVIEW_INTRO = """\
 ## A preview of what's to come
 
 Before we begin building our rockets, let's take a look at where we're heading. Run the
-next cell to see a preview of the three rockets we'll be exploring. Don't worry if you
+next cell to see a preview of the last two rockets we will build. Don't worry if you
 can't yet explain what you're seeing. We'll work towards understanding their behaviour
 as we progress through the exercises."""
 
@@ -344,7 +344,6 @@ params = default_params(beacon_gain)
 #   params["beacon_cap"]   4.0          the largest distance_squared that counts
 #   params["beacon"]       jnp.array([2.5, 1.4])  where the beacon is
 #   params["noise_floor"]  0.05         the noise at the beacon itself
-# It also holds the blackout's settings, for task 3.
 
 
 def my_sensor(x, params):  # the reading's noise at position x
@@ -523,221 +522,255 @@ steps.
 SESSION_3 = Session(
     number=3,
     brief="""\
-## Task 3 · The blackout
+## Task 3 · Find the pad
 
-In Task 2, we introduced a beacon that provided more reliable observations nearby. Now,
-we'll add a blackout region along the rocket's flight path, where sensor noise increases
-sharply towards its centre. There's also a rock inside the blackout, but importantly,
-**none of the rockets knows the rock is there**. The rock is in the world (the
-generative process) but not in any rocket's generative model (Active Inference book,
-Figure 2.2, p. 23).
+In Task 2, the rocket knew where the pad was, and curiosity only changed its route. Now
+the rocket does not know where the pad is. It starts with a guess, and it has three
+sensors:
+
+- a reading of its own position
+- a coarse radar, which points roughly from the rocket towards the pad
+- the beacon's broadcast of the pad's exact position, which is clear near the beacon
+  and fades with distance
+
+We built this world so that the information the rocket needs is somewhere other than
+where it wants to go. The radar is coarse on purpose. The broadcast fades on purpose.
+The rocket's guess is right on average, because we draw the true pad from its own
+prior. The true pad is in the world (the generative process), and the rocket's
+generative model holds only a belief about it (Active Inference book, Figure 2.2,
+p. 23).
+
+The rocket's goal is a radar reading that says the pad is right where the rocket is.
+The radar's noise does not change with position, so this time the noise cannot pull the
+route the way it did in Task 2.
+
+The cell builds the rocket's model in full, as Task 2's cell did. This time the state
+holds four numbers, the rocket's position and then the pad's, so the rocket's belief
+covers both. Its prior says where it starts and where it guesses the pad is, and the
+prior's covariance (`prior_cov` in the code) says how unsure it is of each.
+
+As in Task 2, we will fly the same rocket twice, once with curiosity on and once with
+curiosity off. Neither rocket knows where the pad is.
 
 **Your task:** Complete the two missing lines marked with `...`:
 
-1. In `my_world`, calculate the additional observation noise caused by the blackout,
-   using its height and width from `params`.
-2. Use `one_node` to represent the original rocket's model as a single-node graph. The
-   `check_backends` function will compare this representation with the original Kalman
-   backend and report the maximum absolute difference between their results.
+1. In `my_broadcast`, calculate how much noise the broadcast gains with distance from
+   the beacon.
+2. Set `prior_cov`, how unsure the rocket starts about its own position and about
+   the pad's. The cell starts with a `pad_spread` of 1.5, which is also how far the
+   true pad strays from the guess in the world.
 
-Once you've completed both lines, run the cell. The `plot_world` function will compare
-three rockets: our original 1960 rocket, your rocket with the selected value of `k`, and
-another with `k = 0.20`.
+Run the cell. `show_misses` prints how far each rocket ended from the true pad, and
+`plot_pad` draws both routes. As before, a rocket has landed if it ends within 0.5 of
+the pad, inside the circle the plot draws round the true pad. Which rocket finds the
+pad? What might explain the difference, when both share one model and the same sensors?
 
-Experiment with the `k` slider and observe how the trajectories change. Moving the
-slider only updates the code, so run the cell again after each move. Do the rockets
-follow similar paths? What might explain any differences, given that none of them knows
-about the rock?
+Then lower `pad_spread` and run the cell again. This changes only how unsure the rocket
+is about the pad. The world still draws the true pad with a spread of 1.5. At what
+`pad_spread` does the curious rocket stop finding the pad? What might explain it?
 
-**Share your `max |difference|` value in the workshop chat.**""",
+**Share that `pad_spread` in the workshop chat.**""",
     attempt="""\
 import jax.numpy as jnp
-from cpomdp import KalmanBackend
+from cpomdp import Agent, Belief, CallableSensor, LinearGaussianModel
 
-from cpomdp_workshop import check_backends, one_node, plot_world
+from cpomdp_workshop import (
+    LAUNCH,
+    PAD_GUESS,
+    PAD_READINGS,
+    check_my_broadcast,
+    compass_planner,
+    fly_pad,
+    pad_params,
+    pad_sensor,
+    plot_pad,
+    radar_preference,
+    show_misses,
+)
+
+params = pad_params()
+# The settings the broadcast reads:
+#   params["beacon"]          jnp.array([2.5, 1.4])  where the beacon is
+#   params["broadcast_gain"]  1.0    how fast the broadcast fades with distance
+#   params["noise_floor"]     0.05   the broadcast's noise at the beacon itself
 
 
-def my_world(x, params):
-    height = params["blackout_gain"]
-    width = params["blackout_width"]
-    from_blackout = jnp.sum((x - params["blackout"]) ** 2)
-    # height times jnp.exp of minus from_blackout over width
-    blindness = ...
-    return my_sensor(x, params) + jnp.eye(2) * blindness
+def my_broadcast(x, params):  # noise on the broadcast, heard at position x
+    distance_squared = jnp.sum((x - params["beacon"]) ** 2)
+    fade = ...  # broadcast_gain times distance_squared, with no cap this time
+    return params["noise_floor"] + fade
 
 
-beacon_gain = 0.08  # @param {type:"slider",min:0.02,max:0.4,step:0.02}
+check_my_broadcast(my_broadcast, params)
 
-# task 1's model as a graph of one node
-backend = ...
-# paste max |difference| in chat
-check_backends(KalmanBackend(model), backend)
-plot_world(my_world, (0.0, beacon_gain, 0.20))""",
+pad_spread = 1.5  # how unsure the rocket is about the pad. Lower it after a first run
+# The state is four numbers: the rocket's position, then the pad's.
+prior_mean = jnp.array([*LAUNCH, *PAD_GUESS])  # at launch, and the pad at its guess
+prior_cov = ...  # jnp.diag of 0.25, 0.25, then pad_spread**2 twice, in a jnp.array
+model = LinearGaussianModel(
+    jnp.eye(4),  # nothing moves by itself
+    control_matrix=jnp.vstack([jnp.eye(2), jnp.zeros((2, 2))]),  # moves the rocket only
+    dynamics_noise=jnp.diag(jnp.array([1e-3, 1e-3, 1e-9, 1e-9])),  # the pad stays put
+    prior=Belief(mean=prior_mean, cov=prior_cov),
+    # six readings: the rocket's position, the radar, and the broadcast with its noise
+    observation_model=CallableSensor(PAD_READINGS, pad_sensor(my_broadcast), params),
+)
+preference = radar_preference()  # a radar reading that says the pad is right here
+curious = Agent(model, preference, selector=compass_planner(model))
+incurious = Agent(model, preference, selector=compass_planner(model, curiosity=False))
+flights = {"curiosity on": fly_pad(curious), "curiosity off": fly_pad(incurious)}
+print(f"your pad_spread = {pad_spread}")  # paste the one where curiosity on missed
+show_misses(flights)
+plot_pad(flights, my_broadcast, params)""",
     bonuses=(
         Bonus(
-            title="Is the rocket really avoiding the rock?",
+            title="How sure is the rocket?",
             question="""\
-In our simulation, the curious rockets sometimes navigate around the rock without
-colliding. But remember, none of the rockets has any representation of the rock in its
-model.
+In Task 3, you lowered `pad_spread` until the curious rocket stopped finding the pad on
+one flight. Does the same happen on other flights, and what if the rocket is less sure
+of its guess than it should be?
 
-Does this mean they are avoiding the obstacle, or could their behaviour be explained by
-something else?
+The cell below flies both rockets over seeds 0 to 9 at three spreads, 0.1, 1.5 and 3.0.
+The world does not change: the true pad is always drawn with a spread of 1.5. Only the
+rocket's own uncertainty changes. A rocket lands if it ends within 0.5 of the true pad.
+The cell uses `my_broadcast` and `params` from your Task 3 cell, so if your runtime has
+restarted, run Checkpoint 3 below first to restore them.
 
-**Your challenge:** Investigate what happens when we change the rock's location while
-keeping the sensory environment unchanged.
-
-The cell below flies each rocket over 10 random seeds and records the seeds on which it
-collides with the rock. Run it with the rock inside the blackout. Then move the rock to
-(4.2, -0.7), an area with more reliable observations, and run it again. The cell uses
-`my_world` from your Task 3 cell, so if your runtime has restarted, run Checkpoint 3
-below first to restore it.
-
-Consider the following questions:
-
-- Does moving the rock change the rocket's planned trajectory?
-- How does the collision rate change between the two environments?
-- What can we conclude about the relationship between observation uncertainty and
-  obstacle avoidance?
-
-**For an additional challenge:** Present your results as a small table or figure and
-explain what they tell us about the limitations of the rocket's internal model.""",
+Before you run it, what do you expect an overconfident rocket to do?""",
             hint="""\
-Change `rock_centre` and run the cell again. To check whether a route changes, compare
-`fly(...).path` with and without `hazard=rock`, using the same seed.""",
+The epistemic term rewards a move for what it is expected to teach. Think about how
+much a rocket that is already sure where the pad is expects to learn from the beacon's
+broadcast.""",
             answer="""\
-The rockets aren't avoiding the rock at all. A rock never changes a route: with or
-without it, a rocket flies exactly the same path until the moment it collides. Inside
-the blackout, the `k = 0.08` rocket hits the rock on 2 of the 10 seeds and the `k =
-0.20` rocket on 3, while the 1960 rocket hits it every time. Moved into clear sky at
-(4.2, -0.7), the rock is hit on 6 and 5 of the 10 seeds by the curious rockets, and
-never by the 1960 rocket. The curious rockets steer away from noisy readings, and the
-rock sits where the readings are noisiest. So here the blackout makes them hit it less
-often, although they know nothing about the rock. The seed 3 picture also shows the
-less common route: on 19 of 30 seeds, the `k = 0.08` rocket passes below the blackout,
-not above it.""",
-            code='''\
-from cpomdp_workshop import curious_rocket, fly, the_1960_rocket
+With a spread of 0.1, the rocket believes there is almost nothing to learn about the
+pad, so the curious rocket never detours to the beacon. Both rockets land on 1 of the 10
+seeds and miss by a median of 1.42. With a spread of 1.5, the curious rocket lands on 9
+seeds, with a median miss of 0.25, and the incurious one on 3, with a median miss of
+0.61. With a spread of 3.0, the curious rocket lands on all 10 and the incurious one on
+5.
 
-rock_centre = (2.5, 0.0)  # in the blackout. Then try (4.2, -0.7), in clear sky
-rock = (rock_centre, 0.42)
+Curiosity pays off here only when the rocket's own uncertainty about the pad is large
+enough to make the beacon worth a visit. The balance between the two terms is sensitive
+to settings like this one, and we will come back to that on the slides.""",
+            code='''\
+import numpy as np
+from cpomdp import Agent
+
+from cpomdp_workshop import compass_planner, fly_pad, pad_model, radar_preference
+
 seeds = range(10)
 
 
-def hit_seeds(beacon_gain):
-    """Seeds where the rocket with this k hits the rock. k = 0 is the 1960 rocket."""
+def misses(pad_spread, curiosity):
+    """How far the rocket ends from the true pad on each seed."""
     found = []
     for seed in seeds:
-        if beacon_gain == 0:
-            rocket = the_1960_rocket()
-        else:
-            # the blackout task's rockets prefer the pad at precision 1
-            rocket = curious_rocket(beacon_gain, my_world, precision=1.0)
-        if fly(rocket, seed=seed, hazard=rock).crashed:
-            found.append(seed)
-    return found
+        # A rocket can only fly once, so every flight builds a new one. pad_model
+        # builds the same model as your task 3 cell.
+        model = pad_model(my_broadcast, params, pad_spread)
+        planner = compass_planner(model, curiosity=curiosity)
+        rocket = Agent(model, radar_preference(), selector=planner)
+        found.append(fly_pad(rocket, seed=seed).miss)
+    return np.array(found)
 
 
-for rocket_gain, name in ((0.0, "1960 rocket"), (0.08, "k = 0.08"), (0.2, "k = 0.20")):
-    found = hit_seeds(rocket_gain)
-    print(f"{name:12} hit the rock on {len(found)} of {len(seeds)} seeds: {found}")''',
+for pad_spread in (0.1, 1.5, 3.0):
+    for name, curiosity in (("curiosity on", True), ("curiosity off", False)):
+        miss = misses(pad_spread, curiosity)
+        print(
+            f"spread {pad_spread:>3}, {name:<13}: landed {(miss < 0.5).sum():>2} of "
+            f"{len(seeds)}, median miss {np.median(miss):.2f}"
+        )''',
         ),
         Bonus(
-            title="Can we design a more robust rocket?",
+            title="When is curiosity worth it?",
             question="""\
-We've seen that changing observation reliability can influence the rocket's trajectory.
-But how sensitive is its behaviour to the particular parameters we've chosen?
+We built Task 3's world so that curiosity pays off. What happens if we make the
+information easier to get?
 
-**Your challenge:** Keep the world as it is, with the same blackout, rock and readings,
-and change the rocket instead. The cell below runs a small parameter search over two of
-the rocket's settings: the `k` it believes the beacon has, and its preference precision.
-For each combination, it flies the rocket over seeds 0 to 9 and counts how often it
-lands and how often it hits the rock. A landing means finishing within 0.5 of the pad
-without hitting the rock.
+The cell below flies both rockets over seeds 0 to 9 and counts the landings. Run it as
+it is, then try three changes, one at a time:
 
-Run it. Can you identify a combination that produces relatively reliable landings while
-reducing collisions? Like Bonus 1, the cell uses `my_world`, which Checkpoint 3 below
-restores after a restart.
+1. A broadcast that carries far: `settings["broadcast_gain"] = 0.1`.
+2. A capped broadcast, like Task 2's beacon: set `broadcast = capped_broadcast`.
+3. A sharp radar: `settings["radar_noise"] = 1.0`, in place of the default 25.
 
-Now test the combinations on new random seeds that weren't in the search, by changing
-`seeds` to `range(10, 30)`.
-
-- Does the apparent improvement persist?
-- On the new seeds, what happens if the rock is moved to (4.2, -0.7)?
-- How confident can we be that the behaviour generalises beyond the conditions we
-  tested?
-
-**Take-home challenge:** Visualise your results using a heatmap showing collision rates
-or landing performance across the parameter combinations.""",
+In which worlds does the curious rocket still land more often than the incurious one?
+Why do you think we made the radar coarse?""",
             hint="""\
-A rocket's model and the world it flies in don't have to match. Each rocket builds its
-model with the `k` it believes in, while `fly` always draws the readings from the
-world's `k = 0.08`. When you compare a combination with the default, `k = 0.08` with a
-precision of 1, count how many flights separate them. Then look at how much the
-default's own count changes from one set of seeds to the next.""",
+Undo each change before you try the next. For each world, ask where the rocket can find
+out where the pad is. If it can find out from where it already is, or on the way to the
+pad, what is a detour worth?""",
             answer="""\
-On seeds 0 to 9, the best combinations believe the beacon is weak: `k = 0.02` with a
-precision of 0.3 or 1 lands 9 times and hits the rock once. The default, `k = 0.08` with
-a precision of 1, lands 8 times and hits the rock twice. On the new seeds, 10 to 29, the
-winner lands all 20 times and the default lands 19, so the lead holds, but only by one
-flight each time. That's too small a margin to trust from 30 flights. In fact, the seeds
-matter more than the settings: the same default rocket lands 8 of 10 times on the first
-seeds and 19 of 20 on the new ones. And if you move the rock to (4.2, -0.7), every
-combination hits it on 10 to 12 of the 20 new seeds, the winner and the default on 12
-each. The search tuned the rocket to one rock in one place.""",
+In the world as built, the curious rocket lands on 9 of the 10 seeds and the incurious
+one on 3. With a broadcast gain of 0.1, the broadcast can be heard clearly from far
+away, and both rockets land on all 10. With a capped broadcast, the noise never grows
+past a level that still lets the rocket hear the pad's position, and both land on all 10
+again. With a sharp radar, the rocket finds the pad with the radar alone, and both land
+on all 10. The curious rocket still detours to the beacon on 4 of those seeds, but the
+detour buys it nothing.
+
+This is why the radar is coarse by default. The task asks whether a rocket will go and
+get information that is only available somewhere else. With a good radar, or a
+broadcast that reaches everywhere, the question disappears.""",
             code='''\
 import jax.numpy as jnp
-from cpomdp import Agent, Preference
+from cpomdp import Agent
 
-from cpomdp_workshop import PAD, compass_planner, default_params, fly, model_with
+from cpomdp_workshop import (
+    compass_planner,
+    fly_pad,
+    pad_model,
+    pad_params,
+    radar_preference,
+)
 
-seeds = range(10)  # the search. Then try new seeds, range(10, 30)
-rock_centre = (2.5, 0.0)  # in the blackout. Then try (4.2, -0.7), in clear sky
-rock = (rock_centre, 0.42)
-world_params = default_params(0.08)  # the world's k never changes
+
+def capped_broadcast(x, params):
+    """Task 2's field on the broadcast: k = 0.08, capped at a squared distance of 4."""
+    distance_squared = jnp.sum((x - params["beacon"]) ** 2)
+    return params["noise_floor"] + 0.08 * jnp.minimum(distance_squared, 4.0)
 
 
-def tally(believed_gain, precision):
-    """Landings and rock hits over the seeds, for one k and preference precision."""
-    landed = hit = 0
+seeds = range(10)
+settings = pad_params()  # change one setting here, such as settings["radar_noise"]
+broadcast = my_broadcast  # or capped_broadcast
+
+
+def landings(curiosity):
+    """On how many seeds the rocket ends within 0.5 of the true pad."""
+    landed = 0
     for seed in seeds:
-        # A new rocket for every flight. Its model uses the k it believes in.
-        model = model_with(my_world, default_params(believed_gain))
-        preference = Preference(PAD, precision=precision * jnp.eye(2))
-        rocket = Agent(model, preference, selector=compass_planner(model))
-        flight = fly(rocket, my_world, world_params, seed=seed, hazard=rock)
-        hit += flight.crashed
-        landed += not flight.crashed and flight.distance_to(PAD) < 0.5
-    return landed, hit
+        # A rocket can only fly once, so every flight builds a new one. pad_model
+        # builds the same model as your task 3 cell.
+        model = pad_model(broadcast, settings, 1.5)
+        planner = compass_planner(model, curiosity=curiosity)
+        rocket = Agent(model, radar_preference(), selector=planner)
+        landed += fly_pad(rocket, seed=seed).miss < 0.5
+    return landed
 
 
-for believed_gain in (0.02, 0.08, 0.20):
-    for precision in (0.3, 1, 3):
-        landed, hit = tally(believed_gain, precision)
-        print(
-            f"k = {believed_gain:.2f}, precision {precision:>3}: landed {landed}, "
-            f"hit the rock {hit}, of {len(seeds)} flights"
-        )''',
+print(f"curiosity on  landed {landings(True)} of {len(seeds)}")
+print(f"curiosity off landed {landings(False)} of {len(seeds)}")''',
         ),
     ),
     poll="""\
 ### A question to think about
 
-Why did the curious rockets clear the rock in the blackout?
+The incurious rocket missed the pad and the curious one found it. Why?
 
-1. They modelled the rock.
-2. They looked far enough ahead to see it coming.
-3. A reading in the blackout is swamped, so a move into it is expected to read far
-   from "on the pad". The rock sits in the blackout.
-4. Luck. Another seed would hit it.
+1. The incurious rocket's radar is worse.
+2. It never went where the pad's position can be heard clearly, so it had only a
+   coarse radar to correct its guess with.
+3. It looked too few moves ahead.
+4. Its preference for the pad was too strong.
 
 <details><summary>Answer</summary>
 
-3. No rocket knows the rock is there, and each looks one move ahead. Where the noise
-is large, a reading lands far from "on the pad" on average, so moves into the blackout
-score badly. 4 is partly true. Over the first ten seeds the `k = 0.08` rocket clips the
-rock twice and the `k = 0.20` rocket three times. The figure is seed 3. Bonus 1 moves
-the rock into clear sky where their routes pass, and they hit it more often.
+2. Both rockets share one model and one radar, so 1 is out. For 3, try the self-guided
+cell "Two moves ahead": on seed 3, the incurious rocket looking two moves ahead still
+does not go to the beacon. 4 is backwards. At a precision of 1, the curious rocket
+stops checking the beacon too.
 
 </details>""",
 )
@@ -750,10 +783,13 @@ CODA_INTRO = """\
 Before we finish, let's consider what the numbers produced by our models actually tell
 us.
 
-At each step, our curious rocket evaluates nine possible actions. The planner's
-`certificate` records that every one of them was scored. But this can quickly become
-expensive: with five possible actions and a planning horizon of seven steps, there are
-**78,125 possible action sequences** to evaluate.
+The final cell runs two checks. The first flies Task 1's rocket on two of `cpomdp`'s
+inference engines, the Kalman filter and a graph of one node, and prints the largest
+difference between their beliefs. The second is the planner's `certificate`. At each
+step, our curious rocket evaluates nine possible actions, and the certificate records
+that every one of them was scored. This can quickly become expensive: with five possible
+actions and a planning horizon of seven steps, there are **78,125 possible action
+sequences** to evaluate.
 
 Run the final cell and examine the outputs.
 
@@ -761,8 +797,14 @@ Run the final cell and examine the outputs.
 can we not yet conclude about the correctness of our model?"""
 
 CODA = """\
+from cpomdp import KalmanBackend
+
 import cpomdp_workshop as workshop
 
+# the two methods agree about where the 1960 rocket is
+workshop.check_backends(
+    KalmanBackend(workshop.model_with()), workshop.one_node(workshop.model_with())
+)
 print(curious.selector.certificate)
 print(workshop.axis_certificate())"""
 
@@ -777,11 +819,12 @@ TAIL = (
     (
         "Two moves ahead",
         """\
-from cpomdp_workshop import plot_world
+from cpomdp_workshop import pad_pair, plot_pad, show_misses
 
-plot_world(
-    my_world, (0.0, beacon_gain, 0.20), horizon=2, title="looking two moves ahead"
-)""",
+# both rockets again, each scoring all 81 two-move plans at every step
+flights_ahead = pad_pair(my_broadcast, params, pad_spread=pad_spread, horizon=2)
+show_misses(flights_ahead)
+plot_pad(flights_ahead, my_broadcast, params, title="looking two moves ahead")""",
     ),
     (
         "A model one filter cannot hold",
@@ -792,5 +835,31 @@ try:
     two_node_backend().to_flat_model()
 except Exception as refusal:
     print(f"{type(refusal).__name__}: {refusal}")""",
+    ),
+    (
+        "Whose detour is it?",
+        """\
+from cpomdp_workshop import (
+    curiosity_decided,
+    curious_rocket,
+    default_params,
+    fly,
+    pad_preference,
+    plot_flights,
+    reference_sensor,
+)
+
+# A world with a blackout on the straight route, where readings are very noisy.
+# The same rocket flies it with curiosity on and off.
+k = 0.08
+rocket = curious_rocket(k)
+detours = {
+    "curiosity on": fly(rocket),
+    "curiosity off": fly(curious_rocket(k, curiosity=False)),
+}
+decided = curiosity_decided(detours["curiosity on"], rocket.model, pad_preference())
+print(f"curiosity decided {decided.sum()} of {len(decided)} moves")
+print("on steps", [step + 1 for step, changed in enumerate(decided) if changed])
+plot_flights(detours, reference_sensor, default_params(k))""",
     ),
 )

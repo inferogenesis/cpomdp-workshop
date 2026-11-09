@@ -29,6 +29,7 @@ import jax
 import jax.numpy as jnp
 import matplotlib.pyplot as plt
 import numpy as np
+from cpomdp import Agent
 from matplotlib.axes import Axes
 from matplotlib.collections import QuadMesh
 from matplotlib.colors import LinearSegmentedColormap, Normalize
@@ -40,9 +41,20 @@ from cpomdp_workshop.build import (
     BLACKOUT_PRECISION,
     CURIOUS_PRECISION,
     curious_rocket,
+    pad_model,
+    radar_preference,
     the_1960_rocket,
 )
-from cpomdp_workshop.sim import DEFAULT_SEED, ROCK, Flight, Hazard, fly
+from cpomdp_workshop.planner import compass_planner
+from cpomdp_workshop.sim import (
+    DEFAULT_SEED,
+    ROCK,
+    Flight,
+    Hazard,
+    PadFlight,
+    fly,
+    fly_pad,
+)
 from cpomdp_workshop.world import (
     BEACON,
     BLACKOUT_GAIN,
@@ -50,10 +62,15 @@ from cpomdp_workshop.world import (
     LAUNCH,
     NOISE_FLOOR,
     PAD,
+    PAD_GUESS,
+    PAD_SPREAD_WORLD,
+    BroadcastFn,
     NoiseFn,
     SensorParams,
     beacon_sensor,
+    broadcast_noise,
     default_params,
+    pad_params,
     reference_sensor,
 )
 
@@ -69,9 +86,11 @@ __all__ = [
     "ROUTE_STAGES",
     "Palette",
     "curiosity_pair",
+    "pad_pair",
     "plot_balance",
     "plot_beliefs",
     "plot_flights",
+    "plot_pad",
     "plot_path",
     "plot_route",
     "plot_world",
@@ -155,7 +174,8 @@ _ROUTE_LEGEND: Literal["lower left"] = "lower left"  # the corner no route cross
 Extent = tuple[tuple[float, float], tuple[float, float]]
 
 _EXTENT: Extent = ((-0.6, 5.6), (-1.1, 2.5))
-# Half-width panels leave the launch site's name less room before the axis labels.
+# A map narrower on the page leaves the launch site's name less room before the axis
+# labels, so it starts further left.
 _BALANCE_EXTENT: Extent = ((-1.1, 5.6), (-1.1, 2.5))
 _FIELD_SAMPLES = (125, 73)
 _PATH_MARGIN = 0.3
@@ -268,11 +288,16 @@ def _field_mesh(
 
 
 def _field_scale(
-    figure: Figure, mesh: QuadMesh, axes: list[Axes], palette: Palette
+    figure: Figure,
+    mesh: QuadMesh,
+    axes: list[Axes],
+    palette: Palette,
+    *,
+    label: str = "reading noise, log10 R",
 ) -> None:
     """One scale for the field drawn on ``axes``."""
     scale = figure.colorbar(mesh, ax=axes, shrink=0.8, pad=0.02)
-    scale.set_label("reading noise, log10 R", color=palette.muted, fontsize=9)
+    scale.set_label(label, color=palette.muted, fontsize=9)
     scale.ax.tick_params(colors=palette.muted, labelsize=8)
     scale.outline.set_edgecolor(palette.rule)
 
@@ -289,21 +314,34 @@ def _draw_landmarks(axes: Axes, hazard: Hazard | None, palette: Palette) -> None
         )  # fmt: skip
     _landing_zone(axes, PAD, palette)
     # Each name sits on the side no flight path crosses.
-    for point, name, offset, align in (
-        (LAUNCH, "launch", (-9, 0), "right"),
-        (PAD, "pad", (0, -15), "center"),
-        (BEACON, "beacon", (9, 0), "left"),
-    ):
-        axes.plot(
-            *point, marker="o", ms=7,
-            color=palette.ink if name != "beacon" else palette.muted,
-            markeredgecolor=palette.panel, markeredgewidth=2, zorder=5,
-            linestyle="none",
-        )  # fmt: skip
-        axes.annotate(
-            name, point, xytext=offset, textcoords="offset points", ha=align,
-            va="center", color=palette.ink, fontsize=9, zorder=6,
-        )  # fmt: skip
+    _mark(axes, LAUNCH, "launch", (-9, 0), "right", palette.ink, palette)
+    _mark(axes, PAD, "pad", (0, -15), "center", palette.ink, palette)
+    _mark(axes, BEACON, "beacon", (9, 0), "left", palette.muted, palette)
+
+
+def _mark(
+    axes: Axes,
+    point: ArrayLike,
+    name: str,
+    offset: tuple[float, float],
+    align: Literal["left", "center", "right"],
+    colour: str,
+    palette: Palette,
+    *,
+    marker: str = "o",
+    size: float = 7,
+    edge: float = 2,
+) -> None:
+    """A named mark on the map, with its name ``offset`` points away."""
+    x, y = np.asarray(point, dtype=float)
+    axes.plot(
+        x, y, marker=marker, ms=size, color=colour, markeredgecolor=palette.panel,
+        markeredgewidth=edge, zorder=5, linestyle="none",
+    )  # fmt: skip
+    axes.annotate(
+        name, (x, y), xytext=offset, textcoords="offset points", ha=align,
+        va="center", color=palette.ink, fontsize=9, zorder=6,
+    )  # fmt: skip
 
 
 def _landing_zone(axes: Axes, pad: ArrayLike, palette: Palette) -> None:
@@ -607,9 +645,166 @@ def plot_beliefs(
     return figure
 
 
+def pad_pair(
+    broadcast: BroadcastFn = broadcast_noise,
+    params: SensorParams | None = None,
+    *,
+    pad_spread: float = PAD_SPREAD_WORLD,
+    horizon: int = 1,
+    seed: int = DEFAULT_SEED,
+) -> dict[str, PadFlight]:
+    """The same hidden-pad rocket flown twice, with curiosity on and off.
+
+    Args:
+        broadcast: the broadcast's noise both rockets model and fly in.
+        params: its parameters. Left out, [`pad_params`][cpomdp_workshop.pad_params].
+        pad_spread: how unsure both rockets are about where the pad is, s.
+        horizon: how many moves ahead both look, H.
+        seed: the true pad and the reading noise, shared by both.
+
+    Returns:
+        The flight with curiosity on, then the one with it off, under those names.
+    """
+    params = pad_params() if params is None else params
+    flights = {}
+    for name, curiosity in ((CURIOSITY_ON, True), (CURIOSITY_OFF, False)):
+        model = pad_model(broadcast, params, pad_spread)
+        planner = compass_planner(model, horizon=horizon, curiosity=curiosity)
+        rocket = Agent(model, radar_preference(), selector=planner)
+        flights[name] = fly_pad(rocket, seed=seed)
+    return flights
+
+
+def _pad_extent(flights: Mapping[str, PadFlight]) -> Extent:
+    """The usual map, widened to hold every path, each ring and the landing circle."""
+    points = [flight.path for flight in flights.values()]
+    points += [flight.pad[None, :] for flight in flights.values()]
+    compass = np.array([[1, 0], [-1, 0], [0, 1], [0, -1]])
+    points.append(np.asarray(PAD_GUESS) + PAD_SPREAD_WORLD * compass)
+    points += [flight.pad + LANDING_RADIUS * compass for flight in flights.values()]
+    points = np.vstack(points)
+    return (
+        _widened(_BALANCE_EXTENT[0], points[:, 0]),
+        _widened(_EXTENT[1], points[:, 1]),
+    )
+
+
+def _draw_pad_landmarks(axes: Axes, pad: np.ndarray, palette: Palette) -> None:
+    """Launch, the beacon, the guessed pad in its one-sigma ring, and the true pad.
+
+    The true pad carries the circle a flight has to end inside to have landed.
+    """
+    _mark(axes, LAUNCH, "launch", (-9, 0), "right", palette.ink, palette)
+    _mark(axes, BEACON, "beacon", (9, 0), "left", palette.muted, palette)
+    _mark(axes, PAD_GUESS, "guess", (0, 13), "center", palette.muted, palette)
+    axes.add_patch(
+        Circle(
+            PAD_GUESS, PAD_SPREAD_WORLD, fill=False, edgecolor=palette.muted, lw=1.0,
+            linestyle=(0, (3, 3)), zorder=3,
+        )
+    )  # fmt: skip
+    _landing_zone(axes, pad, palette)
+    _mark(
+        axes, pad, "true pad", (0, -34), "center", palette.ink, palette,
+        marker="X", size=11, edge=1,
+    )  # fmt: skip
+
+
+def _draw_pad_belief(
+    axes: Axes, flight: PadFlight, colour: str, *, sigmas: float = 2.0
+) -> None:
+    """Where the rocket ended up believing the pad is, as an ellipse."""
+    width, height, angle = covariance_ellipse(flight.covs[-1][2:, 2:], sigmas=sigmas)
+    axes.add_patch(
+        Ellipse(
+            flight.means[-1][2:], width, height, angle=angle, facecolor=colour,
+            alpha=0.18, edgecolor=colour, lw=1.2, zorder=3,
+        )
+    )  # fmt: skip
+
+
+def _draw_readout(
+    panel: Axes, flights: Mapping[str, PadFlight], palette: Palette
+) -> None:
+    """Each rocket's final miss, in type that reads on a shared screen."""
+    panel.set_axis_off()
+    colours = dict(zip(flights, CURIOUS_COLOURS, strict=False))
+    rows = np.linspace(0.78, 0.22, len(flights)) if len(flights) > 1 else [0.5]
+    panel.text(
+        0.0, 0.97, "miss, from the true pad", color=palette.muted, fontsize=10,
+        va="top", transform=panel.transAxes,
+    )  # fmt: skip
+    for (name, flight), row in zip(flights.items(), rows, strict=True):
+        panel.text(
+            0.0, row + 0.09, name, color=palette.ink, fontsize=12,
+            transform=panel.transAxes,
+        )  # fmt: skip
+        panel.text(
+            0.0, row - 0.09, f"{flight.miss:.2f}", color=colours[name], fontsize=30,
+            fontweight="bold", transform=panel.transAxes,
+        )  # fmt: skip
+
+
+def plot_pad(
+    flights: Mapping[str, PadFlight],
+    broadcast: BroadcastFn = broadcast_noise,
+    params: SensorParams | None = None,
+    *,
+    title: str = "",
+    palette: Palette = DARK,
+) -> Figure:
+    """Hidden-pad flights over the broadcast's field, with each rocket's miss beside.
+
+    The map shows the broadcast's noise, the launch site, the beacon, the guessed pad
+    inside the one-sigma ring the true pad is drawn from, and the true pad. The first
+    flight's final belief about the pad is drawn as a two-sigma ellipse. The landing
+    gap between the rockets is small on the map, so a panel beside it prints each
+    final miss in large type.
+
+    Args:
+        flights: flights from one seed, each under the name its legend entry gives
+            it. They take amber, then blue, in the order given.
+        broadcast: the broadcast's noise to draw under the paths.
+        params: its parameters. Left out, [`pad_params`][cpomdp_workshop.pad_params].
+        title: what the figure is called.
+        palette: the neutral colours. The slides pass
+            [`LIGHT`][cpomdp_workshop.plot.LIGHT].
+
+    Returns:
+        The figure.
+
+    Raises:
+        ValueError: for no flights, or more than there are series colours.
+    """
+    if not flights:
+        raise ValueError("plot_pad needs at least one flight.")
+    _check_colours(flights, None)
+    params = pad_params() if params is None else params
+    extent = _pad_extent(flights)
+    figure, (axes, panel) = plt.subplots(
+        1, 2, figsize=(11.0, 5.0), facecolor=palette.background,
+        gridspec_kw={"width_ratios": [4.6, 1.0], "wspace": 0.05},
+    )  # fmt: skip
+    plt.close(figure)  # returned, never shown by pyplot itself
+    _style_map(axes, title, palette, extent)
+
+    def field(x: ArrayLike, field_params: SensorParams) -> jax.Array:
+        return jnp.eye(2) * broadcast(x, field_params)
+
+    mesh = _field_mesh(axes, field, params, palette, extent)
+    _field_scale(figure, mesh, [axes], palette, label="broadcast noise, log10")
+    first = next(iter(flights.values()))
+    _draw_pad_landmarks(axes, first.pad, palette)
+    _draw_pad_belief(axes, first, CURIOUS_COLOURS[0])
+    _draw_flights(axes, flights, None, palette, inline=False)
+    _legend(axes, palette, loc=_ROUTE_LEGEND)
+    _draw_readout(panel, flights, palette)
+    return figure
+
+
 def preview() -> Figure:
     """The finished picture: what the room will have built by the end of session 3."""
-    return plot_world(title="what you will build today")
+    return plot_pad(pad_pair(), title="what you will build today")
 
 
 def tile_task1() -> Figure:

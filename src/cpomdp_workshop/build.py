@@ -7,6 +7,9 @@ state to reach and steers by LQR. The curious rocket's reading depends on where 
 It is handed a reading to prefer and searches the compass moves for the plan that
 best trades getting there against seeing clearly. How tightly it prefers that reading
 sets the trade, and switching its curiosity off leaves only the getting there.
+
+Task 3's rocket does not know where the pad is. Its state holds its own position and
+the pad's, and its goal is a radar reading of zero: the pad right where the rocket is.
 """
 
 import numpy as np
@@ -29,10 +32,14 @@ from cpomdp_workshop.world import (
     LAUNCH,
     NOISE_FLOOR,
     PAD,
+    PAD_GUESS,
+    PAD_READINGS,
     PRIOR_COV,
+    BroadcastFn,
     NoiseFn,
     SensorParams,
     default_params,
+    pad_sensor,
     reference_sensor,
 )
 
@@ -44,7 +51,9 @@ __all__ = [
     "model_with",
     "one_node",
     "pad_goal",
+    "pad_model",
     "pad_preference",
+    "radar_preference",
     "the_1960_rocket",
 ]
 
@@ -65,6 +74,13 @@ BLACKOUT_PRECISION = 1.0  # λ
 """The precision the blackout task's rockets prefer the pad at, as it was measured."""
 
 _IDENTITY = np.eye(2)
+
+LAUNCH_COV = 0.25
+"""How unsure the hidden-pad rocket is of its own position at launch, as a variance."""
+PAD_DRIFT = 1e-9
+"""The pad's dynamics noise. The pad stays put, and a zero would not be a covariance."""
+UNWEIGHTED = 1e-9
+"""The precision on a reading the goal does not use. Zero is not a valid precision."""
 
 
 def model_with(
@@ -125,6 +141,54 @@ def pad_preference(precision: float = CURIOUS_PRECISION) -> Preference:
         precision: λ, how tightly the reading is preferred, on both axes.
     """
     return Preference(np.asarray(PAD), precision=precision * _IDENTITY)
+
+
+def pad_model(
+    broadcast: BroadcastFn, params: SensorParams, pad_spread: float
+) -> LinearGaussianModel:
+    """The generative model of a rocket that has to learn where the pad is.
+
+    Args:
+        broadcast: the noise on the beacon's broadcast, heard at the rocket's
+            position, ``broadcast(x, params)``.
+        params: from [`pad_params`][cpomdp_workshop.pad_params].
+        pad_spread: how unsure the rocket is about where the pad is, s, as one
+            standard deviation on each axis around its guess.
+
+    Returns:
+        A four-dimensional model of the state (x, p), the rocket's position and the
+        pad's. A move adds to the rocket's position and leaves the pad alone. The six
+        readings are the rocket's position, the radar's p - x and the broadcast p.
+    """
+    zeros = np.zeros((2, 2))
+    return LinearGaussianModel(
+        np.eye(4),
+        control_matrix=np.vstack([_IDENTITY, zeros]),
+        dynamics_noise=np.diag([DYNAMICS_NOISE] * 2 + [PAD_DRIFT] * 2),
+        prior=Belief(
+            mean=np.asarray([*LAUNCH, *PAD_GUESS]),
+            cov=np.diag([LAUNCH_COV] * 2 + [float(pad_spread) ** 2] * 2),
+        ),
+        observation_model=CallableSensor(PAD_READINGS, pad_sensor(broadcast), params),
+    )
+
+
+def radar_preference(precision: float = CURIOUS_PRECISION) -> Preference:
+    """The hidden pad as a radar reading to prefer: the pad right where the rocket is.
+
+    The goal sits on the radar because its noise is the same everywhere. A goal on the
+    broadcast would bring the broadcast's position-dependent noise into the pragmatic
+    term, which would then pull the rocket towards the beacon without any curiosity.
+
+    Args:
+        precision: λ, how tightly a radar reading of zero is preferred.
+
+    Returns:
+        A preference over all six readings with a target of zero. Only the radar's two
+        carry weight.
+    """
+    weights = [UNWEIGHTED] * 2 + [precision] * 2 + [UNWEIGHTED] * 2
+    return Preference(np.zeros(6), precision=np.diag(weights))
 
 
 def the_1960_rocket() -> Agent:
