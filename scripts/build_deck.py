@@ -887,7 +887,7 @@ def task_2_brief(deck: Deck) -> None:
     page.text(
         MARGIN, CONTENT_TOP, FULL_WIDTH, 0.85,
         [
-            [Run("Most real world sensors blur with range.", bold=True)],
+            [Run("Most real-world sensors blur with range.", bold=True)],
             [
                 Run("R", bold=True),
                 Run(" is the noise in the sensor’s readings. "),
@@ -907,8 +907,8 @@ def task_2_brief(deck: Deck) -> None:
             ),
             headed(
                 "R(x) · Task 2",
-                "Readings are sharper near the beacon. Moving closer means the rocket "
-                "expects to learn more.",
+                "Readings are less noisy near the beacon. Moving closer means the "
+                "rocket expects to learn more.",
                 colour=AMBER,
             ),
         ),
@@ -1055,8 +1055,13 @@ def task_2_result(deck: Deck) -> None:
             "share one model and one sensor, so the detour is curiosity.",
             "On this flight, curiosity decided 6 of the 36 moves. Over 10 seeds, the "
             "two routes part by 1 or more on every seed, and every rocket lands.",
-            "Raise k to 0.4 and the curious rocket stops landing. The rocket with "
-            "curiosity off still lands. We will come back to that in two slides.",
+            "A rocket has landed if it ends inside the circle round the pad, within "
+            "0.5 of it. The cell prints that for each rocket.",
+            "Raise k to 0.4 and the curious rocket stops landing, while the rocket "
+            "with curiosity off still lands. That only holds for a narrow range of "
+            "k. On this seed the two part from k = 0.37 to 0.45. From 0.46 the "
+            "rocket with curiosity off stops short too. We will come back to both "
+            "in two slides.",
         )
     )
 
@@ -1111,7 +1116,7 @@ def task_2_balance(deck: Deck) -> None:
 
 
 def task_2_meaning(deck: Deck) -> None:
-    """The other end of the dial: at k = 0.4 curiosity keeps the rocket from landing."""
+    """At k = 0.4 the noise varies steeply enough for curiosity to stop the landing."""
     k = PARTING_GAIN
     pair = curiosity_pair(k)
     on, off = pair[CURIOSITY_ON], pair[CURIOSITY_OFF]
@@ -1126,8 +1131,8 @@ def task_2_meaning(deck: Deck) -> None:
         [
             f"With curiosity off, the rocket lands {off.distance_to(PAD):.2f} from "
             "the pad.",
-            "With curiosity on, it stays near the beacon, where readings are sharper, "
-            f"and stops {on.distance_to(PAD):.2f} short.",
+            "With curiosity on, it stays near the beacon, where readings are less "
+            f"noisy, and stops {on.distance_to(PAD):.2f} short.",
             "Over 10 seeds, no curious rocket lands, and every rocket with curiosity "
             "off does.",
         ],
@@ -1135,27 +1140,32 @@ def task_2_meaning(deck: Deck) -> None:
     )  # fmt: skip
     page.text(
         ROUTE_COLUMN, 5.2, width, 1.7,
-        ["Too little weight on information and the rocket is a controller. Too much "
-         "and it never lands."],
+        ["The precision is still 0.1. What changed is k, how steeply the noise "
+         "rises away from the beacon."],
         size=19, bold=True, colour=AMBER,
     )  # fmt: skip
     page.notes(
         notes(
-            f"Kev - This is the other end of the same dial. Here k is {k:.1f}, and "
-            "the precision is still 0.1.",
+            f"Kev - Here the precision is still 0.1, the value at which both rockets "
+            f"landed two slides ago. What we changed is k, from 0.08 to {k:.1f}, so "
+            "the noise now rises five times as steeply away from the beacon.",
             "The blue rocket, with curiosity off, lands "
             f"{off.distance_to(PAD):.2f} from the pad. The amber rocket, with "
             "curiosity on, flies to the beacon and stays there, "
             f"{on.distance_to(PAD):.2f} short of the pad.",
             "Each move towards the pad leads away from the beacon, so it teaches "
-            "less. With a loose preference, the information a move would lose "
+            "less. With noise this steep, the information a move would lose "
             "outweighs the pull of the pad.",
             "Over 10 seeds, no curious rocket lands, and they stop a median 1.67 "
             "short. Every rocket with curiosity off lands.",
-            "Put the last two slides together. With too little weight on information, "
-            "the rocket is a controller and curiosity changes nothing. With too much, "
-            "it is a tourist and never lands. The precision sets where on that dial "
-            "we sit.",
+            "Keep raising k and the rocket with curiosity off stops short too. On "
+            "this seed it lands up to k = 0.45 and stops short from 0.46, and at "
+            "k = 0.5 neither rocket lands on any of 10 seeds. That is the previous "
+            "slide’s point again: the pragmatic score pays for noise, and near the "
+            "pad the readings are then too noisy.",
+            "So two settings decide whether curiosity helps. The precision sets how "
+            "much information weighs against the pull of the pad, and k sets how "
+            "much information there is to gain by staying near the beacon.",
         )
     )
 

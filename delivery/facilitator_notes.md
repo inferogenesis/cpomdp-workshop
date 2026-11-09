@@ -21,14 +21,25 @@ switch is a helper in the workshop package and not a cpomdp feature. It ranks th
 compass moves by the pragmatic term alone, and with the epistemic term weighted back in
 it flies the compass planner's route move for move.
 
-Slides 13 and 14 are the two ends of one dial:
+Slides 13 and 14 change different settings. Slide 13 changes the precision at k = 0.2.
+Slide 14 keeps the precision at 0.1 and raises k to 0.4:
 
 - At precision 1, curiosity decides almost nothing. At k = 0.2 it changes at most 1 of
   the 36 moves on each of ten seeds, yet both routes bend towards the beacon. The bend
   comes from the pragmatic term, which pays for the reading's noise as well as for its
   distance from the pad.
-- At precision 0.1 and k = 0.4, curiosity keeps the rocket from landing. No curious
-  rocket lands on seeds 0 to 9, and every incurious one does.
+- At precision 0.1 and k = 0.4, the noise rises steeply enough away from the beacon
+  for curiosity to keep the rocket from landing. No curious rocket lands on seeds 0 to
+  9, and every incurious one does.
+
+"Curiosity off still lands" holds only in a narrow range of k. On seed 3 the two
+rockets part from k = 0.37 to 0.45. From 0.46 the incurious rocket stops short too, and
+at k = 0.5 neither lands on any of ten seeds. A learner stepping k by 0.1 from 0.08
+reaches 0.38 and then 0.48, so expect both answers in the chat. The explanation is slide
+13's: the pragmatic term pays for the reading's noise.
+
+A rocket has landed if it ends within 0.5 of the pad. The plots draw that circle, and
+`show_landings` prints the distance for each rocket.
 
 Slide 13 compares the precisions at k = 0.2 because seed 3 stands for the other seeds
 there. At k = 0.4 and precision 1, curiosity decides no move on seed 3 but parts the
@@ -59,9 +70,9 @@ experimenter's knowledge of the obstacle.
 
 1. Fixed observation noise can yield constant relative information gain across actions,
    even if overall uncertainty or anisotropy changes.
-2. A bend towards sharper readings does not, by itself, establish an epistemic motive.
-   In Task 2 the reading's noise enters the pragmatic term, and only the comparison
-   with curiosity off shows which term chose a move.
+2. A bend towards less noisy readings does not, by itself, establish an epistemic
+   motive. In Task 2 the reading's noise enters the pragmatic term, and only the
+   comparison with curiosity off shows which term chose a move.
 3. A trajectory that happens to miss an unmodelled rock is not evidence that the rocket
    represented or deliberately avoided it.
 4. A computation log, backend agreement test, or successful demonstration supports a
