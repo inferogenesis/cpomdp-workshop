@@ -6,6 +6,9 @@ picks a move, and the move is applied to the true position. A move that passes
 through the hazard ends the flight, and the path stops where the move landed.
 
 The rocket never sees its true position. The only channel is the reading.
+
+A hidden-pad flight adds one thing to the world: a true pad, drawn once per flight
+around the rocket's guess. The rocket never sees that either.
 """
 
 from collections.abc import Callable
@@ -15,9 +18,26 @@ import numpy as np
 from cpomdp import Agent
 from numpy.typing import ArrayLike
 
-from cpomdp_workshop.world import BLACKOUT, LAUNCH, ROCK_RADIUS, NoiseFn, SensorParams
+from cpomdp_workshop.world import (
+    BLACKOUT,
+    LAUNCH,
+    PAD_GUESS,
+    PAD_READINGS,
+    PAD_SPREAD_WORLD,
+    ROCK_RADIUS,
+    NoiseFn,
+    SensorParams,
+)
 
-__all__ = ["DEFAULT_SEED", "DEFAULT_STEPS", "ROCK", "Flight", "fly"]
+__all__ = [
+    "DEFAULT_SEED",
+    "DEFAULT_STEPS",
+    "ROCK",
+    "Flight",
+    "PadFlight",
+    "fly",
+    "fly_pad",
+]
 
 DEFAULT_STEPS = 36  # T
 DEFAULT_SEED = 3
@@ -91,6 +111,28 @@ class Flight:
         return float(apart.max())
 
 
+@dataclass(frozen=True)
+class PadFlight(Flight):
+    """What one hidden-pad flight did.
+
+    Attributes:
+        pad: where the pad truly was. ``means`` and ``covs`` are four-dimensional
+            here: the rocket's belief about its own position, then about the pad's.
+    """
+
+    pad: np.ndarray
+
+    @property
+    def miss(self) -> float:
+        """How far the rocket ended from the true pad."""
+        return self.distance_to(self.pad)
+
+
+def _refuse_a_flown_rocket(agent: Agent) -> None:
+    if agent.belief is not agent.model.prior:
+        raise ValueError("this rocket has flown already. Build it again to fly again.")
+
+
 def fly(
     agent: Agent,
     sensor: NoiseFn | None = None,
@@ -122,8 +164,7 @@ def fly(
         ValueError: if the rocket has flown already, or a sensor is given without
             parameters.
     """
-    if agent.belief is not agent.model.prior:
-        raise ValueError("this rocket has flown already. Build it again to fly again.")
+    _refuse_a_flown_rocket(agent)
     observation_noise_at = _world_noise(agent, sensor, params)  # R(x)
     reading_noise = np.random.RandomState(seed)
     position = np.asarray(LAUNCH, dtype=float)
@@ -145,4 +186,56 @@ def fly(
 
     return Flight(
         np.asarray(path), np.asarray(means), np.asarray(covs), crashed, impact_step
+    )
+
+
+def fly_pad(
+    agent: Agent,
+    sensor: NoiseFn | None = None,
+    params: SensorParams | None = None,
+    *,
+    steps: int = DEFAULT_STEPS,
+    seed: int = DEFAULT_SEED,
+) -> PadFlight:
+    """Fly a hidden-pad rocket from the launch site and report where the pad was.
+
+    The world draws the true pad once, around the guess with the world's spread, and
+    then each step's six readings from the same stream. So two rockets flown on one
+    seed meet the same pad, and the same readings for as long as they fly the same
+    route.
+
+    Args:
+        agent: a rocket built on [`pad_model`][cpomdp_workshop.pad_model]. It must not
+            have flown before.
+        sensor: the six readings' noise the world draws under, ``R(s, params)``. Left
+            out, the world is the one the rocket's own model describes.
+        params: that field's parameters. Required with ``sensor``.
+        steps: how many moves to allow, T.
+        seed: the true pad and the reading noise.
+
+    Returns:
+        A [`PadFlight`][cpomdp_workshop.PadFlight].
+
+    Raises:
+        ValueError: if the rocket has flown already, or a sensor is given without
+            parameters.
+    """
+    _refuse_a_flown_rocket(agent)
+    observation_noise_at = _world_noise(agent, sensor, params)  # R(s)
+    world = np.random.RandomState(seed)
+    pad = np.asarray(PAD_GUESS) + PAD_SPREAD_WORLD * world.randn(2)
+    position = np.asarray(LAUNCH, dtype=float)
+    path, means, covs = [position], [], []
+
+    for _ in range(steps):
+        state = np.concatenate([position, pad])  # s = (x, p)
+        scale = np.linalg.cholesky(np.asarray(observation_noise_at(state)))
+        belief = agent.infer_states(PAD_READINGS @ state + scale @ world.randn(6))
+        means.append(np.asarray(belief.mean))
+        covs.append(np.asarray(belief.cov))
+        position = position + np.asarray(agent.sample_action())
+        path.append(position)
+
+    return PadFlight(
+        np.asarray(path), np.asarray(means), np.asarray(covs), False, None, pad
     )
