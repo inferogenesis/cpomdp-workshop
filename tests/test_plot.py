@@ -170,7 +170,8 @@ def test_each_route_frame_names_its_rockets(route, stage, legend):
 def test_only_the_last_route_frame_holds_the_rock_and_the_crash(route, stage):
     patches = route[stage].axes[0].patches
     expected = 1 if stage == "rock" else 0
-    assert len([p for p in patches if isinstance(p, Circle)]) == expected
+    rocks = [p for p in patches if isinstance(p, Circle) and p.get_fill()]
+    assert len(rocks) == expected
     assert len(impact_markers(route[stage])) == expected
 
 
@@ -283,3 +284,8 @@ def test_a_flight_ends_in_a_dot_unless_it_crashed(route):
 
     assert len(ends(route["beacon"])) == 2
     assert len(ends(route["rock"])) == 2  # the 1960 rocket ends in a star instead
+
+
+def test_the_pad_carries_its_landing_circle(route):
+    circles = [p for p in route["beacon"].axes[0].patches if isinstance(p, Circle)]
+    assert [(c.center, c.radius) for c in circles] == [((5.0, 0.0), 0.5)]

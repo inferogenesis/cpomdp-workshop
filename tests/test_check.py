@@ -14,8 +14,10 @@ from cpomdp_workshop.check import (
     check_my_sensor,
     grade_sensor,
     route_bend,
+    show_landings,
 )
 from cpomdp_workshop.planner import compass_planner
+from cpomdp_workshop.plot import curiosity_pair
 from cpomdp_workshop.sim import fly
 from cpomdp_workshop.world import (
     LAUNCH,
@@ -50,7 +52,7 @@ def test_the_starting_beacon_bends_the_path_and_lands():
 
 def test_a_beacon_too_strong_stops_the_rocket_short():
     grade = grade_sensor(beacon_sensor, default_params(0.4))
-    assert grade.grade == "too curious"
+    assert grade.grade == "stops short"
     assert grade.distance is not None
     assert grade.distance > 1.0
 
@@ -182,3 +184,17 @@ def test_a_rocket_that_flies_but_differs_is_told_which_part(
 def test_a_backend_left_unwritten_is_named():
     with pytest.raises(TypeError, match=re.escape("backend is still ...")):
         check_backends(KalmanBackend(model_with()), ...)  # ty: ignore[invalid-argument-type]
+
+
+def test_every_flight_gets_a_line_saying_whether_it_landed(capsys):
+    flights = curiosity_pair(0.4)
+    show_landings(flights)
+    assert capsys.readouterr().out.splitlines() == [
+        "curiosity on   ended 2.79 from the pad, did not land",
+        "curiosity off  ended 0.24 from the pad, landed",
+    ]
+
+
+def test_a_straight_route_is_told_to_raise_k():
+    grade = grade_sensor(beacon_sensor, flat_route_params(0.08))
+    assert "Try raising it" in grade.message

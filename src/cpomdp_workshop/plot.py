@@ -2,7 +2,8 @@
 
 The sensor field is drawn as ``log10 R(x)`` in one muted green ramp, stronger where
 the reading is noisier, so the blackout stands out around the rock and the beacon sits
-in the quietest patch. The 1960 rocket is a dashed ink line. The curious rockets take
+in the quietest patch. A circle round the pad marks where a flight has to end to have
+landed. The 1960 rocket is a dashed ink line. The curious rockets take
 amber, then blue, in the order given, so a rocket with curiosity on is amber beside the
 same rocket with it off in blue. A flight ends in a dot of its colour, or in a star
 where it crashed. Text is ink or muted, never a series colour, and a figure with more
@@ -45,6 +46,7 @@ from cpomdp_workshop.sim import DEFAULT_SEED, ROCK, Flight, Hazard, fly
 from cpomdp_workshop.world import (
     BEACON,
     BLACKOUT_GAIN,
+    LANDING_RADIUS,
     LAUNCH,
     NOISE_FLOOR,
     PAD,
@@ -285,6 +287,7 @@ def _draw_landmarks(axes: Axes, hazard: Hazard | None, palette: Palette) -> None
             textcoords="offset points", ha="center", va="top", color=palette.ink,
             fontsize=9, zorder=6,
         )  # fmt: skip
+    _landing_zone(axes, PAD, palette)
     # Each name sits on the side no flight path crosses.
     for point, name, offset, align in (
         (LAUNCH, "launch", (-9, 0), "right"),
@@ -301,6 +304,17 @@ def _draw_landmarks(axes: Axes, hazard: Hazard | None, palette: Palette) -> None
             name, point, xytext=offset, textcoords="offset points", ha=align,
             va="center", color=palette.ink, fontsize=9, zorder=6,
         )  # fmt: skip
+
+
+def _landing_zone(axes: Axes, pad: ArrayLike, palette: Palette) -> None:
+    """The circle round the pad that a flight has to end inside to have landed."""
+    x, y = np.asarray(pad, dtype=float)
+    axes.add_patch(
+        Circle(
+            (x, y), LANDING_RADIUS, fill=False, edgecolor=palette.ink, lw=1.0,
+            alpha=0.6, zorder=3,
+        )
+    )  # fmt: skip
 
 
 def _draw_flight(

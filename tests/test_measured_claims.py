@@ -210,7 +210,8 @@ def test_most_curious_routes_pass_below_the_blackout():
 def test_the_beacon_sensor_bends_the_path_to_the_beacon_and_lands(capsys):
     check_my_sensor(beacon_sensor, default_params(0.08))
     assert capsys.readouterr().out.strip() == (
-        "The rocket bends 1.41 off the straight line and lands 0.23 from the pad. "
+        "The curious rocket bends 1.41 off the straight line and lands 0.23 from the "
+        "pad. "
         "It matches the workshop's beacon_sensor."
     )
 
@@ -545,9 +546,8 @@ def test_at_the_starting_k_the_routes_part_on_every_seed_and_every_rocket_lands(
 def test_the_sensor_check_at_k_0_4_says_the_curious_rocket_stops_short(capsys):
     check_my_sensor(beacon_sensor, default_params(0.4))
     assert capsys.readouterr().out.strip() == (
-        "The rocket bends 2.06 off the straight line and stops 2.79 short of the "
-        "pad. At this k, reading near the beacon is worth more than reaching the "
-        "pad. It matches the workshop's beacon_sensor."
+        "The curious rocket bends 2.06 off the straight line and stops 2.79 short of "
+        "the pad. It matches the workshop's beacon_sensor."
     )
 
 
@@ -697,3 +697,32 @@ def test_over_ten_seeds_a_wide_prior_leaves_the_curious_route_unchanged():
         wide, _ = fly_pair(0.08, seed=seed, prior_cov=25.0)
         usual, _ = fly_pair(0.08, seed=seed)
         assert np.array_equal(wide.path, usual.path), seed
+
+
+# Curiosity off lands only up to k = 0.45. Past it, the pragmatic term alone stops the
+# rocket short, because it pays for the reading's noise too.
+
+
+@pytest.mark.parametrize(
+    ("beacon_gain", "on_short", "off_short"),
+    [
+        (0.36, 0.19, 0.24),
+        (0.37, 1.39, 0.36),
+        (0.45, 1.52, 0.22),
+        (0.46, 1.52, 1.42),
+        (0.5, 1.87, 1.30),
+    ],
+)
+def test_on_seed_3_the_rockets_part_only_for_k_from_0_37_to_0_45(
+    beacon_gain, on_short, off_short
+):
+    on, off = fly_pair(beacon_gain)
+    assert round(on.distance_to(PAD), 2) == on_short
+    assert round(off.distance_to(PAD), 2) == off_short
+    assert (lands(on), lands(off)) == (beacon_gain < 0.37, beacon_gain < 0.46)
+
+
+@pytest.mark.slow
+def test_at_k_0_5_neither_rocket_lands_on_any_seed():
+    _, tally = over_ten_seeds(0.5)
+    assert (tally.on_landed, tally.off_landed) == (0, 0)
