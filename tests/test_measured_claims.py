@@ -59,7 +59,6 @@ from cpomdp_workshop.world import (
 )
 
 I = np.eye(2)
-V2_PRECISION = 1.0  # the v2 Task 2 claims the deck still quotes, until it is rewritten
 
 
 def blackout_rocket(beacon_gain):
@@ -170,26 +169,6 @@ def test_the_k_point_two_rocket_clears_the_rock_and_lands():
     assert flight.crashed is False
     assert round(float(flight.path[:, 1].max()), 2) == 1.91
     assert rounded(flight.final) == (5.18, 0.15)
-
-
-def test_session_two_bends_the_flight_path_up_to_the_beacon():
-    flight = fly(curious_rocket(0.4, beacon_sensor, precision=V2_PRECISION))
-    assert round(float(flight.path[:, 1].max()), 2) == 1.41
-    assert flight.path[:, 1].max() >= BEACON[1]
-    assert rounded(flight.final) == (5.12, 0.21)
-    assert flight.distance_to(PAD) < 0.3
-
-
-@pytest.mark.parametrize(
-    ("horizon", "short_of_the_pad"), [(1, 1.49), (2, 1.65), (3, 1.86)]
-)
-def test_a_rocket_too_curious_to_land_stays_short_however_far_it_looks(
-    horizon, short_of_the_pad
-):
-    flight = fly(
-        curious_rocket(0.6, beacon_sensor, horizon=horizon, precision=V2_PRECISION)
-    )
-    assert round(flight.distance_to(PAD), 2) == short_of_the_pad
 
 
 def build(beacon_gain):
@@ -540,7 +519,7 @@ def test_with_curiosity_off_the_route_is_the_same_at_any_precision(beacon_gain):
     assert all(np.array_equal(path, off[0]) for path in off)
 
 
-def test_at_the_starting_k_curiosity_takes_the_rocket_to_the_beacon_and_both_land():
+def test_at_k_0_08_curiosity_flies_to_the_beacon_and_both_rockets_land():
     on, off = fly_pair(0.08)
     assert round(nearest_beacon(on), 2) == 0.09
     assert round(nearest_beacon(off), 2) == 1.40

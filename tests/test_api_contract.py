@@ -101,6 +101,12 @@ def test_a_state_goal_carries_the_thruster_cost():
     assert np.allclose(goal.effort, 100 * I)
 
 
+def test_a_state_goal_under_a_state_dependent_sensor_is_refused():
+    # Why the curious rocket prefers a reading, and so pays for its noise.
+    with pytest.raises(ValueError, match="a StateGoal needs a fixed sensor"):
+        Agent(a_sensed_model(), StateGoal(PAD))
+
+
 def test_a_goal_beside_a_selector_is_refused():
     model = a_sensed_model()
     with pytest.raises(TypeError, match="selector= takes a Preference"):

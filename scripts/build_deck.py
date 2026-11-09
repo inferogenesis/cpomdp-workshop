@@ -29,23 +29,29 @@ from dataclasses import dataclass
 from importlib import metadata
 from pathlib import Path
 
+import numpy as np
 from cpomdp import KalmanBackend
 from pptx.enum.text import MSO_ANCHOR, PP_ALIGN
 
 from cpomdp_workshop import (
+    BEACON,
+    PAD,
     WORKSHOP_CPOMDP_VERSION,
     after_session_3,
     axis_certificate,
-    beacon_sensor,
     check_backends,
-    default_params,
-    grade_sensor,
     model_with,
     one_node,
     probe,
     show_probe,
 )
 from cpomdp_workshop._seams import RecedingHorizonSelector
+from cpomdp_workshop.plot import (
+    BALANCE_GAIN,
+    CURIOSITY_OFF,
+    CURIOSITY_ON,
+    curiosity_pair,
+)
 from deck_kit import (
     AMBER,
     BLUE,
@@ -88,6 +94,9 @@ KOUDAHL_REFERENCE = (
 
 RIGHT = SLIDE_WIDTH - MARGIN  # the right edge of the content
 FULL_WIDTH = RIGHT - MARGIN
+STARTING_GAIN = 0.08  # k, where task 2 starts
+PARTING_GAIN = 0.4  # k, where task 2's two rockets part
+
 # Every route slide puts its figure here, so only the route changes between them.
 ROUTE_FIGURE = (MARGIN, 1.4, 8.4)  # x, y, width
 ROUTE_COLUMN = 9.3  # where the callouts beside a route frame start
@@ -878,7 +887,7 @@ def task_2_brief(deck: Deck) -> None:
     page.text(
         MARGIN, CONTENT_TOP, FULL_WIDTH, 0.85,
         [
-            [Run("Like your eyes, most sensors blur with range.", bold=True)],
+            [Run("Most real world sensors blur with range.", bold=True)],
             [
                 Run("R", bold=True),
                 Run(" is the noise in the sensor’s readings. "),
@@ -950,6 +959,25 @@ def task_2_brief(deck: Deck) -> None:
             "reading, the one that says it’s on the pad, where the 1960 rocket "
             "preferred a position. At each step its planner scores the nine compass "
             "moves by expected free energy.",
+            "Each move gets two scores. The pragmatic score is how far the next "
+            "reading is expected to land from on the pad, and it counts the noise "
+            "expected in that reading too. The epistemic score is the expected "
+            "information gain, how much the move is expected to tell the rocket "
+            "about where it is. That is what we mean by curiosity. Expected free "
+            "energy is the first score minus the second.",
+            "The precision of the preference, lambda, multiplies the pragmatic score "
+            "and leaves the epistemic score alone, so it is the exchange rate "
+            "between information and the pull of the pad. In this task the rocket "
+            "prefers the pad loosely, at a precision of 0.1, so the two scores can "
+            "compete. With R(x), the joint model is no longer fully Gaussian, which "
+            "is why the moves stop being equal.",
+            "This time we fly the same rocket twice, once with curiosity on and once "
+            "with it off. The switch is a helper in our workshop package. cpomdp "
+            "itself has no such switch.",
+            "One caveat to say out loud. The rocket never knows its true position. "
+            "When it plans, it reads the noise at the mean of where it predicts a "
+            "move will take it. That is a first-order shortcut, and it is least "
+            "accurate when the belief is wide and the noise changes sharply.",
             "Reference: Corva, D. (2026). State-Dependent Observation Noise "
             "Reintroduces Epistemic Value in Linear-Gaussian Active Inference. "
             "https://arxiv.org/abs/2607.20306",
@@ -967,7 +995,7 @@ def task_2_timer(deck: Deck) -> None:
         deck, 2,
         (
             f"{FILL_IN} and start with k = 0.08.",
-            "Raise k until the route bends and still lands. Paste your k in the chat.",
+            "Raise k until one of the rockets stops landing. Paste that k in the chat.",
             "Finished early? Try the two bonuses below the cell.",
         ),
     )  # fmt: skip
@@ -977,107 +1005,157 @@ def task_2_timer(deck: Deck) -> None:
             "0.08. Then, in my sensor, fill in the line for the beacon’s extra noise.",
             "You’ll find the beacon settings in params, and the comments show you how "
             "to look them up by name.",
-            "Run the cell to see the curious rocket fly with your sensor and plot its "
-            "route.",
-            "Then try increasing k. Can you get the rocket to take a different route "
-            "and still land on the pad? If you’re stuck, Hint 1 suggests trying k = "
-            "0.4.",
+            "Run the cell. It flies the same rocket twice, once with curiosity on and "
+            "once with it off, and plots both routes over the beacon’s field.",
+            "Then raise k and watch both rockets. At what k does one of them stop "
+            "landing? If you are stuck, Hint 1 suggests trying k = 0.4.",
         )
     )
 
 
 def task_2_result(deck: Deck) -> None:
-    """Compare the reference flight with the routes the room found."""
-    k = 0.4
-    result = grade_sensor(beacon_sensor, default_params(k))
-    if result.bend is None or result.distance is None:
-        raise ValueError(f"No reference flight for the Task 2 slide: {result.message}")
+    """The reference pair at the starting k, with prompts for the task 2 discussion."""
+    k = STARTING_GAIN
+    pair = curiosity_pair(k)
+    on, off = pair[CURIOSITY_ON], pair[CURIOSITY_OFF]
+    beacon = float(np.linalg.norm(on.path - np.asarray(BEACON), axis=1).min())
     page = route_page(deck, "Task 2 · Discussion", "task 2", "route_2_beacon.png")
     left, _, plot_width = ROUTE_FIGURE
     page.text(
-        left, 5.99, plot_width, 0.35, [f"Reference run with k = {k:.2f}"],
+        left, 5.99, plot_width, 0.35, [f"Reference run with k = {k:.2f}, seed 3"],
         size=16, bold=True, space_after=0,
     )  # fmt: skip
     page.text(
         left, 6.40, plot_width, 0.75,
-        [f"At its furthest point from the straight route, the rocket was "
-         f"{result.bend:.2f} units off course. It finished {result.distance:.2f} "
-         "units from the pad."],
+        [f"With curiosity on, the rocket passed {beacon:.2f} from the beacon and "
+         f"finished {on.distance_to(PAD):.2f} from the pad. With curiosity off, it "
+         f"finished {off.distance_to(PAD):.2f} from the pad."],
         size=17, colour=MUTED,
     )  # fmt: skip
     width = RIGHT - ROUTE_COLUMN
     page.text(
         ROUTE_COLUMN, 1.85, width, 1.45,
-        ["How did the route change as you increased k?"],
+        ["How did the two routes differ?"],
         size=21, bold=True,
     )  # fmt: skip
     page.text(
         ROUTE_COLUMN, 3.65, width, 2.50,
-        ["Which values of k gave you a route that curved towards the beacon "
-         "and still reached the pad?"],
+        ["At what k did the curious rocket stop landing?"],
         size=20, bold=True,
-    )  # fmt: skip
-    page.text(
-        ROUTE_COLUMN, 6.65, width, 0.35, ["Poll 2 · 60 seconds"],
-        size=16, colour=AMBER,
     )  # fmt: skip
     page.notes(
         notes(
-            "Welcome back, everyone. You’ve just had a chance to fly the curious "
-            "rocket yourselves.",
-            "You started at k = 0.08 and turned it up to see whether the rocket would "
-            "take a detour towards the beacon and still reach the pad.",
-            "Let’s look at our run. The dashed line shows the 1960 rocket heading "
-            "straight for the pad.",
-            f"The amber line shows the curious rocket at k = {k:.2f}. It curves "
-            "towards the beacon, where its readings are more reliable, then heads "
-            f"back towards the pad and finishes just {result.distance:.2f} units away.",
-            "When we turn k up to 0.6, the rocket stops short of the pad.",
+            "Welcome back, everyone. You have just flown the same rocket twice, once "
+            "with curiosity on and once with it off.",
+            f"Let us look at our run at k = {k:.2f}. The amber line has curiosity on. "
+            f"It flies up to the beacon, passing {beacon:.2f} from it, and still "
+            f"finishes {on.distance_to(PAD):.2f} from the pad.",
+            "The blue line is the same rocket with curiosity off. It flies straight "
+            f"and finishes {off.distance_to(PAD):.2f} from the pad. Both rockets "
+            "share one model and one sensor, so the detour is curiosity.",
+            "On this flight, curiosity decided 6 of the 36 moves. Over 10 seeds, the "
+            "two routes part by 1 or more on every seed, and every rocket lands.",
+            "Raise k to 0.4 and the curious rocket stops landing. The rocket with "
+            "curiosity off still lands. We will come back to that in two slides.",
+        )
+    )
+
+
+def task_2_balance(deck: Deck) -> None:
+    """Show that a bend towards the beacon is curiosity only where the pair parts."""
+    page = deck.page("Curious, or just avoiding noise?", "task 2")
+    height = page.picture(ASSETS / "route_2_balance.png", MARGIN, 1.3, FULL_WIDTH)
+    top = 1.3 + height + 0.1
+    page.text(
+        MARGIN, top, FULL_WIDTH, 1.45,
+        [
+            "The pragmatic score pays for distance and for noise, and the precision "
+            "scales it. The epistemic score pays for information, and the precision "
+            "leaves it alone.",
+            f"At precision 1 and k = {BALANCE_GAIN:.1f}, both routes bend towards the "
+            "beacon, and curiosity changes at most 1 of the 36 moves on each of 10 "
+            "seeds.",
+        ],
+        size=17, space_after=6,
+    )  # fmt: skip
+    page.text(
+        MARGIN, 6.5, FULL_WIDTH, 0.6,
+        ["We chose the precision so the two terms can compete. There is no other "
+         "knob in expected free energy."],
+        size=19, bold=True, colour=AMBER,
+    )  # fmt: skip
+    page.notes(
+        notes(
+            f"Kev - Both panels fly the same rocket at k = {BALANCE_GAIN:.1f}, once "
+            "with curiosity on and once with it off. On the left, the rocket prefers "
+            "the pad at a precision of 1. On the right, at 0.1.",
+            "On the left, both routes bend towards the beacon, and they nearly "
+            "coincide. Over 10 seeds, curiosity changes at most 1 of the 36 moves. "
+            "The bend comes from the pragmatic score. Readings near the beacon are "
+            "less noisy, and the pragmatic score pays for noise as well as for "
+            "distance.",
+            "On the right, curiosity takes the rocket to the beacon. Over 10 seeds it "
+            "decides between 6 and 9 of the 36 moves.",
+            "So a bend towards the beacon does not show that a rocket is curious. "
+            "Only the comparison with curiosity off tells us which score chose the "
+            "move.",
+            "Why does noise reach the pragmatic score at all? The rocket's goal is a "
+            f"reading, because cpomdp {WORKSHOP_CPOMDP_VERSION} refuses a goal over "
+            "positions when the noise depends on the position. A goal over readings "
+            "pays for the noise expected in each reading.",
+            "We chose a precision of 0.1 so the two scores can compete. Expected free "
+            "energy carries no separate weight on the epistemic score, so the "
+            "precision is the only setting that trades one against the other.",
         )
     )
 
 
 def task_2_meaning(deck: Deck) -> None:
-    """Explain the poll result by comparing readings at the pad and near the beacon."""
-    page = deck.page("Why does the rocket stop short of the pad?", "task 2")
+    """The other end of the dial: at k = 0.4 curiosity keeps the rocket from landing."""
+    k = PARTING_GAIN
+    pair = curiosity_pair(k)
+    on, off = pair[CURIOSITY_ON], pair[CURIOSITY_OFF]
+    page = route_page(
+        deck, "Why does the curious rocket stop short?", "task 2",
+        "route_2_too_curious.png",
+    )  # fmt: skip
+    route_strip(page, caption=f"Reference flights at k = {k:.1f}, seed 3")
+    width = RIGHT - ROUTE_COLUMN
     page.text(
-        MARGIN, CONTENT_TOP, FULL_WIDTH, 0.7,
-        ["The rocket prefers a sensor reading that places it on the landing pad."],
-        size=22,
+        ROUTE_COLUMN, CONTENT_TOP, width, 3.6,
+        [
+            f"With curiosity off, the rocket lands {off.distance_to(PAD):.2f} from "
+            "the pad.",
+            "With curiosity on, it stays near the beacon, where readings are sharper, "
+            f"and stops {on.distance_to(PAD):.2f} short.",
+            "Over 10 seeds, no curious rocket lands, and every rocket with curiosity "
+            "off does.",
+        ],
+        size=19, space_after=14,
     )  # fmt: skip
     page.text(
-        MARGIN, 2.60, FULL_WIDTH, 1.05,
-        [[Run("At the pad, ", bold=True),
-          Run("readings are centred on the target, but high sensor noise means "
-              "they can fall a long way from it.")]],
-        size=22,
-    )  # fmt: skip
-    page.text(
-        MARGIN, 3.95, FULL_WIDTH, 1.05,
-        [[Run("Nearer the beacon, ", bold=True),
-          Run("readings are centred short of the target, but lower sensor noise "
-              "keeps them closer together.")]],
-        size=22,
-    )  # fmt: skip
-    page.text(
-        MARGIN, 5.85, FULL_WIDTH, 1.05,
-        ["At k = 0.6, moving closer to the pad can increase the expected error "
-         "in the next reading. In the reference run, the rocket stops short."],
-        size=21, bold=True, colour=AMBER,
+        ROUTE_COLUMN, 5.2, width, 1.7,
+        ["Too little weight on information and the rocket is a controller. Too much "
+         "and it never lands."],
+        size=19, bold=True, colour=AMBER,
     )  # fmt: skip
     page.notes(
         notes(
-            "Kev - The rocket weighs up two things when it chooses a move. How much "
-            "it expects to learn about its position is the epistemic value.",
-            "How close it expects its next reading to be to the pad is the pragmatic "
-            "value.",
-            "In this run, both can favour moving towards the beacon.",
-            "Even if the rocket lands right on the pad, the sensor is noisy there, so "
-            "a reading could say it missed by a long way.",
-            "A little short of the pad, the readings are steadier and tend to show "
-            "only a small miss. At k = 0.6, the rocket expects a smaller error in its "
-            "next reading if it stays there.",
-            "That’s why even the pragmatic goal favours stopping short.",
+            f"Kev - This is the other end of the same dial. Here k is {k:.1f}, and "
+            "the precision is still 0.1.",
+            "The blue rocket, with curiosity off, lands "
+            f"{off.distance_to(PAD):.2f} from the pad. The amber rocket, with "
+            "curiosity on, flies to the beacon and stays there, "
+            f"{on.distance_to(PAD):.2f} short of the pad.",
+            "Each move towards the pad leads away from the beacon, so it teaches "
+            "less. With a loose preference, the information a move would lose "
+            "outweighs the pull of the pad.",
+            "Over 10 seeds, no curious rocket lands, and they stop a median 1.67 "
+            "short. Every rocket with curiosity off lands.",
+            "Put the last two slides together. With too little weight on information, "
+            "the rocket is a controller and curiosity changes nothing. With too much, "
+            "it is a tourist and never lands. The precision sets where on that dial "
+            "we sit.",
         )
     )
 
@@ -1572,6 +1650,7 @@ SLIDES: tuple[Callable[[Deck], None], ...] = (
     task_2_brief,
     task_2_timer,
     task_2_result,
+    task_2_balance,
     task_2_meaning,
     task_3_brief,
     task_3_timer,

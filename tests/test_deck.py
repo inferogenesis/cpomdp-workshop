@@ -40,10 +40,12 @@ MEASURED = {
     "0.000000": "test_no_move_of_the_1960_rocket_is_worth_more_than_any_other",
     "0.13": "test_the_1960_rocket_reports_where_it_lands",
     "1.41": "test_the_beacon_sensor_bends_the_path_to_the_beacon_and_lands",
-    "0.24": "test_the_beacon_sensor_bends_the_path_to_the_beacon_and_lands",
-    "1.49": "test_a_rocket_too_curious_to_land_stays_short_however_far_it_looks",
-    "1.65": "test_a_rocket_too_curious_to_land_stays_short_however_far_it_looks",
-    "1.86": "test_a_rocket_too_curious_to_land_stays_short_however_far_it_looks",
+    "0.23": "test_at_k_0_08_curiosity_flies_to_the_beacon_and_both_rockets_land",
+    "0.29": "test_at_k_0_08_curiosity_flies_to_the_beacon_and_both_rockets_land",
+    "36": "test_at_the_starting_k_curiosity_decides_six_of_the_36_moves",
+    "0.24": "test_at_k_0_4_the_curious_rocket_stops_short_and_the_incurious_one_lands",
+    "2.79": "test_at_k_0_4_the_curious_rocket_stops_short_and_the_incurious_one_lands",
+    "1.67": "test_at_k_0_4_no_curious_rocket_lands_and_every_incurious_one_does",
     "6": "test_the_1960_rocket_hits_the_rock_on_step_six_whatever_the_noise_does",
     "1.71": "test_the_default_slider_rocket_clears_the_rock_and_lands",
     "4.83": "test_the_default_slider_rocket_clears_the_rock_and_lands",
@@ -63,7 +65,9 @@ MEASURED = {
 SET = {
     "0.08": "k, the slider's default",
     "0.20": "k, the second curious rocket",
-    "0.4": "k, task 2's reference",
+    "0.4": "k, task 2's reference, where its two rockets part",
+    "0.1": "the curious rocket's preference precision",
+    "0.2": "k, the precision comparison's",
     "0.40": "k, task 2's reference",
     "0.6": "k, too curious to land",
     "0.5": "the compass step",
@@ -117,8 +121,9 @@ def pictures(slide):
 
 
 @pytest.mark.slow
-def test_the_deck_has_twenty_five_slides_each_with_notes(deck):
-    assert len(deck.slides) == 25
+def test_the_deck_has_twenty_six_slides_each_with_notes(deck):
+    # Task 2 gained a slide. The hidden pad's Task 3 takes one away again.
+    assert len(deck.slides) == 26
     for slide in deck.slides:
         assert slide.notes_slide.notes_text_frame.text.strip()
 
@@ -289,6 +294,7 @@ def test_the_route_frames_build_up_in_one_place(deck):
     route = {
         build_deck.task_1_result: "straight",
         build_deck.task_2_result: "beacon",
+        build_deck.task_2_meaning: "too_curious",
         build_deck.task_3_blackout: "blackout",
         build_deck.task_3_rock: "rock",
     }
