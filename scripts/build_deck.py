@@ -231,8 +231,8 @@ PRESENTER_2_BIO = (
 """Presenter 2's bio, as the owner gave it. Kevin on a slide, Kev in the notes."""
 
 PRESENTERS = (
-    Presenter("Presenter 1 (keyboard)", "presenter_1.jpg", PRESENTER_1_BIO),
-    Presenter("Kevin (concepts)", "presenter_2.jpg", PRESENTER_2_BIO),
+    Presenter("Dan", "presenter_1.jpg", PRESENTER_1_BIO),
+    Presenter("Kevin", "presenter_2.jpg", PRESENTER_2_BIO),
 )
 
 
@@ -313,25 +313,25 @@ def timer_page(deck: Deck, number: int, steps: tuple[str, ...]) -> Page:
     return page
 
 
-def timer_notes(number: int, *paragraphs: str) -> str:
-    """A timer slide's notes: when it runs, ``paragraphs``, then how the bar runs."""
+def timer_notes(number: int, speaker: str, *paragraphs: str) -> str:
+    """A timer slide's notes: who and when, ``paragraphs``, then how the bar runs.
+
+    Spoken lines are plain paragraphs. Stage directions sit in square brackets.
+    """
     task = f"Task {number}"
     return notes(
-        f"Planned at {clock(task, 1)}, until {clock(task, 1, after=TASK_MINUTES)}. "
-        "Keyboard.",
+        f"[{speaker}. Planned at {clock(task, 1)}, until "
+        f"{clock(task, 1, after=TASK_MINUTES)}.]",
         *paragraphs,
-        f"Leave this slide up for the whole {TASK_MINUTES} minutes. The bar starts "
-        "when the slide appears and needs no click, and the clock above it counts "
-        "down the time left to the second. Both start again if you leave the "
-        "slide and come back, so share the notebook from another window if you need "
-        "to.",
-        "Nobody pastes hints. Each person opens the collapsed hint and reference "
-        "cells when they like. Paste the question form link in the chat again as the "
-        f"bar starts: {QUESTIONS_FORM}. Whoever isn't at the keyboard watches the "
-        "chat and the form's responses. We don't debug anyone's code from the front. "
-        "Point people at the hints, the reference cell and workshop.symptoms().",
-        f"When the bar fills, the line under it appears. Read it out. Checkpoint "
-        f"{number} restores the reference setup the next part needs.",
+        f"[Leave this slide up for the full {TASK_MINUTES} minutes. The bar and the "
+        "clock start on their own, and both restart if you leave the slide, so show "
+        "the notebook from another window if you need to.]",
+        f"[Paste the question form in the chat again: {QUESTIONS_FORM}. Whoever "
+        "isn't presenting watches the chat and the form. We don't debug anyone's "
+        "code from the front. Point people to the hints, the reference cell and "
+        "workshop.symptoms().]",
+        f"[When the bar fills, read out the line under it. Checkpoint {number} puts "
+        "everyone back on the same starting point.]",
     )
 
 
@@ -426,14 +426,13 @@ def title(deck: Deck) -> None:
         page.pill(MARGIN + index * 4.1, 5.9, 3.8, 0.7, label, colour=colour, size=20)
     page.notes(
         notes(
-            f"Planned at {clock('Welcome')} UTC. Keyboard shares the screen with this "
-            "slide up and pastes the Colab link and the question form in the chat. "
-            "Kev opens.",
-            "Kev - Welcome, everyone. Over the next two hours, we'll build three "
-            "rockets and watch how each one decides where to fly. If you could open "
-            "the Google Colab notebook now, even while we're talking. The next few "
-            "slides say how, and the installs can run while we introduce ourselves. "
-            "We will have a break around the hour mark.",
+            f"[Kev. Planned at {clock('Welcome')} UTC. Dan shares the screen with this "
+            "slide up and pastes the Colab link and the question form into the chat.]",
+            "Welcome, everyone. Over the next two hours we're going to build three "
+            "rockets and watch how each one decides where to fly.",
+            "If you can, open the Colab notebook now. The link is in the chat, and "
+            "the next few slides walk you through it. The install takes a minute or "
+            "two, so it's worth starting it while we introduce ourselves.",
         )
     )
 
@@ -467,25 +466,38 @@ def who_we_are(deck: Deck) -> None:
     )  # fmt: skip
     page.notes(
         notes(
-            "Dan\vI was introduced through Active Inference via\nWe built some things "
-            "in pymdp blah\nI have a personal interest in micro-bio and Abiogenesis "
-            "which led to the question, could we show evidence in silico that "
-            "microorganisms are “doing” active inference. \vI came across a series of "
-            "papers by a researcher called Mattingly (fill out) that looks at the "
-            "information rate of chemotaxis and run & tumble actions. The limit here "
-            "is the discretisation artifacts and errors that the binning process "
-            "would introduce, that would likely swamp the very specific and tiny "
-            "information rates we’d look to replicate.",
-            "That led to cpomdp which started its life as a python serving RxInfer "
-            "over a juliabridge. The issue here was that the latency introduced via "
-            "Juliabridge undermined the speed and accuracy of the RxInfer message "
-            "passing that makes it so great. I then took a page out of pymdp and "
-            "transitioned to Python with JAX, making cpomdp public at the same time. "
-            "Since then it has grown to a state that I am happy sharing with you all "
-            "today.",
+            "[Dan, then Kev introduces himself.]",
+            "Hi all, a quick bit of background. I'm a research software engineer by "
+            "trade. Most of my work is large-scale architecture and tool "
+            "orchestration for machine learning models.",
+            "I first came across active inference in late-night conversations with "
+            "Kev here, and the two of us started playing around with pymdp. I'm "
+            "interested in all things science, and two of my favourites are "
+            "microbiology and abiogenesis, the origin-of-life stuff.",
+            "Then I came across a paper by Henry Mattingly and colleagues, called "
+            "Escherichia (esh-uh-RIK-ee-uh) coli chemotaxis is information limited. "
+            "They measured how much information a bacterium gets from its "
+            "surroundings as it swims, and it's a tiny amount. I began to wonder "
+            "whether an active inference model could reproduce those numbers.",
+            "The problem was that pymdp works in discrete states, so you'd have to "
+            "bin a continuous world, and the binning errors would more than likely "
+            "dwarf the information rates. It ruins any hope of getting those values. "
+            "So I started work on cpomdp, so that we, the community, could "
+            "investigate continuous-state problems, like most of biology, in Python, "
+            "arguably the most popular research language.",
+            "It started life as Python calling RxInfer in Julia through a bridge. "
+            "The bridge introduced too much latency, which practically undid what "
+            "makes RxInfer's message passing so good. So I took a page out of "
+            "pymdp's book, rewrote it in Python on JAX, and made it public at the "
+            "same time. It's still in very early development, but it's now at a "
+            "point where I'm happy to share it with you and to take feedback, "
+            "feature requests, that sort of thing.",
             "Dan (aloud)\nSome of the source code in "
             f"cpomdp {WORKSHOP_CPOMDP_VERSION} was written by Claude Code and "
             "reviewed before release.",
+            "[Reference: Mattingly, H. H., Kamino, K., Machta, B. B. and Emonet, T. "
+            "(2021). Escherichia coli chemotaxis is information limited. Nature "
+            "Physics.]",
         )
     )
 
@@ -530,12 +542,18 @@ def agenda(deck: Deck) -> None:
     )  # fmt: skip
     page.notes(
         notes(
-            "Dan continues\nWe’ll keep moving and avoid too much talking, we want to "
-            "get people hands on keyboards by quarter minutes past.\nBriefly, you "
-            f"will have {TASK_MINUTES} minutes to code, attempt the main task and any "
-            "bonuses, followed by a brief discussion of what you’ve just wrote and "
-            "why.\nThere are 3 tasks.\nThen we will discuss cpomdp and why you should "
-            "a little more afterwards, followed by questions.",
+            "[Dan.]",
+            "Here's the plan. Every task runs the same way. We talk for about five "
+            f"minutes, you get {TASK_MINUTES} minutes to code, and then we spend ten "
+            "minutes on what you found.",
+            "There are three tasks. The first is the classic 1960 controller, the "
+            "second adds a beacon, and in the third the rocket has to find a landing "
+            "pad it can't see. After that we'll take ten minutes on what cpomdp adds "
+            "and where it's going, and leave the last ten for questions.",
+            "We want your hands on the keyboard by quarter past, so we'll keep the "
+            "introductions short. There's no scheduled break. If you need one, the "
+            "coding time is a good moment, and the checkpoint cells mean you can "
+            "always catch up.",
         )
     )
 
@@ -591,23 +609,23 @@ def how_we_work(deck: Deck) -> None:
     )  # fmt: skip
     page.notes(
         notes(
-            "Kev. Each task has two lines to write, and we have written the rest of "
-            "the code, so the Python stays out of the way. Some of the bonus "
-            "exercises ask you to write your own.",
-            "Each task has two hints and a worked solution, collapsed below the cell. "
-            "A hint shows a nudge first, and the line itself is behind Show code. "
-            "Open them whenever you like, and using them is absolutely fine - this is "
-            "not a coding test. We encourage you not to use an AI agent, we feel you "
-            "would get more from the workshop doing it by hand, but feel free to use "
-            "an agent if needed",
-            "At the end of every task, run the checkpoint cell, even if everything "
-            "worked. It puts the reference names back, so the next task starts from "
-            "the same place for everyone.",
-            "Each task closes with one number in the chat. It lets us see how the "
-            "room is doing without anyone writing a sentence or alternatively just "
-            "gives a thumbs up. If you do not finish the task do not worry, you can "
-            "save and come back to in your own time, which Dan will discuss in the "
-            "next slide.",
+            "[Kev.]",
+            "In each task you'll fill in two lines, marked with three dots. We've "
+            "written everything else, so the Python stays out of the way of the "
+            "ideas. A few of the bonus exercises ask you to write a bit more "
+            "yourself.",
+            "Below each code cell there are two hints and a worked solution, folded "
+            "away. A hint gives you a nudge first, and the line itself is behind Show "
+            "code. Open them whenever you like. This isn't a coding test. We'd "
+            "suggest not handing the task to an AI assistant, because you'll get "
+            "more out of working the lines out yourself, but it's your call.",
+            "When a task ends, run its checkpoint cell, even if everything worked. It "
+            "resets the names the next task relies on, so we all start the next task "
+            "from the same place.",
+            "Each task ends with one number to paste into the chat. It gives us a "
+            "quick read of how the room is doing, and a thumbs up is fine too. If you "
+            "don't finish, don't worry. You can save a copy and come back to it "
+            "later, and Dan will show you how on the next slide.",
         )
     )
 
@@ -685,23 +703,22 @@ def setup(deck: Deck) -> None:
         top += 0.75
     page.notes(
         notes(
-            "Dan\nWe’ve kept the workshop content as low-friction as possible for any "
-            "programming level.\nHere are the two links, they are already posted in "
-            "the Zoom chat.\nIf you’d like to use your own environment hopefully "
-            "you’ve set it up before now, if not I would encourage the default to be "
-            "Colab. I would also encourage you save a copy in case your tab closes or "
-            "if you’d like to continue any of the tasks after the session. Each "
-            "Colab instance is private to yourself, no one else can see your code so "
-            "don’t worry about making mistakes.",
-            "The first time you run a cell, Colab warns the notebook wasn't authored "
-            "by Google: click Run anyway. Nothing in the workshop asks for access to "
-            "anything on your drive.",
-            "The second link is an anonymous questions form, we know it can be quite "
-            "intimidating to ask questions in a room full of people so using that "
-            "form only hands us the question and nothing else. If your question "
-            "requires a longer form response leave an email and we’ll get back to you "
-            "after the session.",
-            f"The two links to paste: {COLAB} and {QUESTIONS_FORM}",
+            "[Dan.]",
+            "We've tried to make this work whatever your level of programming. Both "
+            "links on the slide are already in the Zoom chat.",
+            "If you've set up your own Python, great. If not, use Colab. Either way, "
+            "save a copy, with File, then Save a copy in Drive. That way you won't "
+            "lose your work if the tab closes, and you can carry on after the "
+            "session. Your copy is private to you. Nobody else can see your code, so "
+            "don't worry about making mistakes.",
+            "The first time you run a cell, Colab warns you that the notebook wasn't "
+            "written by Google. Click Run anyway. Nothing in the workshop asks for "
+            "access to your Drive.",
+            "The second link is an anonymous question form. Asking a question in "
+            "front of a full room can be daunting, and the form sends us the "
+            "question and nothing else. If it needs a longer answer, leave an email "
+            "and we'll get back to you after the session.",
+            f"[The two links to paste: {COLAB} and {QUESTIONS_FORM}]",
         )
     )
 
@@ -727,10 +744,15 @@ def preview(deck: Deck) -> None:
     )
     page.notes(
         notes(
-            "Kev - If you could run the first and second code cell, that would be "
-            "great",
-            "This is just a check to make sure everything is working for you, and if "
-            "you can see the graph that is on the slide - give us a thumbs up",
+            "[Kev.]",
+            "Please run the first two code cells now. The first installs the "
+            "workshop, and the second draws this picture.",
+            "It's where we'll end up by the end of the session: two rockets that "
+            "differ only in curiosity, looking for a landing pad neither of them can "
+            "see. One finds it, one doesn't. By Task 3 you'll know why.",
+            "If the picture on your screen matches this one, give us a thumbs up in "
+            "the chat. If you get an error instead, tell us in the chat and we'll "
+            "help you get set up.",
         )
     )
 
@@ -779,16 +801,22 @@ def task_1_brief(deck: Deck) -> None:
         )  # fmt: skip
     page.notes(
         notes(
-            "Kev - NASA used a Kalman filter on Apollo because every measurement had "
-            "some uncertainty. The filter combined where the spacecraft was predicted "
-            "to be with what the astronauts actually observed. The more reliable the "
-            "observation, the more weight it got in the new estimate.",
-            "In Karl Friston’s account of active inference, we update our beliefs by "
-            "minimising free energy, and in a linear Gaussian model like ours, that "
-            "gives us exactly the same update as the Kalman filter.\v\vThe linear "
-            "quadratic regulator then uses that estimate to decide how much thrust to "
-            "apply, balancing the cost of being off target against the cost of firing "
-            "the thruster harder.",
+            f"[Kev. Planned at {clock('Task 1')}.]",
+            "NASA used a Kalman filter on Apollo, because every measurement had some "
+            "uncertainty in it. The filter blends where the spacecraft should be, "
+            "going by its last estimate, with what the sensors actually read. The "
+            "more reliable the reading, the more weight it gets.",
+            "In Karl Friston's account of active inference, we update our beliefs by "
+            "minimising free energy. In a linear-Gaussian model like this one, that "
+            "gives exactly the same update as the Kalman filter.",
+            "The linear quadratic regulator, LQR for short, then uses that estimate "
+            "to decide how hard to fire the thrusters. It weighs being off target "
+            "against the cost of firing harder.",
+            "If you know pymdp, the cards along the bottom map its A, B, C and D "
+            "onto the names cpomdp uses. The preference, C, doesn't appear until "
+            "Task 2.",
+            "Keep the question on the slide in mind while you code: does it matter, "
+            "for what the rocket learns, which way it moves?",
         )
     )
 
@@ -804,15 +832,15 @@ def task_1_timer(deck: Deck) -> None:
         ),
     )  # fmt: skip
     page.notes(
-        notes(
-            f"Planned at {clock('Task 1', 1)}, until "
-            f"{clock('Task 1', 1, after=TASK_MINUTES)}. Kev.",
-            "Two lines to write: what the sensor observes and how noisy its readings "
-            "are.",
-            "Once you run the cell, you will be given an information spread value. "
-            "Paste that in the chat. This is the variation in epistemic values across "
-            "the action selections.",
-            "Have a go at the bonus at your own leisure.",
+        timer_notes(
+            1,
+            "Kev",
+            f"You've got {TASK_MINUTES} minutes. There are two lines to write: what "
+            "the sensor observes, and how noisy its readings are.",
+            "When you run the cell, it prints a spread. That's the gap between the "
+            "most and the least informative move the rocket could make. Paste it in "
+            "the chat.",
+            "If you finish early, have a go at the bonuses.",
         )
     )
 
@@ -852,28 +880,26 @@ def task_1_result(deck: Deck) -> None:
     )  # fmt: skip
     page.notes(
         notes(
-            f"Planned at {clock('Task 1', 2)}. Dan",
-            "Rhetorically ask what a spread of zero tells us. The probe function "
-            "compares the information each of the nine compass moves is expected to "
-            "give. spread = 0.000000 nats basically means each action gives the exact "
-            "same information. To be clear zero spread does not mean zero information "
-            "gain and if you completed the bonus, you would have seen they alter the "
-            "amount of information gained, while the spread still remains zero.",
-            "My usual analogy for this is walking into an optician's appointment and "
-            "being asked to read the letters on that strange board they have and if "
-            "you're like me, completely blind, you can't see anything. If you were to "
-            "then get up and press your nose against the board, but the letters were "
-            "still equally blurry, you have no incentive to move closer to read the "
-            "letters, or in more technical terms, you have no drive to act as the "
-            "information gain is the same regardless of where you stand.",
-            "This result is formalised in Koudahl and colleagues - On Epistemics in "
-            "Expected Free Energy for Linear Gaussian State Space Models. Entropy. "
-            "https://doi.org/10.3390/e23121565 where they show that there is no "
-            "information spread for linear-gaussian regimes, essentially meaning "
-            "active inference epistemic drive is absent. Not so useful when your "
-            "entire goal is to make a toolbox that builds linear-Gaussian active "
-            "inference agents. You are now at the roadblock I hit about a month into "
-            "development. Welcome.",
+            f"[Dan. Planned at {clock('Task 1', 2)}.]",
+            "So, what does a spread of zero tell us? [Pause, and read out an answer "
+            "or two from the chat.]",
+            "The probe compares how much each of the nine compass moves is expected "
+            "to teach the rocket. A spread of 0.000000 nats means every move teaches "
+            "exactly the same amount. That's not the same as learning nothing. If you "
+            "tried the bonuses, you'll have seen the amount of information change "
+            "while the spread stayed at zero.",
+            "My usual analogy is the optician's. You sit down, they ask you to read "
+            "the letters on the chart, and if you're like me, you can't see a thing. "
+            "Now imagine you get up and press your nose against the chart, and the "
+            "letters are just as blurry. There's no reason to walk over. In technical "
+            "terms, you have no drive to act, because what you'd learn is the same "
+            "wherever you stand.",
+            "Koudahl and colleagues showed this formally in 2021. In a "
+            "linear-Gaussian model every action offers the same information, so "
+            "active inference's epistemic drive drops out. Not ideal when your whole "
+            "goal is a toolbox for linear-Gaussian active inference agents. You're "
+            "now at the roadblock I hit about a month into development. Welcome.",
+            f"[Reference: {KOUDAHL_REFERENCE}]",
         )
     )
 
@@ -892,7 +918,7 @@ def task_2_brief(deck: Deck) -> None:
                 Run("R", bold=True),
                 Run(" is the noise in the sensor’s readings. "),
                 Run("R(x)", bold=True),
-                Run(" means that noise depends on the state x"),
+                Run(" means that noise depends on the state x."),
             ],
         ],
         size=20, space_after=4,
@@ -936,55 +962,49 @@ def task_2_brief(deck: Deck) -> None:
     )  # fmt: skip
     page.notes(
         notes(
-            f"Planned at {clock('Task 2')}.",
-            "Now imagine the precision of your eyes varies with where you stand in "
-            "that optician’s room, much like real life. Your vision gets blurrier "
-            "with range, and so do almost all our sensors.",
-            "We write the observation noise matrix as R for short. R describes the "
-            "noise in the sensor readings. Writing R(x) means this noise depends on "
-            "the rocket’s position, where x is the state. In this 2D example the "
-            "state is just position.",
-            "With a fixed R, the sensor is equally noisy wherever the rocket goes. "
-            "With R(x), the noise depends on the rocket’s position. Readings are more "
-            "reliable near the beacon, so by moving closer the rocket can expect to "
-            "learn more.",
-            "Task 2 tests whether this returns epistemic drive to a linear-Gaussian "
-            "agent.",
-            "A quick caveat. There are other ways to restore epistemics. Koudahl and "
-            "colleagues use multiplicative control. It isn’t in cpomdp yet, and it’s "
-            "planned as part of future development.",
-            "What you’ll need this time, is to set a beacon_gain value denoted as k "
-            "in the code cell. This sets how quickly the noise grows with distance "
-            "from the beacon. The goal type also changes: this rocket prefers a "
-            "reading, the one that says it’s on the pad, where the 1960 rocket "
-            "preferred a position. At each step its planner scores the nine compass "
-            "moves by expected free energy.",
-            "Each move gets two scores. The pragmatic score is how far the next "
-            "reading is expected to land from on the pad, and it counts the noise "
-            "expected in that reading too. The epistemic score is the expected "
-            "information gain, how much the move is expected to tell the rocket "
-            "about where it is. That is what we mean by curiosity. Expected free "
-            "energy is the first score minus the second.",
-            "The precision of the preference, lambda, multiplies the pragmatic score "
-            "and leaves the epistemic score alone, so it is the exchange rate "
-            "between information and the pull of the pad. In this task the rocket "
-            "prefers the pad loosely, at a precision of 0.1, so the two scores can "
-            "compete. With R(x), the joint model is no longer fully Gaussian, which "
-            "is why the moves stop being equal.",
-            "This time we fly the same rocket twice, once with curiosity on and once "
-            "with it off. The switch is a helper in our workshop package. cpomdp "
-            "itself has no such switch.",
-            "One caveat to say out loud. The rocket never knows its true position. "
-            "When it plans, it reads the noise at the mean of where it predicts a "
-            "move will take it. That is a first-order shortcut, and it is least "
-            "accurate when the belief is wide and the noise changes sharply.",
-            "Reference: Corva, D. (2026). State-Dependent Observation Noise "
+            f"[Dan. Planned at {clock('Task 2')}.]",
+            "Back to the optician's. Now imagine your eyesight depends on where you "
+            "stand, which is much closer to real life. Things blur with distance, and "
+            "so do almost all real sensors.",
+            "We write the sensor's noise as R. In Task 1, R was the same everywhere. "
+            "Now we write R(x), meaning the noise depends on x, the rocket's "
+            "position. Near the beacon the readings are sharp, and further away they "
+            "get noisier. So where the rocket moves now changes how much it can "
+            "expect to learn. That's the chain across the middle of the slide.",
+            "In the code, k, called beacon_gain, sets how fast the noise grows as the "
+            "rocket moves away from the beacon.",
+            "At each step the planner scores the nine compass moves, and each score "
+            "has two parts. The pragmatic part asks how close the next reading is "
+            "likely to be to the one that says you're on the pad. It also counts how "
+            "noisy that reading will be. The epistemic part is the expected "
+            "information gain: how much the move should tell the rocket about where "
+            "it is. That second part is what we mean by curiosity. Expected free "
+            "energy is the pragmatic part minus the epistemic part, and the rocket "
+            "picks the move where that comes out lowest.",
+            "Two things change from Task 1. First, the goal is now a reading, the one "
+            "that says the rocket is on the pad, rather than a position. Second, the "
+            "rocket holds that goal loosely. A goal has a precision, and the "
+            "precision scales the pragmatic part but leaves the epistemic part "
+            "alone. So it works as an exchange rate between information and the "
+            "pull of the pad. We've set it to 0.1, so the two parts can actually "
+            "compete. We'll come back to that choice.",
+            "This time we fly every rocket twice, once with curiosity on and once "
+            "with it off. We built that switch for the workshop. cpomdp itself "
+            "doesn't have one.",
+            "[If anyone asks how exact the information numbers are:] When the rocket "
+            "plans, it reads the noise at the centre of where it expects a move to "
+            "take it. That's a first-order shortcut. It's least accurate when the "
+            "rocket is very unsure where it is and the noise changes sharply.",
+            "[The line at the bottom of the slide:] Koudahl and colleagues point to "
+            "another way to bring curiosity back, multiplicative control. It's "
+            "planned for cpomdp but not built yet.",
+            "[Reference: Corva, D. (2026). State-Dependent Observation Noise "
             "Reintroduces Epistemic Value in Linear-Gaussian Active Inference. "
-            "https://arxiv.org/abs/2607.20306",
-            f"Further references: {KOUDAHL_REFERENCE}",
+            "https://arxiv.org/abs/2607.20306]",
+            f"[Further references: {KOUDAHL_REFERENCE}",
             "Franklin, D. W. et al. (2007). Endpoint Stiffness of the Arm Is "
             "Directionally Tuned to Instability in the Environment. "
-            "https://pmc.ncbi.nlm.nih.gov/articles/PMC6672883/",
+            "https://pmc.ncbi.nlm.nih.gov/articles/PMC6672883/]",
         )
     )
 
@@ -1000,15 +1020,18 @@ def task_2_timer(deck: Deck) -> None:
         ),
     )  # fmt: skip
     page.notes(
-        notes(
-            "Kev - For Task 2, you’ve got two lines to fill in again. First, set k to "
-            "0.08. Then, in my sensor, fill in the line for the beacon’s extra noise.",
-            "You’ll find the beacon settings in params, and the comments show you how "
-            "to look them up by name.",
-            "Run the cell. It flies the same rocket twice, once with curiosity on and "
-            "once with it off, and plots both routes over the beacon’s field.",
-            "Then raise k and watch both rockets. At what k does one of them stop "
-            "landing? If you are stuck, Hint 1 suggests trying k = 0.4.",
+        timer_notes(
+            2,
+            "Kev",
+            "Two lines again. First, set k to 0.08. Then, in my_sensor, fill in the "
+            "extra noise a reading picks up away from the beacon. The beacon's "
+            "settings are in params, and the comments in the cell show how to read "
+            "each one by name.",
+            "Run the cell. It flies the same rocket twice, with curiosity on and "
+            "with it off, and draws both routes over the beacon's noise map.",
+            "Then raise k and keep an eye on both rockets. At what k does one of them "
+            "stop landing? That's your number for the chat. If you're stuck, Hint 1 "
+            "suggests trying 0.4.",
         )
     )
 
@@ -1045,23 +1068,26 @@ def task_2_result(deck: Deck) -> None:
     )  # fmt: skip
     page.notes(
         notes(
-            "Welcome back, everyone. You have just flown the same rocket twice, once "
-            "with curiosity on and once with it off.",
-            f"Let us look at our run at k = {k:.2f}. The amber line has curiosity on. "
-            f"It flies up to the beacon, passing {beacon:.2f} from it, and still "
-            f"finishes {on.distance_to(PAD):.2f} from the pad.",
-            "The blue line is the same rocket with curiosity off. It flies straight "
-            f"and finishes {off.distance_to(PAD):.2f} from the pad. Both rockets "
-            "share one model and one sensor, so the detour is curiosity.",
-            "On this flight, curiosity decided 6 of the 36 moves. Over 10 seeds, the "
-            "two routes part by 1 or more on every seed, and every rocket lands.",
-            "A rocket has landed if it ends inside the circle round the pad, within "
-            "0.5 of it. The cell prints that for each rocket.",
-            "Raise k to 0.4 and the curious rocket stops landing, while the rocket "
-            "with curiosity off still lands. That only holds for a narrow range of "
-            "k. On this seed the two part from k = 0.37 to 0.45. From 0.46 the "
-            "rocket with curiosity off stops short too. We will come back to both "
-            "in two slides.",
+            f"[Dan. Planned at {clock('Task 2', 2)}.]",
+            "Welcome back. You've just flown the same rocket twice, once with "
+            "curiosity on and once with it off.",
+            f"Here's our run at k = {k:.2f}. The amber line has curiosity on. It "
+            f"flies up to the beacon, passing {beacon:.2f} from it, and still "
+            f"finishes {on.distance_to(PAD):.2f} from the pad. The blue line is the "
+            "same rocket with curiosity off. It flies straight and finishes "
+            f"{off.distance_to(PAD):.2f} from the pad. Both count as landed, because "
+            "both end inside the circle, within 0.5 of the pad.",
+            "The two rockets share one model and one sensor. The only difference is "
+            "the epistemic part of the score, so the detour is curiosity. On this "
+            "flight, curiosity decided 6 of the 36 moves. We checked 10 seeds, and on "
+            "every one the routes part by at least 1 and both rockets land.",
+            "At what k did your curious rocket stop landing? [Read a few answers "
+            "from the chat.]",
+            "On our seed, the curious rocket stops landing at k = 0.37, and the "
+            "rocket with curiosity off keeps landing up to 0.45. So depending on the "
+            "steps you took, you may have seen the curious rocket miss while the "
+            "other one landed, or both of them miss. Both are right answers, and the "
+            "next two slides explain each one.",
         )
     )
 
@@ -1074,43 +1100,50 @@ def task_2_balance(deck: Deck) -> None:
     page.text(
         MARGIN, top, FULL_WIDTH, 1.45,
         [
-            "The pragmatic score pays for distance and for noise, and the precision "
-            "scales it. The epistemic score pays for information, and the precision "
-            "leaves it alone.",
+            "The pragmatic score counts distance to the pad and the noise along the "
+            "way, and the precision scales it. The epistemic score counts "
+            "information, and the precision leaves it alone.",
             f"At precision 1 and k = {BALANCE_GAIN:.1f}, both routes bend towards the "
-            "beacon, and curiosity changes at most 1 of the 36 moves on each of 10 "
-            "seeds.",
+            "beacon, yet curiosity changes at most 1 of the 36 moves on any of 10 "
+            "seeds. That bend is the rocket avoiding noise.",
         ],
         size=17, space_after=6,
     )  # fmt: skip
     page.text(
         MARGIN, 6.5, FULL_WIDTH, 0.6,
-        ["We chose the precision so the two terms can compete. There is no other "
-         "knob in expected free energy."],
+        ["We picked precision 0.1 so the two scores can compete. Expected free "
+         "energy has no other dial for this."],
         size=19, bold=True, colour=AMBER,
     )  # fmt: skip
     page.notes(
         notes(
-            f"Kev - Both panels fly the same rocket at k = {BALANCE_GAIN:.1f}, once "
-            "with curiosity on and once with it off. On the left, the rocket prefers "
-            "the pad at a precision of 1. On the right, at 0.1.",
-            "On the left, both routes bend towards the beacon, and they nearly "
-            "coincide. Over 10 seeds, curiosity changes at most 1 of the 36 moves. "
-            "The bend comes from the pragmatic score. Readings near the beacon are "
-            "less noisy, and the pragmatic score pays for noise as well as for "
-            "distance.",
-            "On the right, curiosity takes the rocket to the beacon. Over 10 seeds it "
-            "decides between 6 and 9 of the 36 moves.",
-            "So a bend towards the beacon does not show that a rocket is curious. "
-            "Only the comparison with curiosity off tells us which score chose the "
-            "move.",
-            "Why does noise reach the pragmatic score at all? The rocket's goal is a "
-            f"reading, because cpomdp {WORKSHOP_CPOMDP_VERSION} refuses a goal over "
-            "positions when the noise depends on the position. A goal over readings "
-            "pays for the noise expected in each reading.",
-            "We chose a precision of 0.1 so the two scores can compete. Expected free "
-            "energy carries no separate weight on the epistemic score, so the "
-            "precision is the only setting that trades one against the other.",
+            "[Kev.]",
+            "Does a bend towards the beacon always mean the rocket is curious? Not "
+            "necessarily, and this slide shows why.",
+            f"Both panels fly the same rocket at k = {BALANCE_GAIN:.1f}, with "
+            "curiosity on and with it off. We've moved up from 0.08, because at "
+            f"{BALANCE_GAIN:.1f} the beacon starts pulling even the rocket with "
+            "curiosity off. On the left, the rocket holds its goal at a precision "
+            "of 1. On the right, at 0.1.",
+            "On the left, both routes bend towards the beacon and they nearly "
+            "overlap. Across 10 seeds, curiosity changes at most 1 of the 36 moves. "
+            "So the bend isn't curiosity. It comes from the pragmatic score, which "
+            "counts how noisy the reading is as well as how far it is from the pad. "
+            "Readings near the beacon are cleaner, so heading that way looks good "
+            "even to a rocket that doesn't care about information.",
+            "On the right, at 0.1, curiosity takes the rocket right up to the beacon. "
+            "Across 10 seeds it decides between 6 and 9 of the 36 moves.",
+            "So a route that looks curious might not be. The only way to tell which "
+            "score chose a move is to fly it again with curiosity off.",
+            "[If someone asks why noise is in the pragmatic score at all:] The goal "
+            "is a reading rather than a position, because cpomdp "
+            f"{WORKSHOP_CPOMDP_VERSION} won't accept a goal over positions when the "
+            "noise depends on position. A goal over readings ends up paying for how "
+            "noisy each reading is expected to be.",
+            "We picked 0.1 on purpose, so the two scores could compete. Expected "
+            "free energy has no separate dial for curiosity, so the precision is the "
+            "only thing that trades one against the other. Turning the precision "
+            "down is the same as turning curiosity up.",
         )
     )
 
@@ -1146,26 +1179,27 @@ def task_2_meaning(deck: Deck) -> None:
     )  # fmt: skip
     page.notes(
         notes(
-            f"Kev - Here the precision is still 0.1, the value at which both rockets "
-            f"landed two slides ago. What we changed is k, from 0.08 to {k:.1f}, so "
-            "the noise now rises five times as steeply away from the beacon.",
-            "The blue rocket, with curiosity off, lands "
-            f"{off.distance_to(PAD):.2f} from the pad. The amber rocket, with "
-            "curiosity on, flies to the beacon and stays there, "
-            f"{on.distance_to(PAD):.2f} short of the pad.",
-            "Each move towards the pad leads away from the beacon, so it teaches "
-            "less. With noise this steep, the information a move would lose "
-            "outweighs the pull of the pad.",
-            "Over 10 seeds, no curious rocket lands, and they stop a median 1.67 "
+            "[Kev.]",
+            "Same precision as before, 0.1, the setting where both rockets landed "
+            f"two slides ago. What we've changed is k, from 0.08 to {k:.1f}, so the "
+            "noise now climbs five times as steeply away from the beacon.",
+            "The blue rocket, curiosity off, lands "
+            f"{off.distance_to(PAD):.2f} from the pad. The amber rocket, curiosity "
+            "on, goes to the beacon and won't leave. It stops "
+            f"{on.distance_to(PAD):.2f} short.",
+            "Why? From the beacon, every move towards the pad is a move away from "
+            "clean readings, so each one teaches less. With noise this steep, the "
+            "information the rocket would give up outweighs the pull of the pad. "
+            "Across 10 seeds, no curious rocket lands, and they stop a median 1.67 "
             "short. Every rocket with curiosity off lands.",
-            "Keep raising k and the rocket with curiosity off stops short too. On "
-            "this seed it lands up to k = 0.45 and stops short from 0.46, and at "
-            "k = 0.5 neither rocket lands on any of 10 seeds. That is the previous "
-            "slide’s point again: the pragmatic score pays for noise, and near the "
-            "pad the readings are then too noisy.",
-            "So two settings decide whether curiosity helps. The precision sets how "
-            "much information weighs against the pull of the pad, and k sets how "
-            "much information there is to gain by staying near the beacon.",
+            "You'll notice the blue route bends towards the beacon too. That's the "
+            "last slide again: the pragmatic score likes cleaner readings. Push k "
+            "higher and that pull wins as well. On this seed the rocket with "
+            "curiosity off stops short from k = 0.46, and at k = 0.5 neither rocket "
+            "lands on any of 10 seeds.",
+            "So two settings decide whether curiosity helps. The precision sets what "
+            "information is worth against the pull of the pad. k sets how much there "
+            "is to gain by staying near the beacon.",
         )
     )
 
@@ -1212,25 +1246,27 @@ def task_3_brief(deck: Deck) -> None:
     question(page, 5.85, "Which rocket finds the pad?", height=0.55)
     page.notes(
         notes(
-            f"Planned at {clock('Task 3')}. Kev. In Task 2, the rocket knew where "
-            "the pad was, and curiosity only changed its route. Now the pad is "
-            "hidden. The rocket starts with a guess and has to learn where the pad "
-            "really is.",
+            f"[Kev. Planned at {clock('Task 3')}.]",
+            "In Task 2 the rocket knew where the pad was, and curiosity only changed "
+            "its route. Now we hide the pad. The rocket starts with a guess, and it "
+            "knows roughly how good that guess is.",
             "It has three sensors. It reads its own position. A coarse radar points "
-            "roughly towards the pad. And the beacon broadcasts the pad’s exact "
-            "position, clearly only nearby.",
-            "Say this plainly: we built this world. The radar is coarse on purpose. "
-            "The broadcast fades on purpose. The rocket’s guess is right on average, "
-            "because we draw the true pad from its own prior. In the language of "
-            "Active Inference (Figure 2.2), the true pad belongs to the generative "
-            "process, and the rocket’s generative model holds only a belief about "
-            "it.",
-            "One more choice to say out loud. The rocket’s goal is a radar reading, "
-            "the one that says the pad is right here. The radar’s noise does not "
-            "change with position. We chose that on purpose, so the pragmatic score "
-            "cannot do the beacon’s work the way it bent the route in Task 2.",
-            "We fly the same rocket twice again, once with curiosity on and once "
-            "with it off. Leave the question with participants as they start Task 3.",
+            "roughly from the rocket towards the pad, and it's just as rough "
+            "everywhere. And the beacon broadcasts the pad's exact position, but you "
+            "only hear it clearly when you're close.",
+            "We should say clearly that we built this world on purpose. The radar is "
+            "coarse on purpose, and the broadcast fades on purpose. The guess is "
+            "right on average, because we draw the true pad from the rocket's own "
+            "prior. In the Active Inference book's terms, Figure 2.2, the true pad "
+            "lives in the generative process, the world, and the rocket's generative "
+            "model only holds a belief about it.",
+            "One more choice worth flagging. The rocket's goal is a radar reading, "
+            "the one that says the pad is right here. The radar's noise doesn't "
+            "change with position, so this time the pragmatic score can't pull the "
+            "rocket towards the beacon the way it did in Task 2. So if a rocket goes "
+            "to the beacon in this task, it's because of curiosity.",
+            "Again we fly the same rocket twice, curiosity on and off. Keep the "
+            "question in mind while you code: which one finds the pad?",
         )
     )
 
@@ -1249,19 +1285,19 @@ def task_3_timer(deck: Deck) -> None:
     page.notes(
         timer_notes(
             3,
+            "Dan",
             "Two lines again. The first is in my_broadcast: how much noise the "
-            "broadcast gains with distance from the beacon. There is no cap this "
+            "broadcast picks up with distance from the beacon. There's no cap this "
             "time. The second is prior_cov, how unsure the rocket starts about its "
-            "own position and about the pad’s. The cell builds the whole model, as "
-            "Task 2 did. Its state is four numbers, the rocket’s position and then "
-            "the pad’s.",
-            "The cell flies the same rocket with curiosity on and off. show_misses "
-            "prints how far each one ended from the true pad, and plot_pad draws "
+            "own position and about the pad's.",
+            "This cell builds the whole model, like Task 2's did. The state is now "
+            "four numbers, the rocket's position and then the pad's. show_misses "
+            "prints how far each rocket ended from the true pad, and plot_pad draws "
             "both routes.",
-            "Then lower pad_spread and run the cell again. That changes only how "
-            "unsure the rocket is about the pad. The world still draws the true pad "
-            "with a spread of 1.5. The spread at which the curious rocket stops "
-            "finding the pad is the number for the chat.",
+            "Then lower pad_spread and run the cell again. That only changes how "
+            "unsure the rocket is about the pad. The world still places the true pad "
+            "with a spread of 1.5. The spread where the curious rocket stops finding "
+            "the pad is your number for the chat.",
         )
     )
 
@@ -1292,25 +1328,26 @@ def task_3_result(deck: Deck) -> None:
     )  # fmt: skip
     page.notes(
         notes(
-            f"Planned at {clock('Task 3', 2)}. Kev. Start with the blue route, "
-            "curiosity off. It flies to its guess and then on towards the pad, with "
-            "only the coarse radar to correct the guess, and it ends "
-            f"{off.miss:.2f} from the true pad.",
-            "Now the amber route, curiosity on. It goes up to the beacon first, "
-            "hears where the pad is, and then flies there. It ends "
-            f"{on.miss:.2f} from the true pad. The shaded ellipse is where it "
-            "believes the pad is by the end.",
+            f"[Kev. Planned at {clock('Task 3', 2)}.]",
+            "Start with the blue route, curiosity off. It heads for its guess and "
+            "then on towards the pad, with only the coarse radar to correct it. It "
+            f"ends {off.miss:.2f} from the true pad, outside the circle.",
+            "Now amber, curiosity on. It goes up to the beacon first, hears where "
+            f"the pad is, and flies there. It ends {on.miss:.2f} from the true pad. "
+            "The shaded ellipse is where it believes the pad is by the end.",
+            "A fair question is whether the blue rocket hears the broadcast too. It "
+            "does, at every step. But out there the broadcast is faint, so its "
+            "picture of the pad sharpens slowly, and nothing in its score tells it "
+            "to go closer and listen.",
             "You lowered pad_spread until the curious rocket stopped finding the "
-            "pad. On this seed it still finds the pad at a spread of 0.48 and "
-            "stops at 0.45. A rocket that is sure of its guess expects to learn "
-            "nothing at the beacon, so it does not go. We come back to this on the "
-            "next slide.",
-            "A rocket lands if it ends within 0.5 of the true pad. Over 10 seeds, "
-            "the curious rocket lands on 9 and the incurious one on 3. The median "
-            "misses are 0.25 and 0.61. The landing gap is modest on the map, which "
-            "is why the misses are printed large.",
-            "Curiosity pays off here because what the rocket learns changes where "
-            "it goes. The notebook has a question to think about under Checkpoint 3.",
+            "pad. On our seed it still finds the pad at 0.48 and stops at 0.45. A "
+            "rocket that's sure of its guess expects to learn nothing at the beacon, "
+            "so it doesn't go. More on that in a moment.",
+            "Across 10 seeds, the curious rocket lands on 9 and the one with "
+            "curiosity off on 3. The median misses are 0.25 and 0.61. On the map "
+            "that gap looks small, which is why we print the misses in large type.",
+            "Curiosity pays off here because what the rocket learns changes where it "
+            "goes. There's a question on this under Checkpoint 3 in the notebook.",
         )
     )
 
@@ -1345,38 +1382,38 @@ def task_3_tuning(deck: Deck) -> None:
     )  # fmt: skip
     page.text(
         MARGIN, 5.8, FULL_WIDTH, 1.2,
-        ["As a direction for future work, we expect cpomdp’s longer horizons and "
-         "factor-graph backends to make this balance less fragile. Looking two "
+        ["Where we think this goes: longer horizons and factor-graph backends "
+         "should make the balance less fragile. One data point so far: looking two "
          "moves ahead, the curious rocket lands on all 10 seeds."],
         size=19, bold=True, colour=AMBER,
     )  # fmt: skip
     page.notes(
         notes(
-            "Dan. Task 3 works inside a window, and it is worth showing the room how "
-            "narrow that window is.",
-            "The precision first. At 0.1 the curious rocket lands on 9 of 10 seeds. "
-            "At 0.3 it lands on 7 and visits the beacon on 6. At 1 it lands on 3, "
-            "the same as the rocket with curiosity off, and it visits the beacon on "
-            "1 seed only. That is the seed where the pad lies that way, and the "
-            "rocket with curiosity off passes the beacon there too.",
-            "Then the rocket’s own uncertainty. With a spread of 0.1 the rocket is "
-            "overconfident. It believes there is nothing to learn, visits the beacon "
-            "on no seed, and lands on 1 seed of 10.",
-            "And the world. If the broadcast carries far, both rockets hear the pad "
-            "from where they are and both land on all 10 seeds. Curiosity buys "
-            "nothing. The same holds with a sharp radar, which is why ours is "
-            "coarse. Bonus 2 lets you try both.",
-            "So the balance between the two scores takes tuning. Where do we expect "
-            "that to ease? What follows is a direction for future work, and we have "
-            "not shown it. cpomdp’s longer "
-            "planning horizons and its factor-graph backends are where we expect "
-            "the balance to become less fragile, and the p* research programme is "
-            "where the evidence would come from. That work is planned.",
-            "We have one measured point. Looking two moves ahead, the curious rocket "
-            "lands on all 10 seeds, where one move ahead it lands on 9. We have no "
-            "factor-graph evidence in this workshop. The one-node check on the next "
-            "slide shows that the graph engine matches the Kalman filter. It does "
-            "not show that graphs make curiosity more stable.",
+            "[Dan.]",
+            "Task 3 works, but only inside a window, and we want to be honest about "
+            "how narrow that window is.",
+            "Precision first. At 0.1 the curious rocket lands on 9 of 10 seeds. At "
+            "0.3 it lands on 7 and visits the beacon on 6. At 1 it lands on 3, the "
+            "same as with curiosity off, and visits the beacon on only 1 seed. On "
+            "that seed the pad happens to lie that way, and the rocket with "
+            "curiosity off passes the beacon too.",
+            "Then the rocket's own uncertainty. At a spread of 0.1 it's "
+            "overconfident. It thinks there's nothing to learn, never visits the "
+            "beacon, and lands on 1 seed of 10.",
+            "Then the world. If the broadcast carries far, both rockets hear the pad "
+            "from wherever they are, and both land on all 10 seeds. Curiosity buys "
+            "nothing. A sharp radar does the same, which is why ours is coarse. "
+            "Bonus 2 lets you try both.",
+            "So getting the two scores to balance takes tuning. Where do we expect "
+            "that to get easier? This part is a direction, not a result. We expect "
+            "longer planning horizons and cpomdp's factor-graph backends to make the "
+            "balance less fragile, and the p* programme is where we plan to test "
+            "that.",
+            "We have one data point so far. Looking two moves ahead, the curious "
+            "rocket lands on all 10 seeds instead of 9. We have no factor-graph "
+            "evidence in this workshop. The one-node check on the next slide shows "
+            "the graph engine matches the Kalman filter. It doesn't show that graphs "
+            "make curiosity more stable.",
         )
     )
 
@@ -1411,10 +1448,17 @@ def backends(deck: Deck) -> None:
     )  # fmt: skip
     page.notes(
         notes(
-            "Keyboard. This is the first number the final cell prints. With one "
-            "node, the graph should reproduce the familiar Kalman filter result. "
-            "That gives us a case we can check before we use the graph to connect "
-            "several variables."
+            f"[Dan. Planned at {clock('Why it matters')}. Run the final notebook "
+            "cell now, and ask the room to run it too.]",
+            "The final cell runs two checks on what we did today. This is the first. "
+            "We took the 1960 rocket and ran it two ways: through a Kalman filter, "
+            "and as a factor graph with a single node. At every step we compared "
+            "where each one thought the rocket was, and how sure it was.",
+            "The largest difference over the whole flight is down at the level of "
+            "rounding error in the computer's arithmetic. With one node, the graph "
+            "should give exactly the Kalman filter's answer. That makes it a case we "
+            "can check before we trust the graph with models that connect several "
+            "variables.",
         )
     )
 
@@ -1446,17 +1490,24 @@ def coda(deck: Deck) -> None:
     page.table(MARGIN, 1.8, (6.65, 2.75, FULL_WIDTH - 9.4), 3.3, rows)
     page.text(
         MARGIN, 5.75, FULL_WIDTH, 1.0,
-        ["In both cases, the planner scored every plan in the set it was given."],
+        ["PROVED means the planner scored every plan in its set. It doesn't tell us "
+         "the model is right."],
         size=22, colour=AMBER, bold=True,
     )  # fmt: skip
     page.notes(
         notes(
-            f"Planned at {clock('Why it matters')}. Kev. Run the final notebook cell.",
-            "A moment ago, we checked whether two ways of running the same model "
-            "gave the same estimates. Here we checked whether the planner "
-            "considered every option we gave it. To judge how well the model "
-            "describes the world, we would need to compare its predictions with "
-            "observations.",
+            "[Kev.]",
+            "The second check is the planner's certificate. The table shows two "
+            "searches. In the first, the curious rocket looks one move ahead, with "
+            "nine moves to choose from. In the second, it looks seven moves ahead "
+            "with five moves at each step. That's 78,125 possible plans.",
+            "PROVED means the planner scored every plan in the set it was given. "
+            "Nothing was sampled, and nothing was skipped.",
+            "What it doesn't tell us is whether the model is any good. The last "
+            "slide showed that two ways of running the model agree, and this one "
+            "shows the planner looked at every option. Neither says the model "
+            "describes the world well. For that, you'd have to compare its "
+            "predictions with real observations.",
         )
     )
 
@@ -1470,8 +1521,9 @@ def where_cpomdp_sits(deck: Deck) -> None:
         (
             headed(
                 "Change what the rocket could learn",
-                "We made sensor noise depend on position. Moving towards the "
-                "beacon could give the rocket a more informative reading.",
+                "We made sensor noise depend on position, then made the pad's "
+                "position something the rocket had to learn. That gave moving a "
+                "reason to teach it something.",
                 colour=AMBER,
             ),
             headed(
@@ -1492,14 +1544,21 @@ def where_cpomdp_sits(deck: Deck) -> None:
     )  # fmt: skip
     page.notes(
         notes(
-            "Kev. If you know pymdp, it models discrete states in Python. "
-            "We used cpomdp for continuous states, such as the position of the "
-            "rocket. It runs on JAX in Python. RxInfer uses message passing on "
-            "factor graphs for Bayesian inference in Julia.",
-            "The certificate gives us the counts. The label PROVED tells us why "
-            "we can say the search was complete. The planner scored every plan "
-            "in the set. Next, let us look at what people have built with these "
-            "tools.",
+            "[Kev.]",
+            "So what did cpomdp actually let us do today?",
+            "First, it let us change what the rocket could learn. We made the "
+            "sensor's noise depend on position, and in Task 3 we made the pad part "
+            "of what the rocket had to work out. That's what gave curiosity "
+            "something to do.",
+            "Second, we checked the position estimates, by running the same model "
+            "as a Kalman filter and as a one-node graph and seeing that they agree. "
+            "Third, we checked the planning. The certificate shows the planner "
+            "scored every plan in the seven-step search.",
+            "For context: if you know pymdp, that's the library for discrete states "
+            "in Python. cpomdp does the same job for continuous states, like the "
+            "rocket's position, and runs on JAX. RxInfer, in Julia, does Bayesian "
+            "inference by message passing on factor graphs.",
+            "Next, a few other things people have modelled with these tools.",
         )
     )
 
@@ -1535,11 +1594,20 @@ def research(deck: Deck) -> None:
     )  # fmt: skip
     page.notes(
         notes(
-            "Kev. The two flow meters were equally accurate at the design flow. "
-            "As flow fell, one gave clearer readings and the other gave noisier "
-            "ones. That changed where the controller settled. It is the same "
-            "idea we saw with the rocket. Dan’s preprint explains when an action "
-            "can change how much the agent expects to learn from its next reading."
+            "[Kev.]",
+            "In the maze, the agent takes a detour to read a cue before heading for "
+            "the reward. With fixed sensor noise it never takes the detour, and it "
+            "ends up stuck in the wrong arm. That's Task 1's lesson again.",
+            "In the cell model, we estimate how active a protein called CheA is "
+            "inside E. coli, from the signals it passes on through the cell. That "
+            "links back to where cpomdp started.",
+            "In the compressor simulation, the two flow meters were equally accurate "
+            "at the design flow. As the flow dropped, one gave cleaner readings and "
+            "the other noisier ones, and that alone changed which side of the surge "
+            "line the controller settled on. It's the same idea as the rocket: the "
+            "sensor changes which moves are worth making. Dan's preprint sets out "
+            "when an action can change how much an agent expects to learn from its "
+            "next reading.",
         ),
         sources=(
             (
@@ -1588,8 +1656,19 @@ def programmes(deck: Deck) -> None:
     )  # fmt: skip
     page.notes(
         notes(
-            "Kev. With p-star, we want to go a step beyond estimating those two "
-            "costs and put bounds on how large each one can be."
+            "[Kev.]",
+            "Two research programmes build on cpomdp. p*, which is under way now, "
+            "is about errors. A rocket might think its sensor is better than it is. "
+            "Or it might have the sensor right, but use a shortcut to work out where "
+            "it is, like the first-order shortcut we mentioned in Task 2. Each "
+            "mistake costs something in free energy. Can we measure those two costs "
+            "separately? And beyond measuring them, we want to put bounds on how "
+            "large each one can be.",
+            "Seam Networks is planned. Picture two agents foraging in the same "
+            "patch. When one eats, it changes what the other finds next time. They "
+            "never talk to each other, only through the world they share. How does "
+            "their behaviour change over time?",
+            "The link at the bottom has more on p*.",
         )
     )
 
@@ -1634,9 +1713,18 @@ def keep_going(deck: Deck) -> None:
         size=18,
     )  # fmt: skip
     page.notes(
-        "You can try either exercise in your own time. Within 48 hours, we will "
-        "share the recording and workshop materials in the repository and in "
-        "the cpomdp channel on the Active Inference Institute Discord.",
+        notes(
+            "[Dan.]",
+            "If you want to keep going, there are three more experiments in the "
+            "Self-guided section of the notebook, below Checkpoint 3. One lets the "
+            "rocket look two moves ahead. One gives it a probe to tow, which makes a "
+            "model a single fixed Kalman filter can't reproduce. And one puts a "
+            "patch of very noisy readings on the straight route, so you can see "
+            "whose detour it really is.",
+            "Within 48 hours we'll share the recording and the materials in the "
+            "repository, and in the cpomdp channel on the Active Inference Institute "
+            "Discord.",
+        ),
         sources=(
             ("Open the notebook in Colab", COLAB),
             ("Workshop materials", REPOSITORY),
@@ -1679,7 +1767,14 @@ def thanks(deck: Deck) -> None:
             left, top + side + 0.15, side, 0.4, [caption], size=15, colour=MUTED,
             align=PP_ALIGN.CENTER, space_after=0,
         )  # fmt: skip
-    page.notes("Thank everyone for joining and leave this slide up during questions.")
+    page.notes(
+        notes(
+            "[Dan and Kev. Leave this slide up during questions.]",
+            "Thank you all for coming. We'll stay on for questions now, so type them "
+            "in the chat or just ask. If you'd rather ask later, both our emails are "
+            "on the slide.",
+        )
+    )
 
 
 SLIDES: tuple[Callable[[Deck], None], ...] = (

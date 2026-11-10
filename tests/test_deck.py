@@ -86,7 +86,7 @@ SET = {
     "48": "the hours before the recording is posted",
     "1960": "the year of the controller",
     "2007": "the year of the cited Franklin arm-stiffness study",
-    "2021": "the year of the cited Koudahl result on reduction to KL control",
+    "2021": "the year of the cited Koudahl result and the Mattingly chemotaxis paper",
     "2026": "the year of the symposium",
     "2.2": "a figure number in the Active Inference book",
     "2.3": "the related-work section of the cited Corva paper",
@@ -348,7 +348,7 @@ def test_each_presenters_card_has_a_photo_frame_and_their_bio(deck):
     ]
     assert all(frame.width == frame.height for frame in frames)
     texts = [shape.text_frame.text for shape in slide.shapes if shape.name == "text"]
-    assert "Kevin (concepts)" in texts
+    assert {"Dan", "Kevin"} <= set(texts)
     for bio, opening in (
         (build_deck.PRESENTER_1_BIO, "Independent research software engineer, UK."),
         (build_deck.PRESENTER_2_BIO, "Kevin Backhouse is a PhD researcher"),
