@@ -647,7 +647,15 @@ rocket lands if it ends within 0.5 of the true pad.
 The cell uses `params` from your Task 3 cell, so if your runtime has restarted, run
 Checkpoint 3 below first to restore it.
 
-Before you run it, what do you expect an overconfident rocket to do?""",
+Before you run it, what do you expect an overconfident rocket to do?
+
+**For an additional challenge:** So far, the rocket's guess has been right on average,
+because the world draws the true pad around `PAD_GUESS`. Go back to your Task 3 cell and
+give the rocket a wrong guess: in `prior_mean`, change the pad's two numbers to
+`5.0, -2.0`. The generative process does not change, so the world still draws the true
+pad around (5, 0), and the plot still marks that point as the guess. Run the cell with a
+`pad_spread` of 1.5, and then with 0.1. What happens to a rocket that is sure of a
+wrong guess?""",
             hint="""\
 The epistemic term rewards a move for what it is expected to teach. Think about how
 much a rocket that is already sure where the pad is expects to learn from the beacon's
@@ -662,7 +670,14 @@ seeds, with a median miss of 0.25, and the incurious one on 3, with a median mis
 
 Curiosity pays off here only when the rocket's own uncertainty about the pad is large
 enough to make the beacon worth a visit. The balance between the two terms is sensitive
-to settings like this one, and we will come back to that on the slides.""",
+to settings like this one, and we will come back to that on the slides.
+
+With the guess moved to (5, -2) and a spread of 1.5, the curious rocket still finds the
+pad. On seed 3 it visits the beacon and ends 0.23 from the true pad, and over the ten
+seeds it lands on 9. With a spread of 0.1, the rocket is sure of a guess that is wrong,
+so it does not visit the beacon on any of the ten seeds, and neither rocket lands on any
+of them. On seed 3 the curious rocket ends 3.42 from the true pad. The median miss is
+2.59, against 1.42 for the overconfident rocket whose guess was right on average.""",
             code='''\
 import numpy as np
 from cpomdp import Agent

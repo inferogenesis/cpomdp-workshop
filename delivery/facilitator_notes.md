@@ -99,6 +99,13 @@ An overconfident rocket, with a spread of 0.1, believes there is nothing to lear
 visits the beacon on no seed and lands on 1 of 10, the same as with curiosity off. This
 bridges into slide 18.
 
+The additional challenge moves the rocket's guess to (5, -2) in the learner's own Task 3
+cell, so the rocket's belief and the world disagree. With a spread of 1.5 the curious
+rocket still lands on 9 of 10 seeds, and on seed 3 it ends 0.23 from the true pad. With
+a spread of 0.1 it visits the beacon on no seed and neither rocket lands on any, with a
+median miss of 2.59. The plot marks the point the world draws round as the guess, which
+is no longer the rocket's guess once the learner has moved it.
+
 ## Task 3, bonus 2 · When is curiosity worth it?
 
 "Why not use a better radar?" is the question a sharp attendee asks first, and this
