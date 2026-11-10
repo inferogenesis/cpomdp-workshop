@@ -86,6 +86,7 @@
     "textcoords",
     "tobytes",
     "unmodelled",
+    "unsquared",
     "venv",
     "vmap",
     "vstack",
