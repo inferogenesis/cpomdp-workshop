@@ -705,8 +705,10 @@ for pad_spread in (0.1, 1.5, 3.0):
 Bonus 1 changed only the rocket's belief about the pad. Here we change the sensors
 themselves, in the world and in the rocket's model of it.
 
-We built Task 3's world so that curiosity pays off. What happens if we make the
-information easier to get?
+In a T-maze, the rat visits the cue because it cannot tell from where it starts which
+arm holds the reward. We built Task 3's world in the same way, so the rocket can learn
+the pad's position well only near the beacon. What happens if we make the information
+easier to get?
 
 The cell below flies both rockets over seeds 0 to 9 and counts the landings. Run it as
 it is, then try three changes, one at a time:
@@ -732,7 +734,8 @@ detour buys it nothing.
 
 This is why the radar is coarse by default. The task asks whether a rocket will go and
 get information that is only available somewhere else. With a good radar, or a
-broadcast that reaches everywhere, the question disappears.""",
+broadcast that reaches everywhere, the question disappears, as it would in a T-maze
+where the rat could see the reward from where it starts.""",
             code='''\
 import jax.numpy as jnp
 from cpomdp import Agent
