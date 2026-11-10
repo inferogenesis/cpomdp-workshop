@@ -491,17 +491,18 @@ class Page:
     ) -> None:
         """One part of the agenda, as wide as its minutes.
 
-        ``"talk"`` is a plain panel, ``"code"`` is filled in the mark's amber and
-        ``"open"`` is dashed, like time not yet given to anything. ``label`` is one
-        line, or a paragraph per line.
+        ``"talk"`` is a plain panel and ``"code"`` is filled in the mark's amber.
+        ``"break"`` and ``"open"`` are dashed, like time not given to anything.
+        ``label`` is one line, or a paragraph per line.
         """
         fill, line = {
             "talk": (PANEL, RULE),
             "code": (AMBER_MARK, None),
+            "break": (None, MUTED),
             "open": (None, MUTED),
         }[kind]
         shape = self._panel(
-            x, y, w, h, "block", fill=fill, line=line, dashed=kind == "open"
+            x, y, w, h, "block", fill=fill, line=line, dashed=fill is None
         )
         shape.text_frame.vertical_anchor = MSO_ANCHOR.MIDDLE
         shape.text_frame.margin_left = shape.text_frame.margin_right = Inches(0.02)

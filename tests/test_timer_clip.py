@@ -10,7 +10,7 @@ import build_deck
 import deck_layout
 import timer_clip
 
-SECONDS = build_deck.TASK_MINUTES * 60
+MINUTES = pytest.mark.parametrize("minutes", build_deck.TIMER_MINUTES)
 
 # Reading the clip starts ffmpeg as a subprocess, which JAX, imported by other tests,
 # warns about. The child execs at once without running Python, so it cannot deadlock.
@@ -19,10 +19,16 @@ pytestmark = pytest.mark.filterwarnings(
 )
 
 
-def test_the_clip_runs_one_frame_a_second_from_the_full_time_to_zero():
-    frames, seconds = imageio_ffmpeg.count_frames_and_secs(str(timer_clip.CLIP))
-    assert frames == SECONDS + 1
-    assert seconds == pytest.approx(SECONDS + 1, abs=0.05)
+def test_there_is_a_clip_for_the_fifteen_and_the_twenty_minute_timer():
+    assert build_deck.TIMER_MINUTES == (15, 20)
+
+
+@MINUTES
+def test_the_clip_runs_one_frame_a_second_from_the_full_time_to_zero(minutes):
+    clip = timer_clip.clip(minutes)
+    frames, seconds = imageio_ffmpeg.count_frames_and_secs(str(clip))
+    assert frames == minutes * 60 + 1
+    assert seconds == pytest.approx(minutes * 60 + 1, abs=0.05)
 
 
 @pytest.fixture(scope="module")
@@ -38,16 +44,18 @@ def error(decoded, expected):
 
 
 @pytest.mark.slow
-def test_each_frame_shows_the_time_left_at_that_second(fonts):
-    reader = imageio_ffmpeg.read_frames(str(timer_clip.CLIP))
+@MINUTES
+def test_each_frame_shows_the_time_left_at_that_second(minutes, fonts):
+    total = minutes * 60
+    reader = imageio_ffmpeg.read_frames(str(timer_clip.clip(minutes)))
     meta = next(reader)
     width, height = meta["size"]
     assert (width, height) == timer_clip.SIZE
-    checked = {0, 1, 59, 60, 61, 450, 899, SECONDS}
+    checked = {0, 1, 59, 60, 61, 450, 899, total}
     for index, raw in enumerate(reader):
         if index not in checked:
             continue
-        left = SECONDS - index
+        left = total - index
         decoded = np.frombuffer(raw, np.uint8).reshape(height, width, 3)
         shown = error(decoded, timer_clip.frame(left, fonts))
         neighbour = error(decoded, timer_clip.frame(left - 1 if left else 1, fonts))
@@ -57,8 +65,9 @@ def test_each_frame_shows_the_time_left_at_that_second(fonts):
     assert not checked
 
 
-def test_the_poster_is_the_full_time(fonts):
-    poster = Image.open(timer_clip.POSTER).convert("RGB")
+@MINUTES
+def test_the_poster_is_the_full_time(minutes, fonts):
+    poster = Image.open(timer_clip.poster(minutes)).convert("RGB")
     assert np.array_equal(
-        np.asarray(poster), np.asarray(timer_clip.frame(SECONDS, fonts))
+        np.asarray(poster), np.asarray(timer_clip.frame(minutes * 60, fonts))
     )

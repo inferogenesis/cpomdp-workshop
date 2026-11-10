@@ -81,7 +81,8 @@ SET = {
     "3": "a task, checkpoint, seed, step or answer number",
     "4": "an answer number",
     "10": "the seeds a bonus flies, and a timer's mark",
-    "15": "the minutes each task codes for, and the minutes left open",
+    "15": "the minutes each task codes for, and a timer's mark",
+    "20": "the minutes task 2's timer runs, with its break, and that timer's mark",
     "45": "the minutes of code in all",
     "48": "the hours before the recording is posted",
     "1960": "the year of the controller",
@@ -138,8 +139,9 @@ def minutes_of(kind):
     )
 
 
-def test_the_two_hours_are_65_minutes_of_talk_45_of_code_and_10_open():
-    assert (minutes_of("talk"), minutes_of("code"), minutes_of("open")) == (65, 45, 10)
+def test_the_two_hours_are_65_minutes_of_talk_45_of_code_a_5_break_and_5_open():
+    minutes = [minutes_of(kind) for kind in ("talk", "code", "break", "open")]
+    assert minutes == [65, 45, 5, 5]
 
 
 def test_every_part_of_the_agenda_is_a_whole_number_of_five_minutes():
@@ -152,19 +154,54 @@ def test_each_task_codes_for_as_long_as_its_timer_runs():
     tasks = [block for block in build_deck.AGENDA if block.label.startswith("Task")]
     assert [block.label for block in tasks] == ["Task 1", "Task 2", "Task 3"]
     for block in tasks:
-        assert [part.kind for part in block.parts] == ["talk", "code", "talk"]
-        assert block.parts[1].minutes == build_deck.TASK_MINUTES == 15
+        working = [part for part in block.parts if part.kind != "break"]
+        assert [part.name for part in working] == ["brief", "you code", "discussion"]
+        assert [part.kind for part in working] == ["talk", "code", "talk"]
+        assert working[1].minutes == build_deck.TASK_MINUTES == 15
+
+
+def test_the_one_break_is_five_minutes_between_task_2s_brief_and_its_coding():
+    breaks = {
+        block.label: [part.name for part in block.parts]
+        for block in build_deck.AGENDA
+        if any(part.kind == "break" for part in block.parts)
+    }
+    assert breaks == {"Task 2": ["brief", "break", "you code", "discussion"]}
+    assert minutes_of("break") == 5
+
+
+def test_a_timer_runs_for_the_coding_and_for_task_2s_break_before_it():
+    minutes = {
+        block.label: block.timer_minutes
+        for block in build_deck.AGENDA
+        if block.timer_minutes
+    }
+    assert minutes == {"Task 1": 15, "Task 2": 20, "Task 3": 15}
+    assert build_deck.TIMER_MINUTES == (15, 20)
+    task_2 = build_deck.block_called("Task 2")
+    assert [part.name for part in task_2.timed] == ["break", "you code"]
 
 
 def test_the_clock_reads_each_utc_start_off_the_agenda():
     assert build_deck.clock("Welcome") == "17:00"
     assert build_deck.clock("Task 1") == "17:10"
-    assert build_deck.clock("Task 1", 1) == "17:15"
-    assert build_deck.clock("Task 1", 1, after=build_deck.TASK_MINUTES) == "17:30"
-    assert build_deck.clock("Questions") == "18:50"
-    assert build_deck.span(build_deck.AGENDA[-1]) == "18:50–19:00"
+    assert build_deck.clock("Task 1", "you code") == "17:15"
+    assert (
+        build_deck.clock("Task 1", "you code", after=build_deck.TASK_MINUTES) == "17:30"
+    )
+    assert build_deck.clock("Task 1", "discussion") == "17:30"
+    assert build_deck.clock("Task 2") == "17:40"
+    assert build_deck.clock("Task 2", "break") == "17:45"
+    assert build_deck.clock("Task 2", "you code") == "17:50"
+    assert build_deck.clock("Task 2", "discussion") == "18:05"
+    assert build_deck.clock("Task 3") == "18:15"
+    assert build_deck.clock("Why it matters") == "18:45"
+    assert build_deck.clock("Questions") == "18:55"
+    assert build_deck.span(build_deck.AGENDA[-1]) == "18:55–19:00"
     with pytest.raises(ValueError, match="no block called 'Break'"):
         build_deck.clock("Break")
+    with pytest.raises(ValueError, match="no part called 'break' in Task 1"):
+        build_deck.clock("Task 1", "break")
 
 
 @pytest.mark.slow
@@ -179,18 +216,31 @@ def test_the_agenda_names_every_part_with_a_tasks_minutes_and_each_rows_times(de
     assert blocks == expected
     assert blocks[1:4] == ["brief\n5 minutes", "you code\n15 minutes",
                            "discussion\n10 minutes"]  # fmt: skip
+    assert blocks[4:8] == [
+        "brief\n5 minutes",
+        "break\n5 minutes",
+        "you code\n15 minutes",
+        "discussion\n10 minutes",
+    ]
     texts = [shape.text_frame.text for shape in slide.shapes if shape.name == "text"]
     for block in build_deck.AGENDA:
         assert any(text.endswith(build_deck.span(block)) for text in texts)
     assert any(text.startswith("All times UTC.") for text in texts)
 
 
+TIMERS = [
+    (build_deck.task_1_timer, 15, "17:15", "17:30"),
+    (build_deck.task_2_timer, 20, "17:45", "18:05"),
+    (build_deck.task_3_timer, 15, "18:20", "18:35"),
+]
+"""Each timer slide, the minutes it runs and when it is planned to start and end."""
+
+
 @pytest.mark.slow
-@pytest.mark.parametrize(
-    "timer",
-    [build_deck.task_1_timer, build_deck.task_2_timer, build_deck.task_3_timer],
-)
-def test_a_timer_fills_its_bar_over_fifteen_minutes_with_no_click(deck, timer):
+@pytest.mark.parametrize(("timer", "minutes", "start", "end"), TIMERS)
+def test_a_timer_fills_its_bar_over_its_minutes_with_no_click(
+    deck, timer, minutes, start, end
+):
     slide = slide_of(deck, timer)
     (bar,) = [shape for shape in slide.shapes if shape.name == "bar"]
     timing = slide._element.find(f"{{{PRESENTATION}}}timing")
@@ -204,7 +254,7 @@ def test_a_timer_fills_its_bar_over_fifteen_minutes_with_no_click(deck, timer):
     target = behaviour.find(f".//{{{PRESENTATION}}}spTgt")
     assert duration is not None
     assert target is not None
-    assert duration.get("dur") == str(15 * 60_000)
+    assert duration.get("dur") == str(minutes * 60_000)
     assert target.get("spid") == str(bar.shape_id)
     starts = timing.findall(f".//{{{PRESENTATION}}}cond[@evt='onBegin']")
     assert len(starts) == 1, "the effects start with the slide, not on a click"
@@ -228,11 +278,20 @@ def schedule(slide):
 
 
 @pytest.mark.slow
-@pytest.mark.parametrize(
-    "timer",
-    [build_deck.task_1_timer, build_deck.task_2_timer, build_deck.task_3_timer],
-)
-def test_a_timer_plays_its_clock_above_its_bar_from_when_the_slide_shows(deck, timer):
+@pytest.mark.parametrize(("timer", "minutes", "start", "end"), TIMERS)
+def test_a_timers_notes_say_when_it_starts_and_ends_and_how_long_it_stays_up(
+    deck, timer, minutes, start, end
+):
+    said = slide_of(deck, timer).notes_slide.notes_text_frame.text
+    assert f"Planned at {start}, until {end}.]" in said
+    assert f"Leave this slide up for the full {minutes} minutes." in said
+
+
+@pytest.mark.slow
+@pytest.mark.parametrize(("timer", "minutes", "start", "end"), TIMERS)
+def test_a_timer_plays_its_clock_above_its_bar_from_when_the_slide_shows(
+    deck, timer, minutes, start, end
+):
     slide = slide_of(deck, timer)
     (track,) = [shape for shape in slide.shapes if shape.name == "track"]
     (bar,) = [shape for shape in slide.shapes if shape.name == "bar"]
@@ -249,7 +308,7 @@ def test_a_timer_plays_its_clock_above_its_bar_from_when_the_slide_shows(deck, t
     effects = schedule(slide)
     assert (bar.shape_id, "entr", 0) in effects
     assert (clock.shape_id, "mediacall", 0) in effects
-    assert (times_up.shape_id, "entr", 15 * 60_000) in effects
+    assert (times_up.shape_id, "entr", minutes * 60_000) in effects
     media = slide._element.findall(
         f".//{{{PRESENTATION}}}video//{{{PRESENTATION}}}spTgt"
     )
@@ -257,19 +316,18 @@ def test_a_timer_plays_its_clock_above_its_bar_from_when_the_slide_shows(deck, t
 
 
 @pytest.mark.slow
-@pytest.mark.parametrize(
-    "timer",
-    [build_deck.task_1_timer, build_deck.task_2_timer, build_deck.task_3_timer],
-)
-def test_a_timer_embeds_the_committed_clip_and_shows_15_00_until_it_plays(deck, timer):
+@pytest.mark.parametrize(("timer", "minutes", "start", "end"), TIMERS)
+def test_a_timer_embeds_the_committed_clip_and_shows_its_full_time_until_it_plays(
+    deck, timer, minutes, start, end
+):
     slide = slide_of(deck, timer)
     (clock,) = [shape for shape in slide.shapes if shape.name == "clock"]
     assert isinstance(clock, Movie)
     poster = clock.poster_frame
     assert poster is not None
-    assert poster.blob == timer_clip.POSTER.read_bytes()
+    assert poster.blob == timer_clip.poster(minutes).read_bytes()
     (video,) = clock._element.xpath("./p:nvPicPr/p:nvPr/a:videoFile/@r:link")
-    assert slide.part.related_part(video).blob == timer_clip.CLIP.read_bytes()
+    assert slide.part.related_part(video).blob == timer_clip.clip(minutes).read_bytes()
 
 
 def test_every_slide_is_on_the_light_palette(deck):
