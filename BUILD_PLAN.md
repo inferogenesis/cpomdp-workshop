@@ -473,7 +473,7 @@ Times are UTC. The table assumes the workshop is at 17:00 on Friday 13 Nov, as D
 - **Decided 10 Nov, Task 3's two lines are the prior.** The learner writes `prior_mean` and `prior_cov`, widening Task 2's prior to cover the pad. The broadcast's noise comes from the package as `broadcast_noise`, so `check_my_broadcast` leaves the cell and nothing checks the prior's values. This replaces the `fade` line in section 5.2 and the 9 Nov decision that put the check in the cell.
 - **Decided 10 Nov, Task 3's brief.** It presents the pad as a latent state, sets the generative process against the generative model, and calls the world a continuous T-maze. The "we built this world" wording and the radar-goal sentence that section 5.2 asks for leave the brief. Both stay in the facilitator notes.
 - **Decided 10 Nov, every task names `dynamics_matrix=`.** The attempt cells passed it by position, which left `control_matrix` and `dynamics_noise` as the only dynamics names in view.
-- **Owed, a release.** The troubleshooting cell and checkpoint 3 changed with Task 3's lines, and both are in the package. The notebook's own cells run on 1.1.0.
+- **Owed, the 1.2.0 release.** The notebook installs `cpomdp-workshop==1.2.0`, so its Colab link fails until that version is published. The troubleshooting cell and checkpoint 3 changed with Task 3's lines, and both are in the package.
 - **Issue draft, cpomdp:** "`EnumeratedEFESearch`: rank by the pragmatic term alone, or weight the epistemic term, so ablations don't need a hand-rolled selector."
 - **Issue draft, cpomdp:** "Docs: an observation-space preference pays for R(x) in the pragmatic term through ½tr(ΛR). Say so where `Preference` meets `CallableSensor`, and consider allowing a state-space goal under R(x)."
 
