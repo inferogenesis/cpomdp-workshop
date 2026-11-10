@@ -641,8 +641,9 @@ one flight. Does the same happen on other flights, and what if the rocket is les
 of its guess than it should be?
 
 The cell below flies both rockets over seeds 0 to 9 at three spreads, 0.1, 1.5 and 3.0.
-The world does not change: the true pad is always drawn with a spread of 1.5. Only the
-rocket's own uncertainty changes. A rocket lands if it ends within 0.5 of the true pad.
+The generative process does not change: the true pad is always drawn with a spread of
+1.5. Only the rocket's generative model changes, in how unsure it is about the pad. A
+rocket lands if it ends within 0.5 of the true pad.
 The cell uses `params` from your Task 3 cell, so if your runtime has restarted, run
 Checkpoint 3 below first to restore it.
 
@@ -701,6 +702,9 @@ for pad_spread in (0.1, 1.5, 3.0):
         Bonus(
             title="When is curiosity worth it?",
             question="""\
+Bonus 1 changed only the rocket's belief about the pad. Here we change the sensors
+themselves, in the world and in the rocket's model of it.
+
 We built Task 3's world so that curiosity pays off. What happens if we make the
 information easier to get?
 
