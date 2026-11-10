@@ -75,19 +75,23 @@ misses of 0.25 and 0.61. The landing gap is small on the map, so the plot prints
 misses in large type.
 
 The attempt cell builds the model in full, so the room sees that a rocket which has to
-learn where the pad is takes a state of four numbers and six readings. The second line
-to write is the prior's covariance. cpomdp refuses a covariance of the wrong shape and
-its message names the shape it needs, so that mistake has no workshop check.
+learn where the pad is takes a state of four numbers and six readings. Both lines to
+write are the prior, widened from Task 2's to cover the pad. The first is its mean and
+the second is its covariance. The broadcast's noise comes from the package as
+`broadcast_noise`, so nobody writes it.
+
+cpomdp refuses a prior of the wrong shape, so that mistake has no workshop check. A
+covariance of the wrong shape is refused with the shape it needs. A mean of two numbers
+is refused in the covariance's name, "belief covariance must be 2x2 to match a 2-D
+mean", and the troubleshooting cell says the mean is the line to fix. Nothing checks the
+prior's values. A mean in the wrong order builds and flies without an error, and so does
+a spread left unsquared.
 
 The number for the chat is the `pad_spread` at which the curious rocket stops finding
 the pad. Lowering it changes only the rocket's belief, and the world still draws the pad
 with a spread of 1.5. On seed 3 the rocket finds the pad at 0.48 and stops at 0.45, so
 expect answers from 0.4 to 0.5 depending on the step people take. Over ten seeds the
 change is gradual: the curious rocket lands on 7 seeds at 0.5 and on 6 at 0.4.
-
-`check_my_broadcast` grades the learner's broadcast on its values before anything flies.
-The mistake to expect is a broadcast that returns a matrix, as Task 2's sensor did. The
-troubleshooting cell lists it.
 
 ## Task 3, bonus 1 · How sure is the rocket?
 

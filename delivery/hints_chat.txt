@@ -47,13 +47,13 @@ pull = params["beacon_gain"] * jnp.minimum(distance_squared, params["beacon_cap"
 Reference for task 2: the collapsed cell under hint 2. Run it, then the checkpoint.
 
 [session 3, nudge 1]
-`fade` is the extra noise on the broadcast at position x.
-In Task 2, the beacon's noise stopped growing at a cap. This time there is no cap.
-The broadcast has to keep fading with distance, or the rocket could hear it clearly from anywhere.
-You will find how fast it fades in `params["broadcast_gain"]`, and `distance_squared` is already worked out.
+`prior_mean` is where the rocket believes each of the four numbers in its state is, before its first reading.
+In Task 2, the state was the rocket's position only, so the prior's mean was `LAUNCH`.
+Now the pad's position follows the rocket's in the state, so the mean is `LAUNCH` and then `PAD_GUESS`.
+A `*` in front of a name unpacks its two numbers into a list, so one `jnp.array` can hold all four.
 
 [session 3, hint 1]
-fade = params["broadcast_gain"] * distance_squared
+prior_mean = jnp.array([*LAUNCH, *PAD_GUESS])
 
 [session 3, nudge 2]
 `prior_cov` is how unsure the rocket is, before its first reading, about each of the four numbers in its state.
