@@ -747,8 +747,9 @@ def setup(deck: Deck) -> None:
             "[Dan.]",
             "We've tried to make this work whatever your level of programming. Both "
             "links on the slide are already in the Zoom chat.",
-            "If you've set up your own Python, great. If not, use Colab. Either way, "
-            "save a copy, with File, then Save a copy in Drive. That way you won't "
+            "If you've set up your own Python, great. If not, use Colab. Either way "
+            "I'd suggest saving a copy, with File --> Save a copy in Drive. That way "
+            "you won't "
             "lose your work if the tab closes, and you can carry on after the "
             "session. Your copy is private to you. Nobody else can see your code, so "
             "don't worry about making mistakes.",
@@ -822,7 +823,7 @@ def task_1_brief(deck: Deck) -> None:
         size=21, space_after=12,
     )  # fmt: skip
     question(
-        page, 3.2, "Are all possible moves equally informative?", height=0.55,
+        page, 3.2, "Can you spot the problem?", height=0.55,
     )  # fmt: skip
     page.text(
         MARGIN, 3.9, FULL_WIDTH, 0.3,
