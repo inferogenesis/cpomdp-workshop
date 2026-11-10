@@ -6,8 +6,8 @@ Each figure has one generating function in ``cpomdp_workshop.plot``. Nothing her
 draws anything itself. The route frames are the slides' and take the light palette.
 The rest show what the notebook draws, on the dark one.
 
-The timer slides' clock clip and its poster come from ``timer_clip``. They need the
-deck extra and the deck's Calibri Bold.
+The timer slides' clock clips and their posters come from ``timer_clip``, one pair
+for each length a timer runs. They need the deck extra and the deck's Calibri Bold.
 """
 
 import os
@@ -20,7 +20,7 @@ os.environ.setdefault("MPLBACKEND", "Agg")
 from matplotlib.figure import Figure
 
 import timer_clip
-from build_deck import TASK_MINUTES
+from build_deck import TIMER_MINUTES
 from cpomdp_workshop import plot
 from deck_layout import metrics
 
@@ -66,8 +66,10 @@ def main() -> None:
     fonts = metrics()
     if fonts is None:
         raise SystemExit("no folder holds Calibri Bold, so the clock clip is not drawn")
-    timer_clip.write(TASK_MINUTES, fonts.directory)
-    print(f"wrote assets/{timer_clip.CLIP.name} and assets/{timer_clip.POSTER.name}")
+    for minutes in TIMER_MINUTES:
+        timer_clip.write(minutes, fonts.directory)
+        clip, poster = timer_clip.clip(minutes), timer_clip.poster(minutes)
+        print(f"wrote assets/{clip.name} and assets/{poster.name}")
 
 
 if __name__ == "__main__":

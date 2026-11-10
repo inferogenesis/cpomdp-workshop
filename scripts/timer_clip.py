@@ -1,10 +1,11 @@
 """The task timer's clock as a video, counting down to 00:00 one frame a second.
 
-PowerPoint has no running clock, so the timer slides play this clip from when they
-show. It holds its last frame, 00:00, once it ends. The poster is its first frame,
-which the editor and a PDF show in its place.
+PowerPoint has no running clock, so a timer slide plays the clip of its length from
+when it shows. There is one clip for each length a timer runs. A clip holds its last
+frame, 00:00, once it ends. Its poster is its first frame, which the editor and a PDF
+show in its place.
 
-``scripts/render_assets.py`` writes both into ``assets/``, and the deck embeds those
+``scripts/render_assets.py`` writes them into ``assets/``, and the deck embeds those
 committed files, so building the deck needs no encoder. The digits are drawn in the
 deck's Calibri Bold, read from the folders ``deck_layout`` searches.
 """
@@ -16,8 +17,17 @@ from PIL import Image, ImageDraw, ImageFont
 from deck_kit import BACKGROUND, CLOCK_SIZE, INK
 
 ASSETS = Path(__file__).resolve().parents[1] / "assets"
-CLIP = ASSETS / "timer_clock.mp4"
-POSTER = ASSETS / "timer_clock.png"
+
+
+def clip(minutes: int) -> Path:
+    """Where the clip counting down from ``minutes`` is kept."""
+    return ASSETS / f"timer_clock_{minutes}.mp4"
+
+
+def poster(minutes: int) -> Path:
+    """Where the first frame of the clip counting down from ``minutes`` is kept."""
+    return ASSETS / f"timer_clock_{minutes}.png"
+
 
 PIXELS_PER_INCH = 300
 SIZE = (
@@ -51,9 +61,9 @@ def write(minutes: int, fonts: Path) -> None:
     import imageio_ffmpeg  # the deck extra, needed only to re-encode
 
     total = minutes * 60
-    frame(total, fonts).save(POSTER)
+    frame(total, fonts).save(poster(minutes))
     encoder = imageio_ffmpeg.write_frames(
-        str(CLIP),
+        str(clip(minutes)),
         SIZE,
         fps=1,
         codec="libx264",

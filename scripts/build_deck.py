@@ -5,10 +5,12 @@
 
 The two hours run as an introduction, three tasks and a closing section on why cpomdp
 matters, then time left open for questions. Each task is a brief, a slide that stays
-up with a fifteen-minute bar while the room works, and a discussion of what the room
-built. The room reads the code on its own screen, so no slide repeats it. ``AGENDA``
-holds the plan on 5-minute steps from ``START``, and every clock time on the agenda
-slide and in the notes is read from it, in UTC.
+up with a timer's bar while the room works, and a discussion of what the room built.
+The bar runs the fifteen minutes of coding. Task 2 has a five-minute break between its
+brief and its coding, so its bar runs twenty minutes and covers both. The room reads
+the code on its own screen, so no slide repeats it. ``AGENDA`` holds the plan on
+5-minute steps from ``START``, and every clock time on the agenda slide and in the
+notes is read from it, in UTC.
 
 The slides carry the route figures and what the cells print. Printed output comes from
 running the package on the pinned release, figures from ``assets/``. Every number in
@@ -33,6 +35,7 @@ import numpy as np
 from cpomdp import KalmanBackend
 from pptx.enum.text import MSO_ANCHOR, PP_ALIGN
 
+import timer_clip
 from cpomdp_workshop import (
     BEACON,
     PAD,
@@ -70,7 +73,6 @@ from deck_kit import (
     code_height,
 )
 from deck_layout import fit_problems, layout_problems, metrics
-from timer_clip import CLIP, POSTER
 
 ROOT = Path(__file__).resolve().parents[1]
 ASSETS = ROOT / "assets"
@@ -111,8 +113,8 @@ class Part:
 
     Attributes:
         name: what the agenda slide writes on it.
-        kind: ``"talk"`` when we present, ``"code"`` when the room works and
-            ``"open"`` for the time left for questions.
+        kind: ``"talk"`` when we present, ``"code"`` when the room works,
+            ``"break"`` for a pause and ``"open"`` for the time left for questions.
         minutes: how long it runs.
     """
 
@@ -140,26 +142,50 @@ class Block:
         """How long the block runs."""
         return sum(part.minutes for part in self.parts)
 
+    def minutes_before(self, part: str) -> int:
+        """How far into the block the part named ``part`` starts."""
+        names = [each.name for each in self.parts]
+        if part not in names:
+            raise ValueError(f"no part called {part!r} in {self.label}")
+        return sum(earlier.minutes for earlier in self.parts[: names.index(part)])
+
+    @property
+    def timed(self) -> tuple[Part, ...]:
+        """The parts its timer slide stays up for: the coding, and a break before it."""
+        return tuple(part for part in self.parts if part.kind in ("break", "code"))
+
+    @property
+    def timer_minutes(self) -> int:
+        """How long its timer runs, which is zero for a block with nothing to time."""
+        return sum(part.minutes for part in self.timed)
+
 
 TASK_MINUTES = 15
-"""How long the room codes on each task, and the length of each timer's bar."""
+"""How long the room codes on each task."""
 
-TASK_PARTS = (
-    Part("brief", "talk", 5),
-    Part("you code", "code", TASK_MINUTES),
-    Part("discussion", "talk", 10),
-)
-"""Every task's parts."""
+BRIEF = Part("brief", "talk", 5)
+CODING = Part("you code", "code", TASK_MINUTES)
+DISCUSSION = Part("discussion", "talk", 10)
+BREAK = Part("break", "break", 5)
+
+TASK_PARTS = (BRIEF, CODING, DISCUSSION)
+"""Every task's parts. Task 2 adds the break."""
 
 AGENDA = (
     Block("Welcome", (Part("introductions and setup", "talk", 10),)),
     Block("Task 1", TASK_PARTS, "the 1960 rocket"),
-    Block("Task 2", TASK_PARTS, "the beacon"),
+    Block("Task 2", (BRIEF, BREAK, CODING, DISCUSSION), "the beacon"),
     Block("Task 3", TASK_PARTS, "the hidden pad"),
     Block("Why it matters", (Part("what cpomdp adds, and what's next", "talk", 10),)),
-    Block("Questions", (Part("questions, or leave early", "open", 10),)),
+    Block("Questions", (Part("questions", "open", 5),)),
 )
-"""The two hours: 65 minutes of talk, 45 of code and 10 left open, on 5-minute steps."""
+"""The two hours on 5-minute steps: 65 minutes of talk, 45 of code, a 5-minute break
+and 5 left open."""
+
+TIMER_MINUTES = tuple(
+    sorted({block.timer_minutes for block in AGENDA if block.timer_minutes})
+)
+"""Each length a timer runs for, shortest first, with a clock clip in ``assets/``."""
 
 START = 17 * 60
 """When the session starts, in minutes after midnight UTC."""
@@ -168,15 +194,25 @@ QUESTIONS_FORM = "https://docs.google.com/forms/d/e/1FAIpQLSf7mgwxYEFpnDAkqaYolx
 """The question form. Anonymous unless the asker leaves an email for a reply."""
 
 
-def clock(label: str, part: int = 0, *, after: int = 0) -> str:
-    """When part ``part`` of the block called ``label`` starts, as UTC ``hh:mm``.
+def block_called(label: str) -> Block:
+    """The agenda's block called ``label``."""
+    for block in AGENDA:
+        if block.label == label:
+            return block
+    raise ValueError(f"no block called {label!r} in the agenda")
 
+
+def clock(label: str, part: str = "", *, after: int = 0) -> str:
+    """When the block called ``label`` starts, as UTC ``hh:mm``.
+
+    ``part`` names one of the block's parts, and the time is then that part's start.
     ``after`` adds minutes, so ``after=TASK_MINUTES`` on a coding part is its end.
     """
     elapsed = START + after
     for block in AGENDA:
         if block.label == label:
-            elapsed += sum(earlier.minutes for earlier in block.parts[:part])
+            if part:
+                elapsed += block.minutes_before(part)
             return f"{elapsed // 60}:{elapsed % 60:02d}"
         elapsed += block.minutes
     raise ValueError(f"no block called {label!r} in the agenda")
@@ -265,6 +301,7 @@ def timer_page(deck: Deck, number: int, steps: tuple[str, ...]) -> Page:
     bar. A step that opens with ``FILL_IN`` gets the notebook's ``...`` in amber.
     """
     page = deck.page(f"Task {number} · Over to you", f"task {number}")
+    minutes = block_called(f"Task {number}").timer_minutes
     paragraphs: list[Paragraph] = []
     for index, step in enumerate(steps, start=1):
         runs = [Run(f"{index}   ", colour=AMBER, bold=True)]
@@ -281,14 +318,14 @@ def timer_page(deck: Deck, number: int, steps: tuple[str, ...]) -> Page:
         MARGIN, CONTENT_TOP + 0.1, FULL_WIDTH, 1.9, paragraphs, size=22, space_after=12
     )
     page.countdown(
-        MARGIN, 4.3, FULL_WIDTH, TASK_MINUTES,
+        MARGIN, 4.3, FULL_WIDTH, minutes,
         then=[
             [
                 Run("Time's up. ", colour=AMBER),
                 Run(f"Run checkpoint {number}, even if everything worked."),
             ]
         ],
-        clip=CLIP, poster=POSTER,
+        clip=timer_clip.clip(minutes), poster=timer_clip.poster(minutes),
     )  # fmt: skip
     page.text(
         MARGIN, 6.45, FULL_WIDTH, 0.75,
@@ -318,12 +355,13 @@ def timer_notes(number: int, speaker: str, *paragraphs: str) -> str:
 
     Spoken lines are plain paragraphs. Stage directions sit in square brackets.
     """
-    task = f"Task {number}"
+    task = block_called(f"Task {number}")
+    first, minutes = task.timed[0].name, task.timer_minutes
     return notes(
-        f"[{speaker}. Planned at {clock(task, 1)}, until "
-        f"{clock(task, 1, after=TASK_MINUTES)}.]",
+        f"[{speaker}. Planned at {clock(task.label, first)}, until "
+        f"{clock(task.label, first, after=minutes)}.]",
         *paragraphs,
-        f"[Leave this slide up for the full {TASK_MINUTES} minutes. The bar and the "
+        f"[Leave this slide up for the full {minutes} minutes. The bar and the "
         "clock start on their own, and both restart if you leave the slide, so show "
         "the notebook from another window if you need to.]",
         f"[Paste the question form in the chat again: {QUESTIONS_FORM}. Whoever "
@@ -506,7 +544,8 @@ def agenda(deck: Deck) -> None:
     """The two hours, one row per block, each part named and as wide as its minutes.
 
     Each row's heading carries its UTC times. A part in a block of several carries its
-    minutes under its name, so a task shows its brief, code and discussion lengths.
+    minutes under its name, so a task shows its brief, code and discussion lengths,
+    and Task 2 shows its break.
     """
     page = deck.page("Two hours, three tasks", "welcome")
     bars = MARGIN + 3.4  # where every row's parts start
@@ -535,8 +574,8 @@ def agenda(deck: Deck) -> None:
     page.text(
         MARGIN, CONTENT_TOP + 0.15 + len(AGENDA) * pitch + 0.15, FULL_WIDTH, 0.5,
         [
-            f"All times UTC. While you code, a {TASK_MINUTES}-minute timer stays on "
-            "the screen."
+            "All times UTC. While you code, a timer stays on the screen. Task 2's "
+            "timer includes the break."
         ],
         size=19, colour=MUTED, space_after=0,
     )  # fmt: skip
@@ -549,11 +588,13 @@ def agenda(deck: Deck) -> None:
             "There are three tasks. The first is the classic 1960 controller, the "
             "second adds a beacon, and in the third the rocket has to find a landing "
             "pad it can't see. After that we'll take ten minutes on what cpomdp adds "
-            "and where it's going, and leave the last ten for questions.",
+            "and where it's going, and leave the last five for questions.",
             "We want your hands on the keyboard by quarter past, so we'll keep the "
-            "introductions short. There's no scheduled break. If you need one, the "
-            "coding time is a good moment, and the checkpoint cells mean you can "
-            "always catch up.",
+            "introductions short. There is one five-minute break, at "
+            f"{clock('Task 2', BREAK.name)}, after the Task 2 brief and before you "
+            "start coding. Task 2's timer runs for twenty minutes so that it "
+            "includes the break. If you need another one, the coding time is a good "
+            "moment, because the checkpoint cells mean you can always catch up.",
         )
     )
 
@@ -880,7 +921,7 @@ def task_1_result(deck: Deck) -> None:
     )  # fmt: skip
     page.notes(
         notes(
-            f"[Dan. Planned at {clock('Task 1', 2)}.]",
+            f"[Dan. Planned at {clock('Task 1', DISCUSSION.name)}.]",
             "So, what does a spread of zero tell us? [Pause, and read out an answer "
             "or two from the chat.]",
             "The probe compares how much each of the nine compass moves is expected "
@@ -1005,12 +1046,15 @@ def task_2_brief(deck: Deck) -> None:
             "Franklin, D. W. et al. (2007). Endpoint Stiffness of the Arm Is "
             "Directionally Tuned to Instability in the Environment. "
             "https://pmc.ncbi.nlm.nih.gov/articles/PMC6672883/]",
+            "[When this brief ends, show the timer slide. Its twenty minutes are the "
+            "five-minute break and then the coding, so the room is back for the "
+            f"discussion at {clock('Task 2', DISCUSSION.name)}.]",
         )
     )
 
 
 def task_2_timer(deck: Deck) -> None:
-    """Task 2's fifteen minutes."""
+    """Task 2's twenty minutes: the break, then the coding."""
     page = timer_page(
         deck, 2,
         (
@@ -1023,6 +1067,9 @@ def task_2_timer(deck: Deck) -> None:
         timer_notes(
             2,
             "Kev",
+            "This timer runs for twenty minutes, because it includes a five-minute "
+            "break. Take the break first, or whenever it suits you, and we will be "
+            "back together when the bar fills.",
             "Two lines again. First, set k to 0.08. Then, in my_sensor, fill in the "
             "extra noise a reading picks up away from the beacon. The beacon's "
             "settings are in params, and the comments in the cell show how to read "
@@ -1068,7 +1115,7 @@ def task_2_result(deck: Deck) -> None:
     )  # fmt: skip
     page.notes(
         notes(
-            f"[Dan. Planned at {clock('Task 2', 2)}.]",
+            f"[Dan. Planned at {clock('Task 2', DISCUSSION.name)}.]",
             "Welcome back. You've just flown the same rocket twice, once with "
             "curiosity on and once with it off.",
             f"Here's our run at k = {k:.2f}. The amber line has curiosity on. It "
@@ -1328,7 +1375,7 @@ def task_3_result(deck: Deck) -> None:
     )  # fmt: skip
     page.notes(
         notes(
-            f"[Kev. Planned at {clock('Task 3', 2)}.]",
+            f"[Kev. Planned at {clock('Task 3', DISCUSSION.name)}.]",
             "Start with the blue route, curiosity off. It heads for its guess and "
             "then on towards the pad, with only the coarse radar to correct it. It "
             f"ends {off.miss:.2f} from the true pad, outside the circle.",
