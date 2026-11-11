@@ -5,21 +5,30 @@ renames a field, a class or a refusal fails here first, before any flight is flo
 """
 
 import dataclasses
+import inspect
 
+import jax
 import jax.numpy as jnp
 import numpy as np
 import pytest
 from cpomdp import (
     Agent,
     Belief,
+    CallableDynamicsNoise,
     CallableSensor,
+    CouplingGraphBackend,
     EFESelector,
+    FFGEFESelector,
+    InferenceBackend,
     KalmanBackend,
     LinearGaussianModel,
+    ModelStructure,
     ObservationGoal,
     Preference,
     ProbeReport,
     StateGoal,
+    Warrant,
+    expected_free_energy,
 )
 
 from cpomdp_workshop import _seams
@@ -209,3 +218,71 @@ def test_two_agents_share_one_model_with_a_custom_selector_beside_a_search():
         agent.infer_states(np.zeros(2))
         assert np.asarray(agent.sample_action()).shape == (2,)
     assert curious.belief is not incurious.belief
+
+
+# The deck lists these as features the room did not use. Each test holds one of them
+# to the pinned release.
+
+
+def a_dynamics_noise(state, scale):
+    return scale * (1.0 + state @ state) * jnp.eye(2)
+
+
+def test_the_dynamics_noise_can_depend_on_the_state():
+    noise = CallableDynamicsNoise(a_dynamics_noise, 1e-3)
+    model = LinearGaussianModel(
+        I,
+        control_matrix=I,
+        observation_matrix=I,
+        observation_noise=0.05 * I,
+        dynamics_noise_model=noise,
+        prior=PRIOR,
+    )
+    assert model.dynamics_noise_model is noise
+    near, far = (
+        np.asarray(noise.noise_at(jnp.asarray(state)))
+        for state in ([0.0, 0.0], [2.0, 0.0])
+    )
+    assert far[0, 0] > near[0, 0]
+
+
+def test_a_model_structure_names_factors_and_channels():
+    structure = ModelStructure.from_dicts(
+        factors={"east": [0], "north": [1]}, channels={"radar": [0, 1]}
+    )
+    assert dict(structure.factors) == {"east": (0,), "north": (1,)}
+    assert dict(structure.channels) == {"radar": (0, 1)}
+
+
+def test_the_efe_grid_searches_a_scalar_action_between_two_bounds():
+    parameters = inspect.signature(ObservationGoal).parameters
+    assert {"action_bounds", "n_candidates"} <= parameters.keys()
+
+
+def test_curiosity_on_a_graph_can_be_aimed_at_a_node():
+    assert "info_node" in inspect.signature(FFGEFESelector).parameters
+
+
+def test_a_graph_backend_takes_a_partition_of_its_nodes():
+    assert "partition" in inspect.signature(CouplingGraphBackend).parameters
+
+
+def test_the_one_step_score_runs_under_jit_vmap_and_grad():
+    model, preference = a_sensed_model(), Preference(PAD)
+
+    def score(action):
+        return expected_free_energy(model, PRIOR, action, preference).g
+
+    actions = jnp.asarray([[0.5, 0.0], [0.0, 0.5]])
+    one = float(score(actions[0]))
+    assert float(jax.jit(score)(actions[0])) == pytest.approx(one)
+    assert float(jax.vmap(score)(actions)[0]) == pytest.approx(one)
+    assert np.all(np.isfinite(np.asarray(jax.grad(score)(actions[0]))))
+
+
+def test_a_backend_is_a_protocol_that_the_kalman_filter_meets():
+    assert isinstance(KalmanBackend(a_fixed_model()), InferenceBackend)
+
+
+def test_a_warrant_has_two_grades_below_proved():
+    assert [grade.name for grade in Warrant] == ["PROVED", "CERTIFIED", "CORROBORATED"]

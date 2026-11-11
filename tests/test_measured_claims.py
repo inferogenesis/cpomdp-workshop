@@ -436,7 +436,7 @@ def test_at_k_0_2_the_incurious_rocket_bends_towards_the_beacon_too():
 
 @pytest.mark.slow
 def test_at_k_0_4_and_precision_1_seed_3_is_not_the_typical_flight():
-    # Why slide 13 compares the precisions at k = 0.2: at k = 0.4, curiosity decides
+    # Why slide 14 compares the precisions at k = 0.2: at k = 0.4, curiosity decides
     # no move on seed 3 but parts the routes on six seeds of ten.
     assert decided_on_each_seed(0.4, 1.0) == [0, 0, 0, 0, 2, 2, 1, 3, 1, 6]
     assert over_ten_seeds(0.4, 1.0)[1] == Pairs(6, 1.20, 8, 10)

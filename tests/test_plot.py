@@ -265,8 +265,8 @@ def test_the_balance_figure_puts_the_two_precisions_side_by_side():
     figure = plot_balance(palette=LIGHT)
     panels = [axes for axes in figure.axes if axes.get_title(loc="left")]
     assert [axes.get_title(loc="left") for axes in panels] == [
-        "precision 1",
-        "precision 0.1",
+        "goal precision 1",
+        "goal precision 0.1",
     ]
     for axes in panels:
         legend = axes.get_legend()
