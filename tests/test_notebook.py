@@ -313,35 +313,35 @@ def test_getting_started_heads_off_the_colab_warning_and_lost_edits():
     assert "Save a copy in Drive" in text
 
 
-def test_task_3_says_the_world_was_built_and_that_neither_rocket_knows_the_pad():
+def test_task_3_says_the_pad_is_latent_and_the_world_is_a_continuous_t_maze():
     brief = lesson.SESSION_3.brief
-    assert "We built this world" in brief
-    assert "on purpose" in brief
-    assert "Neither rocket knows where the pad is" in brief
-
-
-def test_task_3_lists_every_setting_the_broadcast_reads_with_its_true_value():
-    attempt = lesson.SESSION_3.attempt
-    params = pad_params()
-    for key in ("beacon", "broadcast_gain", "noise_floor"):
-        assert f'params["{key}"]' in attempt
-        line = next(
-            line
-            for line in attempt.splitlines()
-            if line.startswith(f'#   params["{key}"]')
-        )
-        assert shown(params[key]) in line
+    assert "latent state" in brief
+    assert "generative process" in brief
+    assert "T-maze" in brief
 
 
 def test_task_3_builds_its_model_in_the_cell_as_task_2_does():
     attempt = lesson.SESSION_3.attempt
     assert "model = LinearGaussianModel(" in attempt
-    assert "CallableSensor(PAD_READINGS, pad_sensor(my_broadcast), params)" in attempt
+    assert "pad_sensor(broadcast_noise)" in attempt
     assert "pad_model" not in attempt
 
 
-def test_task_3_leaves_the_fade_and_the_prior_covariance_to_write():
-    assert build_notebook.slots(lesson.SESSION_3.attempt) == ["fade", "prior_cov"]
+def test_task_3_leaves_the_priors_mean_and_covariance_to_write():
+    assert build_notebook.slots(lesson.SESSION_3.attempt) == ["prior_mean", "prior_cov"]
+
+
+def test_no_cell_reads_a_broadcast_the_learner_no_longer_writes():
+    notebook = build_notebook.build(HINTS)
+    assert [c.id for c in notebook.cells if "my_broadcast" in c.source] == []
+
+
+@pytest.mark.parametrize(
+    "session", lesson.SESSIONS, ids=lambda s: f"session {s.number}"
+)
+def test_every_task_names_the_dynamics_matrix_beside_the_dynamics_noise(session):
+    assert "    dynamics_matrix=jnp.eye(" in session.attempt
+    assert "    dynamics_noise=" in session.attempt
 
 
 @pytest.mark.slow

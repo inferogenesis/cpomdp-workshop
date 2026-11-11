@@ -84,8 +84,9 @@ def after_session_3() -> dict[str, object]:
     return {
         **after_session_2(),
         "params": params,
-        "my_broadcast": broadcast_noise,
         "pad_spread": PAD_SPREAD_WORLD,
+        "prior_mean": model.prior.mean,
+        "prior_cov": model.prior.cov,
         "model": model,
         "preference": preference,
         "curious": curious,
