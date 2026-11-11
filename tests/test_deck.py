@@ -1,3 +1,4 @@
+import inspect
 import re
 import xml.etree.ElementTree as ET
 from io import BytesIO
@@ -9,6 +10,7 @@ import pytest
 pytest.importorskip("pptx", reason="the deck extra builds the slides")
 pytest.importorskip("segno", reason="the deck extra draws the QR codes")
 
+import cpomdp
 import segno
 from cpomdp import (
     KalmanBackend,
@@ -16,6 +18,7 @@ from cpomdp import (
 from PIL import Image
 from pptx.opc.constants import RELATIONSHIP_TYPE
 from pptx.shapes.picture import Movie
+from pptx.util import Emu
 
 import build_deck
 import deck_layout
@@ -34,6 +37,7 @@ DRAWING = "http://schemas.openxmlformats.org/drawingml/2006/main"
 PRESENTATION = "http://schemas.openxmlformats.org/presentationml/2006/main"
 NUMBER = re.compile(r"(?<![\w.])\d+(?:,\d{3})*(?:\.\d+)*(?:e-?\d+)?")
 CLOCK = re.compile(r"\b\d+:\d\d\b")
+NOTEBOOK = Path(__file__).parents[1] / "notebooks" / "build_a_curious_rocket.ipynb"
 
 MEASURED = {
     "0.000000": "test_no_move_of_the_1960_rocket_is_worth_more_than_any_other",
@@ -399,13 +403,77 @@ def photo_frames(slide):
     return [shape for shape in slide.shapes if shape.name.startswith("photo ")]
 
 
+def cards_of(slide):
+    return [shape.text_frame for shape in slide.shapes if shape.name == "card"]
+
+
 @pytest.mark.slow
-def test_the_roadmap_follows_the_examples_with_nine_issues_and_no_promises(deck):
+def test_the_unused_features_follow_what_cpomdp_let_us_do_in_three_cards(deck):
+    assert build_deck.number_of(build_deck.unused_features) == (
+        build_deck.number_of(build_deck.where_cpomdp_sits) + 1
+    )
+    cards = cards_of(slide_of(deck, build_deck.unused_features))
+    assert [card.paragraphs[0].text for card in cards] == [
+        group.heading for group in build_deck.UNUSED_FEATURES
+    ]
+    lines = [[paragraph.text for paragraph in card.paragraphs[1:]] for card in cards]
+    assert lines == [
+        [feature.title for feature in group.features]
+        for group in build_deck.UNUSED_FEATURES
+    ]
+    assert [len(card) for card in lines] == [3, 3, 3]
+
+
+@pytest.mark.slow
+def test_each_unused_feature_takes_one_line_of_its_card(deck):
+    measure = deck_layout.metrics()
+    if measure is None:
+        pytest.skip("no font files to measure with")
+    slide = slide_of(deck, build_deck.unused_features)
+    for card in (shape for shape in slide.shapes if shape.name == "card"):
+        frame = card.text_frame
+        room = Emu(card.width - frame.margin_left - frame.margin_right).inches
+        for paragraph in frame.paragraphs[1:]:
+            size = paragraph.runs[0].font.size.pt
+            width = measure.width(paragraph.text, "Calibri", size, bold=False)
+            assert width <= room, paragraph.text
+
+
+def test_every_unused_feature_is_public_in_the_pinned_cpomdp_and_not_in_the_notebook():
+    notebook = NOTEBOOK.read_text()
+    for group in build_deck.UNUSED_FEATURES:
+        for feature in group.features:
+            assert feature.names, feature.title
+            assert set(feature.names) <= set(cpomdp.__all__), feature.names
+            if feature.argument:
+                # The room met the name, so the unused part is its argument.
+                provider = getattr(cpomdp, feature.names[0])
+                assert feature.argument in inspect.signature(provider).parameters
+                unused = [rf"\b{feature.argument}\s*="]
+            else:
+                unused = [rf"\b{name}\b" for name in feature.names]
+            for pattern in unused:
+                assert not re.search(pattern, notebook), pattern
+
+
+@pytest.mark.slow
+def test_the_unused_features_notes_name_each_cpomdp_class_for_whoever_asks(deck):
+    slide = slide_of(deck, build_deck.unused_features)
+    notes = slide.notes_slide.notes_text_frame.text
+    for group in build_deck.UNUSED_FEATURES:
+        for feature in group.features:
+            assert feature.lookup in notes, feature.lookup
+
+
+@pytest.mark.slow
+def test_the_roadmap_follows_the_unused_features_with_nine_issues_and_no_promises(
+    deck,
+):
     assert build_deck.number_of(build_deck.roadmap) == (
-        build_deck.number_of(build_deck.research) + 1
+        build_deck.number_of(build_deck.unused_features) + 1
     )
     slide = slide_of(deck, build_deck.roadmap)
-    cards = [shape.text_frame for shape in slide.shapes if shape.name == "card"]
+    cards = cards_of(slide)
     assert len(cards) == 3
     issues = [paragraph.text for card in cards for paragraph in card.paragraphs[1:]]
     assert len(issues) == 9
@@ -426,17 +494,6 @@ def test_the_roadmap_follows_the_examples_with_nine_issues_and_no_promises(deck)
         for run in paragraph.runs
     }
     assert build_deck.CPOMDP_ISSUES in links
-
-
-@pytest.mark.slow
-def test_the_analogy_closes_the_balance_slides_notes_and_says_it_is_one(deck):
-    slide = slide_of(deck, build_deck.task_2_balance)
-    closing = slide.notes_slide.notes_text_frame.text.split("\n\n")[-1]
-    assert closing.startswith("One way to picture the precision is as how urgent")
-    assert closing.endswith(
-        "That’s an analogy to make the setting easier to picture. Whether biology "
-        "works this way would have to be shown."
-    )
 
 
 @pytest.mark.slow
@@ -565,17 +622,6 @@ def test_the_thanks_slide_draws_each_qr_module_for_module(deck, url):
         if module
     }
     assert drawn_modules(code) == expected
-
-
-@pytest.mark.slow
-def test_the_ai_use_disclosure_is_in_dans_introduction_notes(deck):
-    slide = slide_of(deck, build_deck.who_we_are)
-    introduction = slide.notes_slide.notes_text_frame.text
-    assert "Dan (aloud)\nSome of the source code" in introduction
-    assert "was written by Claude Code and reviewed before release." in introduction
-    assert [text for text in prose_and_notes(deck) if "Claude Code" in text] == [
-        introduction
-    ]
 
 
 def test_links_are_drawn_in_ink_not_the_templates_dark_blue(deck):

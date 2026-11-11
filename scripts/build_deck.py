@@ -273,6 +273,80 @@ PRESENTERS = (
 )
 
 
+@dataclass(frozen=True)
+class Feature:
+    """Something the pinned cpomdp does that the notebook never uses.
+
+    Attributes:
+        title: what it does, short enough for one line of a card.
+        names: the public cpomdp names that provide it.
+        argument: the argument of the first name that turns the feature on, for a
+            name the notebook already shows. Empty when the names are unused.
+    """
+
+    title: str
+    names: tuple[str, ...]
+    argument: str = ""
+
+    @property
+    def lookup(self) -> str:
+        """What to look up in the cpomdp documentation to find the feature."""
+        if self.argument:
+            return f"the {self.argument} argument of {self.names[0]}"
+        return " with ".join(self.names)
+
+
+@dataclass(frozen=True)
+class FeatureGroup:
+    """One card of features that belong together.
+
+    Attributes:
+        heading: what the features have in common.
+        colour: the heading's colour.
+        features: the features, in the order the card lists them.
+    """
+
+    heading: str
+    colour: str
+    features: tuple[Feature, ...]
+
+
+UNUSED_FEATURES = (
+    FeatureGroup(
+        "More ways to state the model and the goal",
+        AMBER,
+        (
+            Feature("Dynamics noise set by the state", ("CallableDynamicsNoise",)),
+            Feature("A grid over a scalar action", ("ObservationGoal", "EFESelector")),
+            Feature("Declared factors and channels", ("ModelStructure",)),
+        ),
+    ),
+    FeatureGroup(
+        "Inference and curiosity on branching graphs",
+        GREEN,
+        (
+            Feature("Trees of many coupled nodes", ("CouplingGraph", "Coupling")),
+            Feature("Curiosity aimed at one node", ("FFGEFESelector",)),
+            Feature(
+                "Partitioned beliefs across time",
+                ("CouplingGraphBackend",),
+                argument="partition",
+            ),
+        ),
+    ),
+    FeatureGroup(
+        "Tools to differentiate, extend and check an agent",
+        BLUE,
+        (
+            Feature("jit, vmap and grad through JAX", ("expected_free_energy",)),
+            Feature("Your own inference backend", ("InferenceBackend",)),
+            Feature("Graded warrants for a claim", ("Warrant",)),
+        ),
+    ),
+)
+"""What the pinned cpomdp does beyond the three tasks, one group to a card."""
+
+
 def captured(function: Callable[..., object], *args: object) -> str:
     """What ``function(*args)`` prints, without the final newline."""
     buffer = io.StringIO()
@@ -516,8 +590,9 @@ def who_we_are(deck: Deck) -> None:
             "trade. Most of my work is large-scale architecture and tool "
             "orchestration for machine learning models.",
             "I first came across active inference in late-night conversations with "
-            "Kev here, and the two of us started playing around with pymdp. I'm "
-            "interested in all things science, and two of my favourites are "
+            "Kev here, and the two of us started playing around with pymdp. [hand "
+            "over to Kev]",
+            "I'm interested in all things science, and two of my favourites are "
             "microbiology and abiogenesis, the origin-of-life stuff.",
             "Then I came across a paper by Henry Mattingly and colleagues, called "
             "Escherichia (esh-uh-RIK-ee-uh) coli chemotaxis is information limited. "
@@ -537,9 +612,6 @@ def who_we_are(deck: Deck) -> None:
             "same time. It's still in very early development, but it's now at a "
             "point where I'm happy to share it with you and to take feedback, "
             "feature requests, that sort of thing.",
-            "Dan (aloud)\nSome of the source code in "
-            f"cpomdp {WORKSHOP_CPOMDP_VERSION} was written by Claude Code and "
-            "reviewed before release.",
             "[Reference: Mattingly, H. H., Kamino, K., Machta, B. B. and Emonet, T. "
             "(2021). Escherichia coli chemotaxis is information limited. Nature "
             "Physics.]",
@@ -596,12 +668,6 @@ def agenda(deck: Deck) -> None:
             "second adds a beacon, and in the third the rocket has to find a landing "
             "pad it can't see. After that we'll take ten minutes on what cpomdp adds "
             "and where it's going, and leave the last five for questions.",
-            "We want your hands on the keyboard by quarter past, so we'll keep the "
-            "introductions short. There is one five-minute break, at "
-            f"{clock('Task 2', BREAK.name)}, after the Task 2 brief and before you "
-            "start coding. Task 2's timer runs for twenty minutes so that it "
-            "includes the break. If you need another one, the coding time is a good "
-            "moment, because the checkpoint cells mean you can always catch up.",
         )
     )
 
@@ -933,7 +999,7 @@ def task_1_result(deck: Deck) -> None:
             "So, what does a spread of zero tell us? [Pause, and read out an answer "
             "or two from the chat.]",
             "The probe compares how much each of the nine compass moves is expected "
-            "to teach the rocket. A spread of 0.000000 nats means every move teaches "
+            "to teach the rocket. A spread of 0.000000 nats means every move taught "
             "exactly the same amount. That's not the same as learning nothing. If you "
             "tried the bonuses, you'll have seen the amount of information change "
             "while the spread stayed at zero.",
@@ -1012,19 +1078,20 @@ def task_2_brief(deck: Deck) -> None:
     page.notes(
         notes(
             f"[Dan. Planned at {clock('Task 2')}.]",
-            "Back to the optician's. Now imagine your eyesight depends on where you "
-            "stand, which is much closer to real life. Things blur with distance, and "
-            "so do almost all real sensors.",
+            "So how did we solve it in cpomdp? Now imagine your eyesight depends on "
+            "where you stand, which is much closer to real life. Things blur with "
+            "distance, and so do almost all real sensors.",
             "We write the sensor's noise as R. In Task 1, R was the same everywhere. "
-            "Now we write R(x), meaning the noise depends on x, the rocket's "
-            "position. Near the beacon the readings are sharp, and further away they "
-            "get noisier. So where the rocket moves now changes how much it can "
-            "expect to learn. That's the chain across the middle of the slide.",
+            "If we now make noise depend on state, written as R(x), and introduce a "
+            "“beacon” where noise is reduced, near the beacon the readings are "
+            "sharp, and further away they get noisier. So where the rocket moves now "
+            "changes how much it can expect to learn. That's the chain across the "
+            "middle of the slide.",
             "In the code, k, called beacon_gain, sets how fast the noise grows as the "
             "rocket moves away from the beacon.",
-            "At each step the planner scores the nine compass moves, and each score "
-            "has two parts. The pragmatic part asks how close the next reading is "
-            "likely to be to the one that says you're on the pad. It also counts how "
+            "At each step the planner scores the expected free energy value for "
+            "each of the nine compass moves. The pragmatic part asks how close the "
+            "next reading is to “being on the pad”. It also counts how "
             "noisy that reading will be. The epistemic part is the expected "
             "information gain: how much the move should tell the rocket about where "
             "it is. That second part is what we mean by curiosity. Expected free "
@@ -1037,13 +1104,13 @@ def task_2_brief(deck: Deck) -> None:
             "alone. So it works as an exchange rate between information and the "
             "pull of the pad. We've set it to 0.1, so the two parts can actually "
             "compete. We'll come back to that choice.",
-            "This time we fly every rocket twice, once with curiosity on and once "
-            "with it off. We built that switch for the workshop. cpomdp itself "
-            "doesn't have one.",
             "[If anyone asks how exact the information numbers are:] When the rocket "
-            "plans, it reads the noise at the centre of where it expects a move to "
-            "take it. That's a first-order shortcut. It's least accurate when the "
-            "rocket is very unsure where it is and the noise changes sharply.",
+            "plans, it has to make a computational shortcut and assume the next "
+            "reading is from the mean of that reading. This means it’s least "
+            "accurate when the rocket is very unsure where it is and the noise "
+            "changes sharply. Without it, we hit an intractability wall. There may "
+            "be other methods, I believe there is a cpomdp research ticket of exactly "
+            "that.",
             "[The line at the bottom of the slide:] Koudahl and colleagues point to "
             "another way to bring curiosity back, multiplicative control. It's "
             "planned for cpomdp but not built yet.",
@@ -1074,19 +1141,13 @@ def task_2_timer(deck: Deck) -> None:
     page.notes(
         timer_notes(
             2,
-            "Kev",
+            "Dan",
             "This timer runs for twenty minutes, because it includes a five-minute "
-            "break. Take the break first, or whenever it suits you, and we will be "
-            "back together when the bar fills.",
+            "break.\nGo make a cuppa or whatever you’d like.",
             "Two lines again. First, set k to 0.08. Then, in my_sensor, fill in the "
-            "extra noise a reading picks up away from the beacon. The beacon's "
-            "settings are in params, and the comments in the cell show how to read "
-            "each one by name.",
-            "Run the cell. It flies the same rocket twice, with curiosity on and "
-            "with it off, and draws both routes over the beacon's noise map.",
-            "Then raise k and keep an eye on both rockets. At what k does one of them "
-            "stop landing? That's your number for the chat. If you're stuck, Hint 1 "
-            "suggests trying 0.4.",
+            "extra noise a reading picks up away from the beacon. Feel free to share "
+            "anything in the chat as you go.\nWe’ll reconvene in just less than 20 "
+            "minutes.",
         )
     )
 
@@ -1123,87 +1184,24 @@ def task_2_result(deck: Deck) -> None:
     )  # fmt: skip
     page.notes(
         notes(
-            f"[Dan. Planned at {clock('Task 2', DISCUSSION.name)}.]",
+            f"[Kev. Planned at {clock('Task 2', DISCUSSION.name)}.]",
             "Welcome back. You've just flown the same rocket twice, once with "
             "curiosity on and once with it off.",
             f"Here's our run at k = {k:.2f}. The amber line has curiosity on. It "
-            f"flies up to the beacon, passing {beacon:.2f} from it, and still "
-            f"finishes {on.distance_to(PAD):.2f} from the pad. The blue line is the "
+            "flies up to the beacon, and still finishes a distance "
+            f"{on.distance_to(PAD):.2f} from the pad. The blue line is the "
             "same rocket with curiosity off. It flies straight and finishes "
             f"{off.distance_to(PAD):.2f} from the pad. Both count as landed, because "
             "both end inside the circle, within 0.5 of the pad.",
             "The two rockets share one model and one sensor. The only difference is "
             "the epistemic part of the score, so the detour is curiosity. On this "
-            "flight, curiosity decided 6 of the 36 moves. We checked 10 seeds, and on "
-            "every one the routes part by at least 1 and both rockets land.",
-            "At what k did your curious rocket stop landing? [Read a few answers "
-            "from the chat.]",
+            "flight, curiosity decided 6 of the 36 moves.",
+            "At what k did your curious rocket stop landing? [Pause for comments]",
             "On our seed, the curious rocket stops landing at k = 0.37, and the "
             "rocket with curiosity off keeps landing up to 0.45. So depending on the "
             "steps you took, you may have seen the curious rocket miss while the "
             "other one landed, or both of them miss. Both are right answers, and the "
             "next two slides explain each one.",
-        )
-    )
-
-
-def task_2_balance(deck: Deck) -> None:
-    """Show that a bend towards the beacon is curiosity only where the pair parts."""
-    page = deck.page("Curious, or just avoiding noise?", "task 2")
-    height = page.picture(ASSETS / "route_2_balance.png", MARGIN, 1.3, FULL_WIDTH)
-    top = 1.3 + height + 0.1
-    page.text(
-        MARGIN, top, FULL_WIDTH, 1.45,
-        [
-            "The pragmatic score counts distance to the pad and the noise along the "
-            "way, and the precision scales it. The epistemic score counts "
-            "information, and the precision leaves it alone.",
-            f"At precision 1 and k = {BALANCE_GAIN:.1f}, both routes bend towards the "
-            "beacon, yet curiosity changes at most 1 of the 36 moves on any of 10 "
-            "seeds. That bend is the rocket avoiding noise.",
-        ],
-        size=17, space_after=6,
-    )  # fmt: skip
-    page.text(
-        MARGIN, 6.5, FULL_WIDTH, 0.6,
-        ["We picked precision 0.1 so the two scores can compete. Expected free "
-         "energy has no other dial for this."],
-        size=19, bold=True, colour=AMBER,
-    )  # fmt: skip
-    page.notes(
-        notes(
-            "[Kev.]",
-            "Does a bend towards the beacon always mean the rocket is curious? Not "
-            "necessarily, and this slide shows why.",
-            f"Both panels fly the same rocket at k = {BALANCE_GAIN:.1f}, with "
-            "curiosity on and with it off. We've moved up from 0.08, because at "
-            f"{BALANCE_GAIN:.1f} the beacon starts pulling even the rocket with "
-            "curiosity off. On the left, the rocket holds its goal at a precision "
-            "of 1. On the right, at 0.1.",
-            "On the left, both routes bend towards the beacon and they nearly "
-            "overlap. Across 10 seeds, curiosity changes at most 1 of the 36 moves. "
-            "So the bend isn't curiosity. It comes from the pragmatic score, which "
-            "counts how noisy the reading is as well as how far it is from the pad. "
-            "Readings near the beacon are cleaner, so heading that way looks good "
-            "even to a rocket that doesn't care about information.",
-            "On the right, at 0.1, curiosity takes the rocket right up to the beacon. "
-            "Across 10 seeds it decides between 6 and 9 of the 36 moves.",
-            "So a route that looks curious might not be. The only way to tell which "
-            "score chose a move is to fly it again with curiosity off.",
-            "[If someone asks why noise is in the pragmatic score at all:] The goal "
-            "is a reading rather than a position, because cpomdp "
-            f"{WORKSHOP_CPOMDP_VERSION} won't accept a goal over positions when the "
-            "noise depends on position. A goal over readings ends up paying for how "
-            "noisy each reading is expected to be.",
-            "We picked 0.1 on purpose, so the two scores could compete. Expected "
-            "free energy has no separate dial for curiosity, so the precision is the "
-            "only thing that trades one against the other. Turning the precision "
-            "down is the same as turning curiosity up.",
-            "One way to picture the precision is as how urgent the goal is. If "
-            "you’re well fed, curiosity has room to grow. If you’re starving, the "
-            "drive to eat overwhelms it. That’s an analogy to make the setting "
-            "easier to picture. Whether biology works this way would have to be "
-            "shown.",
         )
     )
 
@@ -1240,26 +1238,64 @@ def task_2_meaning(deck: Deck) -> None:
     page.notes(
         notes(
             "[Kev.]",
-            "Same precision as before, 0.1, the setting where both rockets landed "
-            f"two slides ago. What we've changed is k, from 0.08 to {k:.1f}, so the "
-            "noise now climbs five times as steeply away from the beacon.",
-            "The blue rocket, curiosity off, lands "
-            f"{off.distance_to(PAD):.2f} from the pad. The amber rocket, curiosity "
-            "on, goes to the beacon and won't leave. It stops "
-            f"{on.distance_to(PAD):.2f} short.",
-            "Why? From the beacon, every move towards the pad is a move away from "
-            "clean readings, so each one teaches less. With noise this steep, the "
-            "information the rocket would give up outweighs the pull of the pad. "
-            "Across 10 seeds, no curious rocket lands, and they stop a median 1.67 "
-            "short. Every rocket with curiosity off lands.",
-            "You'll notice the blue route bends towards the beacon too. That's the "
-            "last slide again: the pragmatic score likes cleaner readings. Push k "
-            "higher and that pull wins as well. On this seed the rocket with "
-            "curiosity off stops short from k = 0.46, and at k = 0.5 neither rocket "
-            "lands on any of 10 seeds.",
-            "So two settings decide whether curiosity helps. The precision sets what "
+            "Another scenario you might have seen is the rocket never leaving the "
+            "beacon.",
+            "The blue rocket, curiosity off, lands at the pad. The amber rocket, "
+            "curiosity on, goes to the beacon and never leaves or reaches the goal."
+            "\nThis is an example where epistemics has completely taken over, so "
+            "it’s all a balancing act.",
+            "Two settings decide whether curiosity helps. The precision sets what "
             "information is worth against the pull of the pad. k sets how much there "
             "is to gain by staying near the beacon.",
+        )
+    )
+
+
+def task_2_balance(deck: Deck) -> None:
+    """Show that a bend towards the beacon is curiosity only where the pair parts."""
+    page = deck.page("Curious, or just avoiding noise?", "task 2")
+    height = page.picture(ASSETS / "route_2_balance.png", MARGIN, 1.3, FULL_WIDTH)
+    top = 1.3 + height + 0.1
+    page.text(
+        MARGIN, top, FULL_WIDTH, 1.45,
+        [
+            "The pragmatic score counts distance to the pad and the noise along the "
+            "way, and the goal precision scales it. The epistemic score counts "
+            "information, and the goal precision leaves it alone.",
+            f"At goal precision 1 and k = {BALANCE_GAIN:.1f}, both routes bend "
+            "towards the beacon, yet curiosity changes at most 1 of the 36 moves "
+            "on any of 10 seeds. That bend is the rocket avoiding noise.",
+        ],
+        size=17, space_after=6,
+    )  # fmt: skip
+    page.text(
+        MARGIN, 6.5, FULL_WIDTH, 0.6,
+        ["We picked goal precision 0.1 so the two scores can compete. Expected "
+         "free energy has no other dial for this."],
+        size=19, bold=True, colour=AMBER,
+    )  # fmt: skip
+    page.notes(
+        notes(
+            "[Kev.]",
+            "Here we want to highlight another development problem we ran into.",
+            "Does a bend towards the beacon always mean the rocket is curious? Not "
+            "necessarily.",
+            "On the left, the rocket flies at a goal precision of 1, meaning "
+            "pragmatics dominates and epistemics barely creates a detour. On the "
+            "right, at 0.1 there is a noticeable difference.",
+            "So a route that looks curious might not be. The only way to tell which "
+            "score chose a move is to fly it again with curiosity off.",
+            'The rocket\'s goal is a reading that says "I am at the pad", and a '
+            "noisy reading is less likely to match that goal, so the pragmatic score "
+            "favours routes with cleaner readings, which lie towards the beacon, "
+            "even when the rocket places no value on the beacon — like walking home "
+            "along the lit street because you want to be sure of arriving, when you "
+            "have no interest in seeing the sights.",
+            "[If someone asks why noise is in the pragmatic score at all:] The goal "
+            "is a reading rather than a position, because cpomdp "
+            f"{WORKSHOP_CPOMDP_VERSION} won't accept a goal over positions when the "
+            "noise depends on position. A goal over readings ends up paying for how "
+            "noisy each reading is expected to be.",
         )
     )
 
@@ -1306,7 +1342,7 @@ def task_3_brief(deck: Deck) -> None:
     question(page, 5.85, "Which rocket finds the pad?", height=0.55)
     page.notes(
         notes(
-            f"[Kev. Planned at {clock('Task 3')}.]",
+            f"[Dan. Planned at {clock('Task 3')}.]",
             "In Task 2 the rocket knew where the pad was, and curiosity only changed "
             "its route. Now we hide the pad. The rocket starts with a guess, and it "
             "knows roughly how good that guess is.",
@@ -1618,69 +1654,61 @@ def where_cpomdp_sits(deck: Deck) -> None:
             "in Python. cpomdp does the same job for continuous states, like the "
             "rocket's position, and runs on JAX. RxInfer, in Julia, does Bayesian "
             "inference by message passing on factor graphs.",
-            "Next, a few other things people have modelled with these tools.",
+            "Next, what else cpomdp can already do.",
         )
     )
 
 
-def research(deck: Deck) -> None:
-    """Three published modelling examples beyond the rocket."""
-    page = deck.page("What else can we model with cpomdp?", "why it matters")
+def unused_features(deck: Deck) -> None:
+    """Nine features of the pinned cpomdp that the three tasks did not use."""
+    page = deck.page("What else can cpomdp already do?", "why it matters")
     card_row(
-        page, 1.95, 4.15,
-        (
+        page, 2.25, 2.65,
+        tuple(
             headed(
-                "Finding a reward in a maze",
-                "The agent detours to read a cue, then heads for the reward. "
-                "With fixed sensor noise, it stays in the wrong arm of the maze.",
-                colour=AMBER,
-            ),
-            headed(
-                "Inferring a hidden signal in a cell",
-                [Run("In a model of "), Run("E. coli", italic=True),
-                 Run(", we can estimate the activity of a protein called CheA "
-                     "from the signals it sends through the cell.")],
-                colour=GREEN,
-            ),
-            headed(
-                "Choosing a flow meter for a compressor",
-                "In a simulation, changing only the flow meter led the controller "
-                "to settle on opposite sides of the surge line, the boundary where "
-                "flow becomes unstable.",
-                colour=BLUE,
-            ),
+                group.heading,
+                *(feature.title for feature in group.features),
+                colour=group.colour,
+            )
+            for group in UNUSED_FEATURES
         ),
         size=19,
     )  # fmt: skip
+    page.text(
+        MARGIN, 5.25, FULL_WIDTH, 0.7,
+        [[Run(f"Every item is in cpomdp {WORKSHOP_CPOMDP_VERSION}, the release we "
+              "installed today.  "),
+          linked(CPOMDP_DOCS, size=15)]],
+        size=17, colour=MUTED,
+    )  # fmt: skip
+    names = ", ".join(
+        feature.lookup for group in UNUSED_FEATURES for feature in group.features
+    )
     page.notes(
         notes(
             "[Kev.]",
-            "In the maze, the agent takes a detour to read a cue before heading for "
-            "the reward. With fixed sensor noise it never takes the detour, and it "
-            "ends up stuck in the wrong arm. That's Task 1's lesson again.",
-            "In the cell model, we estimate how active a protein called CheA is "
-            "inside E. coli, from the signals it passes on through the cell. That "
-            "links back to where cpomdp started.",
-            "In the compressor simulation, the two flow meters were equally accurate "
-            "at the design flow. As the flow dropped, one gave cleaner readings and "
-            "the other noisier ones, and that alone changed which side of the surge "
-            "line the controller settled on. It's the same idea as the rocket: the "
-            "sensor changes which moves are worth making. Dan's preprint sets out "
-            "when an action can change how much an agent expects to learn from its "
-            "next reading.",
+            "We used a small part of cpomdp today. These are features of the "
+            "release we installed that our three tasks did not need.",
+            "On the left is the model. Our sensor noise depended on position, and "
+            "the noise in the dynamics can depend on the state in the same way. Our "
+            "rocket chose from a fixed set of compass moves, and cpomdp can also "
+            "search a grid over a single continuous action. We can also declare "
+            "which parts of the state belong together and which readings come from "
+            "which sensor.",
+            "In the middle are graphs. Our graph had one node, and the probe in the "
+            "Self-guided section adds a second. cpomdp runs trees of many coupled "
+            "nodes, it can aim curiosity at one of them, and it can partition the "
+            "belief that it carries from one time step to the next.",
+            "On the right are the tools. The score is a JAX function, so we can "
+            "compile it, run it over a batch of actions and take its gradient. We "
+            "can write our own inference backend, because the Kalman filter and the "
+            "graph we compared today meet the same interface. A warrant also has "
+            "two grades below PROVED, for claims that are bounded or sampled.",
+            f"[The names, if someone asks, in the order of the cards: {names}.]",
+            "Next, what is planned.",
         ),
-        sources=(
-            (
-                "Maze and cell models",
-                "https://github.com/inferogenesis/cpomdp/blob/main/examples/ffg/README.md",
-            ),
-            (
-                "Compressor simulation",
-                "https://github.com/inferogenesis/cpomdp/blob/main/docs/guides/surge_margin.md",
-            ),
-            ("Dan’s preprint", "https://arxiv.org/abs/2607.20306"),
-        ),
-    )
+        sources=(("The cpomdp documentation", CPOMDP_DOCS),),
+    )  # fmt: skip
 
 
 def roadmap(deck: Deck) -> None:
@@ -1908,8 +1936,8 @@ SLIDES: tuple[Callable[[Deck], None], ...] = (
     task_2_brief,
     task_2_timer,
     task_2_result,
-    task_2_balance,
     task_2_meaning,
+    task_2_balance,
     task_3_brief,
     task_3_timer,
     task_3_result,
@@ -1917,7 +1945,7 @@ SLIDES: tuple[Callable[[Deck], None], ...] = (
     backends,
     coda,
     where_cpomdp_sits,
-    research,
+    unused_features,
     roadmap,
     programmes,
     keep_going,

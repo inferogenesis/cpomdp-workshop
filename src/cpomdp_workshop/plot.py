@@ -826,16 +826,16 @@ def plot_balance(*, palette: Palette = DARK) -> Figure:
     """The curiosity pair at ``BALANCE_GAIN``, preferring the pad tightly and loosely.
 
     Both panels draw the beacon's field and the same rocket with curiosity on and off.
-    At precision 1, on the left, the two routes nearly coincide. The bend they share
-    comes from the reading's noise in the pragmatic term. At precision 0.1, on the
-    right, curiosity takes the rocket to the beacon.
+    At goal precision 1, on the left, the two routes nearly coincide. The bend they
+    share comes from the reading's noise in the pragmatic term. At goal precision
+    0.1, on the right, curiosity takes the rocket to the beacon.
 
     Args:
         palette: the neutral colours. The slides pass
             [`LIGHT`][cpomdp_workshop.plot.LIGHT].
 
     Returns:
-        The figure, with each panel titled by its precision.
+        The figure, with each panel titled by its goal precision.
     """
     figure, panels = plt.subplots(
         1, 2, figsize=(14.0, 4.6), facecolor=palette.background
@@ -844,7 +844,7 @@ def plot_balance(*, palette: Palette = DARK) -> Figure:
     params = default_params(BALANCE_GAIN)
     mesh = None
     for axes, precision in zip(panels, _BALANCE_PRECISIONS, strict=True):
-        _style_map(axes, f"precision {precision:g}", palette, _BALANCE_EXTENT)
+        _style_map(axes, f"goal precision {precision:g}", palette, _BALANCE_EXTENT)
         mesh = _field_mesh(axes, beacon_sensor, params, palette, _BALANCE_EXTENT)
         _draw_landmarks(axes, None, palette)
         flights = curiosity_pair(BALANCE_GAIN, precision=precision)
