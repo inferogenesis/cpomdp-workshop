@@ -5,6 +5,7 @@ two disagree. Every flight runs under the pinned cpomdp release, with the legacy
 Mersenne Twister draw seeded once per flight. A re-pin re-runs this file first.
 """
 
+import dataclasses
 from importlib import metadata
 from typing import NamedTuple
 
@@ -51,7 +52,9 @@ from cpomdp_workshop.solutions import (
 )
 from cpomdp_workshop.world import (
     BEACON,
+    LAUNCH,
     PAD,
+    PAD_GUESS,
     beacon_sensor,
     broadcast_noise,
     default_params,
@@ -521,6 +524,12 @@ def capped_broadcast(x, params):
     return params["noise_floor"] + 0.08 * jnp.minimum(distance_squared, 4.0)
 
 
+def guessing(model, guess):
+    # The model with the pad's two numbers in the prior's mean moved to the guess.
+    mean = np.array([*LAUNCH, *guess])
+    return dataclasses.replace(model, prior=Belief(mean=mean, cov=model.prior.cov))
+
+
 def fly_pad_pair(
     seed=3,
     *,
@@ -528,12 +537,13 @@ def fly_pad_pair(
     precision=CURIOUS_PRECISION,
     horizon=1,
     broadcast=broadcast_noise,
+    guess=PAD_GUESS,
     **settings,
 ):
     params = {**pad_params(), **{k: jnp.asarray(v) for k, v in settings.items()}}
     flights = []
     for curiosity in (True, False):
-        model = pad_model(broadcast, params, pad_spread)
+        model = guessing(pad_model(broadcast, params, pad_spread), guess)
         planner = compass_planner(model, horizon=horizon, curiosity=curiosity)
         rocket = Agent(model, radar_preference(precision), selector=planner)
         flights.append(fly_pad(rocket, seed=seed))
@@ -593,6 +603,35 @@ def test_on_seed_3_an_overconfident_rocket_never_checks_the_beacon(pad_spread, m
     assert (round(on.miss, 2), round(off.miss, 2)) == misses
     checks = pad_spread > 0.1
     assert (nearest_beacon(on) < 0.5) is checks
+
+
+WRONG_GUESS = (5.0, -2.0)
+# Bonus 1's challenge: the rocket's guess moved 2 off the point the world draws round.
+
+
+@pytest.mark.parametrize(
+    ("pad_spread", "misses", "checks"),
+    [(1.5, (0.23, 0.70), True), (0.1, (3.42, 3.78), False)],
+)
+def test_on_seed_3_only_a_rocket_unsure_of_a_wrong_guess_checks_the_beacon(
+    pad_spread, misses, checks
+):
+    on, off = fly_pad_pair(pad_spread=pad_spread, guess=WRONG_GUESS)
+    assert (round(on.miss, 2), round(off.miss, 2)) == misses
+    assert (nearest_beacon(on) < 0.5) is checks
+
+
+@pytest.mark.slow
+@pytest.mark.parametrize(
+    ("pad_spread", "expected", "visits"),
+    [(1.5, PadTally(9, 0.24, 6, 0.43), 8), (0.1, PadTally(0, 2.59, 0, 2.59), 0)],
+)
+def test_over_ten_seeds_a_rocket_sure_of_a_wrong_guess_never_checks_or_lands(
+    pad_spread, expected, visits
+):
+    pairs, tally = pad_tally(pad_spread=pad_spread, guess=WRONG_GUESS)
+    assert tally == expected
+    assert len(beacon_visits(on for on, _ in pairs)) == visits
 
 
 @pytest.mark.slow

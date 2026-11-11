@@ -167,7 +167,14 @@ information gain varies between the available movements.
 **Share your spread value in the workshop chat.**""",
     attempt="""\
 import jax.numpy as jnp
-from cpomdp import Agent, Belief, LinearGaussianModel, StateGoal, probe_model
+from cpomdp import (
+    Agent,
+    Belief,
+    LinearGaussianModel,
+    ProbeReport,
+    StateGoal,
+    probe_model,
+)
 
 from cpomdp_workshop import LAUNCH, PAD, check_agent, compass_moves, show_probe
 
@@ -175,18 +182,19 @@ observation_matrix = ...  # pymdp's A, with R below: the reading sees the positi
 observation_noise = ...  # R: variance 0.05 on each axis, the same everywhere
 
 model = LinearGaussianModel(
-    jnp.eye(2),  # dynamics, pymdp's B: the rocket stays put unless moved
+    dynamics_matrix=jnp.eye(2),  # pymdp's B: the rocket stays put unless moved
     control_matrix=jnp.eye(2),  # a move adds straight to the position
     observation_matrix=observation_matrix,
     observation_noise=observation_noise,
     dynamics_noise=1e-3 * jnp.eye(2),  # Q: a little drift each step
     prior=Belief(mean=LAUNCH, cov=4 * jnp.eye(2)),  # pymdp's D: unsure where it is
 )
-goal = StateGoal(PAD, precision=jnp.eye(2), effort=100 * jnp.eye(2))  # thruster cost
-rocket = Agent(model, goal)
+# effort is the thruster cost
+goal = StateGoal(target=PAD, precision=jnp.eye(2), effort=100 * jnp.eye(2))
+rocket = Agent(model, objective=goal)
 check_agent(rocket)
 
-report = probe_model(model, model.prior, compass_moves())
+report: ProbeReport = probe_model(model, belief=model.prior, actions=compass_moves())
 show_probe(report)  # paste the spread in chat""",
     bonuses=(
         Bonus(
@@ -322,7 +330,14 @@ and one sensor?
 **Share that `k` value in the workshop chat.**""",
     attempt="""\
 import jax.numpy as jnp
-from cpomdp import Agent, Belief, CallableSensor, LinearGaussianModel, Preference
+from cpomdp import (
+    ActionSelector,
+    Agent,
+    Belief,
+    CallableSensor,
+    LinearGaussianModel,
+    Preference,
+)
 
 from cpomdp_workshop import (
     LAUNCH,
@@ -355,17 +370,23 @@ def my_sensor(x, params):  # the reading's noise at position x
 check_my_sensor(my_sensor, params)
 
 curious_model = LinearGaussianModel(
-    jnp.eye(2),
+    dynamics_matrix=jnp.eye(2),
     control_matrix=jnp.eye(2),
     dynamics_noise=1e-3 * jnp.eye(2),
     prior=Belief(mean=LAUNCH, cov=4 * jnp.eye(2)),
-    observation_model=CallableSensor(jnp.eye(2), my_sensor, params),
+    observation_model=CallableSensor(
+        observation_matrix=jnp.eye(2), noise_fn=my_sensor, noise_params=params
+    ),
 )
-preference = Preference(PAD, precision=0.1 * jnp.eye(2))  # loose enough to compete
-planner = compass_planner(curious_model)  # scores all nine compass moves every step
-curious = Agent(curious_model, preference, selector=planner)
+# a precision of 0.1 is loose enough for the information to compete
+preference = Preference(target=PAD, precision=0.1 * jnp.eye(2))
+# the planner scores all nine compass moves every step
+planner: ActionSelector = compass_planner(curious_model)
+curious = Agent(model=curious_model, objective=preference, selector=planner)
 incurious = Agent(
-    curious_model, preference, selector=compass_planner(curious_model, curiosity=False)
+    model=curious_model,
+    objective=preference,
+    selector=compass_planner(curious_model, curiosity=False),
 )
 flights = {"curiosity on": fly(curious), "curiosity off": fly(incurious)}
 print(f"your k = {beacon_gain}")  # paste the k where one rocket stopped landing
@@ -438,9 +459,10 @@ def fly_both(precision, seed):
         # A rocket can only fly once, so every flight builds a new one. model_with
         # builds the same model as your task 2 cell.
         model = model_with(my_sensor, default_params(beacon_gain))
-        preference = Preference(PAD, precision=precision * jnp.eye(2))
+        preference = Preference(target=PAD, precision=precision * jnp.eye(2))
         planner = compass_planner(model, curiosity=curiosity)
-        flights.append(fly(Agent(model, preference, selector=planner), seed=seed))
+        rocket = Agent(model, objective=preference, selector=planner)
+        flights.append(fly(rocket, seed=seed))
     return flights
 
 
@@ -524,46 +546,41 @@ SESSION_3 = Session(
     brief="""\
 ## Task 3 · Find the pad
 
-In Task 2, the rocket knew where the pad was, and curiosity only changed its route. Now
-the rocket does not know where the pad is. It starts with a guess, and it has three
-sensors:
+In Task 2, the rocket knew where the pad was and curiosity only changed its route. Now
+the rocket does not know where the pad is. To achieve this in silicon, we promote
+the pad's location to a latent state (a state the rocket cannot observe directly and
+has to infer from its readings). There are now two realities, the true pad's location,
+which the generative process (the world) dictates, and the rocket's belief about the
+pad's location, which its generative model holds (Active Inference book, Figure 2.2,
+p. 23). As we will see, they are not the same thing.
+
+In Tasks 1 and 2, the expected information gain was about the rocket's own position.
+Now the epistemic term of expected free energy also covers the pad's position.
+
+The world is a continuous T-maze, if there were such a thing. In the classic T-maze, a
+rat chooses between guessing to go down a path or gaining a cue first, then making a
+better guess. To do that in continuous space we use three sensors:
 
 - a reading of its own position
-- a coarse radar, which points roughly from the rocket towards the pad
+- a coarse radar, which points roughly from the rocket towards the pad, with the same
+  noise everywhere
 - the beacon's broadcast of the pad's exact position, which is clear near the beacon
   and fades with distance
 
-We built this world so that the information the rocket needs is somewhere other than
-where it wants to go. The radar is coarse on purpose. The broadcast fades on purpose.
-The rocket's guess is right on average, because we draw the true pad from its own
-prior. The true pad is in the world (the generative process), and the rocket's
-generative model holds only a belief about it (Active Inference book, Figure 2.2,
-p. 23).
+**Your task:** Because we have promoted the pad's location to a latent state, the
+state now holds four numbers instead of two, so two variables must become
+four-dimensional as well. Complete the two missing lines marked with `...`:
 
-The rocket's goal is a radar reading that says the pad is right where the rocket is.
-The radar's noise does not change with position, so this time the noise cannot pull the
-route the way it did in Task 2.
-
-The cell builds the rocket's model in full, as Task 2's cell did. This time the state
-holds four numbers, the rocket's position and then the pad's, so the rocket's belief
-covers both. Its prior says where it starts and where it guesses the pad is, and the
-prior's covariance (`prior_cov` in the code) says how unsure it is of each.
-
-As in Task 2, we will fly the same rocket twice, once with curiosity on and once with
-curiosity off. Neither rocket knows where the pad is.
-
-**Your task:** Complete the two missing lines marked with `...`:
-
-1. In `my_broadcast`, calculate how much noise the broadcast gains with distance from
-   the beacon.
+1. Set `prior_mean`. In Task 2, the prior's mean was `LAUNCH`, where the rocket
+   believes it starts. Now it also holds `PAD_GUESS`, where the rocket guesses the pad
+   is.
 2. Set `prior_cov`, how unsure the rocket starts about its own position and about
    the pad's. The cell starts with a `pad_spread` of 1.5, which is also how far the
    true pad strays from the guess in the world.
 
-Run the cell. `show_misses` prints how far each rocket ended from the true pad, and
-`plot_pad` draws both routes. As before, a rocket has landed if it ends within 0.5 of
-the pad, inside the circle the plot draws round the true pad. Which rocket finds the
-pad? What might explain the difference, when both share one model and the same sensors?
+Run the cell. As before, **a rocket has landed if it ends within 0.5 of the true pad**.
+Which rocket finds the pad? What might explain the difference, when both share one
+model and the same sensors?
 
 Then lower `pad_spread` and run the cell again. This changes only how unsure the rocket
 is about the pad. The world still draws the true pad with a spread of 1.5. At what
@@ -572,13 +589,13 @@ is about the pad. The world still draws the true pad with a spread of 1.5. At wh
 **Share that `pad_spread` in the workshop chat.**""",
     attempt="""\
 import jax.numpy as jnp
-from cpomdp import Agent, Belief, CallableSensor, LinearGaussianModel
+from cpomdp import Agent, Belief, CallableSensor, LinearGaussianModel, Preference
 
 from cpomdp_workshop import (
     LAUNCH,
     PAD_GUESS,
     PAD_READINGS,
-    check_my_broadcast,
+    broadcast_noise,
     compass_planner,
     fly_pad,
     pad_params,
@@ -589,39 +606,32 @@ from cpomdp_workshop import (
 )
 
 params = pad_params()
-# The settings the broadcast reads:
-#   params["beacon"]          jnp.array([2.5, 1.4])  where the beacon is
-#   params["broadcast_gain"]  1.0    how fast the broadcast fades with distance
-#   params["noise_floor"]     0.05   the broadcast's noise at the beacon itself
-
-
-def my_broadcast(x, params):  # noise on the broadcast, heard at position x
-    distance_squared = jnp.sum((x - params["beacon"]) ** 2)
-    fade = ...  # broadcast_gain times distance_squared, with no cap this time
-    return params["noise_floor"] + fade
-
-
-check_my_broadcast(my_broadcast, params)
-
 pad_spread = 1.5  # how unsure the rocket is about the pad. Lower it after a first run
 # The state is four numbers: the rocket's position, then the pad's.
-prior_mean = jnp.array([*LAUNCH, *PAD_GUESS])  # at launch, and the pad at its guess
+prior_mean = ...  # LAUNCH's two numbers, then PAD_GUESS's two, in one jnp.array
 prior_cov = ...  # jnp.diag of 0.25, 0.25, then pad_spread**2 twice, in a jnp.array
 model = LinearGaussianModel(
-    jnp.eye(4),  # nothing moves by itself
+    dynamics_matrix=jnp.eye(4),  # nothing moves by itself
     control_matrix=jnp.vstack([jnp.eye(2), jnp.zeros((2, 2))]),  # moves the rocket only
     dynamics_noise=jnp.diag(jnp.array([1e-3, 1e-3, 1e-9, 1e-9])),  # the pad stays put
     prior=Belief(mean=prior_mean, cov=prior_cov),
     # six readings: the rocket's position, the radar, and the broadcast with its noise
-    observation_model=CallableSensor(PAD_READINGS, pad_sensor(my_broadcast), params),
+    observation_model=CallableSensor(
+        observation_matrix=PAD_READINGS,
+        noise_fn=pad_sensor(broadcast_noise),
+        noise_params=params,
+    ),
 )
-preference = radar_preference()  # a radar reading that says the pad is right here
-curious = Agent(model, preference, selector=compass_planner(model))
-incurious = Agent(model, preference, selector=compass_planner(model, curiosity=False))
+# the goal is a radar reading that says the pad is right here
+preference: Preference = radar_preference()
+curious = Agent(model, objective=preference, selector=compass_planner(model))
+incurious = Agent(
+    model, objective=preference, selector=compass_planner(model, curiosity=False)
+)
 flights = {"curiosity on": fly_pad(curious), "curiosity off": fly_pad(incurious)}
 print(f"your pad_spread = {pad_spread}")  # paste the one where curiosity on missed
 show_misses(flights)
-plot_pad(flights, my_broadcast, params)""",
+plot_pad(flights, broadcast_noise, params)""",
     bonuses=(
         Bonus(
             title="How sure is the rocket?",
@@ -631,12 +641,21 @@ one flight. Does the same happen on other flights, and what if the rocket is les
 of its guess than it should be?
 
 The cell below flies both rockets over seeds 0 to 9 at three spreads, 0.1, 1.5 and 3.0.
-The world does not change: the true pad is always drawn with a spread of 1.5. Only the
-rocket's own uncertainty changes. A rocket lands if it ends within 0.5 of the true pad.
-The cell uses `my_broadcast` and `params` from your Task 3 cell, so if your runtime has
-restarted, run Checkpoint 3 below first to restore them.
+The generative process does not change: the true pad is always drawn with a spread of
+1.5. Only the rocket's generative model changes, in how unsure it is about the pad. A
+rocket lands if it ends within 0.5 of the true pad.
+The cell uses `params` from your Task 3 cell, so if your runtime has restarted, run
+Checkpoint 3 below first to restore it.
 
-Before you run it, what do you expect an overconfident rocket to do?""",
+Before you run it, what do you expect an overconfident rocket to do?
+
+**For an additional challenge:** So far, the rocket's guess has been right on average,
+because the world draws the true pad around `PAD_GUESS`. Go back to your Task 3 cell and
+give the rocket a wrong guess: in `prior_mean`, change the pad's two numbers to
+`5.0, -2.0`. The generative process does not change, so the world still draws the true
+pad around (5, 0), and the plot still marks that point as the guess. Run the cell with a
+`pad_spread` of 1.5, and then with 0.1. What happens to a rocket that is sure of a
+wrong guess?""",
             hint="""\
 The epistemic term rewards a move for what it is expected to teach. Think about how
 much a rocket that is already sure where the pad is expects to learn from the beacon's
@@ -651,12 +670,25 @@ seeds, with a median miss of 0.25, and the incurious one on 3, with a median mis
 
 Curiosity pays off here only when the rocket's own uncertainty about the pad is large
 enough to make the beacon worth a visit. The balance between the two terms is sensitive
-to settings like this one, and we will come back to that on the slides.""",
+to settings like this one, and we will come back to that on the slides.
+
+With the guess moved to (5, -2) and a spread of 1.5, the curious rocket still finds the
+pad. On seed 3 it visits the beacon and ends 0.23 from the true pad, and over the ten
+seeds it lands on 9. With a spread of 0.1, the rocket is sure of a guess that is wrong,
+so it does not visit the beacon on any of the ten seeds, and neither rocket lands on any
+of them. On seed 3 the curious rocket ends 3.42 from the true pad. The median miss is
+2.59, against 1.42 for the overconfident rocket whose guess was right on average.""",
             code='''\
 import numpy as np
 from cpomdp import Agent
 
-from cpomdp_workshop import compass_planner, fly_pad, pad_model, radar_preference
+from cpomdp_workshop import (
+    broadcast_noise,
+    compass_planner,
+    fly_pad,
+    pad_model,
+    radar_preference,
+)
 
 seeds = range(10)
 
@@ -667,9 +699,9 @@ def misses(pad_spread, curiosity):
     for seed in seeds:
         # A rocket can only fly once, so every flight builds a new one. pad_model
         # builds the same model as your task 3 cell.
-        model = pad_model(my_broadcast, params, pad_spread)
+        model = pad_model(broadcast_noise, params, pad_spread)
         planner = compass_planner(model, curiosity=curiosity)
-        rocket = Agent(model, radar_preference(), selector=planner)
+        rocket = Agent(model, objective=radar_preference(), selector=planner)
         found.append(fly_pad(rocket, seed=seed).miss)
     return np.array(found)
 
@@ -685,8 +717,13 @@ for pad_spread in (0.1, 1.5, 3.0):
         Bonus(
             title="When is curiosity worth it?",
             question="""\
-We built Task 3's world so that curiosity pays off. What happens if we make the
-information easier to get?
+Bonus 1 changed only the rocket's belief about the pad. Here we change the sensors
+themselves, in the world and in the rocket's model of it.
+
+In a T-maze, the rat visits the cue because it cannot tell from where it starts which
+arm holds the reward. We built Task 3's world in the same way, so the rocket can learn
+the pad's position well only near the beacon. What happens if we make the information
+easier to get?
 
 The cell below flies both rockets over seeds 0 to 9 and counts the landings. Run it as
 it is, then try three changes, one at a time:
@@ -712,12 +749,14 @@ detour buys it nothing.
 
 This is why the radar is coarse by default. The task asks whether a rocket will go and
 get information that is only available somewhere else. With a good radar, or a
-broadcast that reaches everywhere, the question disappears.""",
+broadcast that reaches everywhere, the question disappears, as it would in a T-maze
+where the rat could see the reward from where it starts.""",
             code='''\
 import jax.numpy as jnp
 from cpomdp import Agent
 
 from cpomdp_workshop import (
+    broadcast_noise,
     compass_planner,
     fly_pad,
     pad_model,
@@ -734,7 +773,7 @@ def capped_broadcast(x, params):
 
 seeds = range(10)
 settings = pad_params()  # change one setting here, such as settings["radar_noise"]
-broadcast = my_broadcast  # or capped_broadcast
+broadcast = broadcast_noise  # or capped_broadcast
 
 
 def landings(curiosity):
@@ -745,7 +784,7 @@ def landings(curiosity):
         # builds the same model as your task 3 cell.
         model = pad_model(broadcast, settings, 1.5)
         planner = compass_planner(model, curiosity=curiosity)
-        rocket = Agent(model, radar_preference(), selector=planner)
+        rocket = Agent(model, objective=radar_preference(), selector=planner)
         landed += fly_pad(rocket, seed=seed).miss < 0.5
     return landed
 
@@ -803,7 +842,8 @@ import cpomdp_workshop as workshop
 
 # the two methods agree about where the 1960 rocket is
 workshop.check_backends(
-    KalmanBackend(workshop.model_with()), workshop.one_node(workshop.model_with())
+    KalmanBackend(model=workshop.model_with()),
+    workshop.one_node(workshop.model_with()),
 )
 print(curious.selector.certificate)
 print(workshop.axis_certificate())"""
@@ -819,12 +859,12 @@ TAIL = (
     (
         "Two moves ahead",
         """\
-from cpomdp_workshop import pad_pair, plot_pad, show_misses
+from cpomdp_workshop import broadcast_noise, pad_pair, plot_pad, show_misses
 
 # both rockets again, each scoring all 81 two-move plans at every step
-flights_ahead = pad_pair(my_broadcast, params, pad_spread=pad_spread, horizon=2)
+flights_ahead = pad_pair(broadcast_noise, params, pad_spread=pad_spread, horizon=2)
 show_misses(flights_ahead)
-plot_pad(flights_ahead, my_broadcast, params, title="looking two moves ahead")""",
+plot_pad(flights_ahead, broadcast_noise, params, title="looking two moves ahead")""",
     ),
     (
         "A model one filter cannot hold",

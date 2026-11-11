@@ -120,6 +120,20 @@ def test_a_prior_covariance_of_the_wrong_shape_is_refused_by_name(cov, refusal):
         Belief(mean=np.zeros(4), cov=cov)
 
 
+@pytest.mark.parametrize(
+    ("mean", "refusal"),
+    [
+        (np.zeros((2, 2)), "belief mean must be a 1-D vector"),
+        (np.zeros(2), "must be 2x2 to match a 2-D mean"),
+    ],
+)
+def test_a_prior_mean_of_the_wrong_shape_is_refused(mean, refusal):
+    # Task 3's first line is the prior's mean. A mean of two numbers is refused in
+    # the covariance's name, which the troubleshooting cell explains.
+    with pytest.raises(ValueError, match=refusal):
+        Belief(mean=mean, cov=np.eye(4))
+
+
 def test_a_goal_beside_a_selector_is_refused():
     model = a_sensed_model()
     with pytest.raises(TypeError, match="selector= takes a Preference"):
