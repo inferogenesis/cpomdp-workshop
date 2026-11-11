@@ -393,7 +393,7 @@ print(workshop.axis_certificate())
 | `route_3_pad.png` | New: Task 3 on/off, seed 3, with the guess, the true pad and the belief ellipse. Also the preview |
 | `route_3_blackout.png`, `route_4_rock.png`, `fig_world_rock.png` | Keep only what the self-guided cell or a slide still reads, and drop the rest |
 
-### 6.2 Deck, 25 slides
+### 6.2 Deck, 26 slides
 
 | # | Slide | Change |
 | --- | --- | --- |
@@ -414,9 +414,11 @@ print(workshop.axis_certificate())
 | 17 | Who found the pad? | `route_3_pad.png`, both seed-3 misses in large type, and the 10-seed landings (9 vs 3) with the median misses (0.25 vs 0.61). The 10-seed counts stay on the slide whatever the reference seed shows. Poll 3 |
 | 18 | The balance takes tuning | New, from Dan's brief. The window that works: λ 0.1 steers, 0.3 partly, 1 never. Spread 0.1 never checks. A far-carrying broadcast makes curiosity pointless. Then a direction, labelled as one: cpomdp's longer horizons and factor-graph backends are where we expect this balance to get less volatile, and the p* programme is where the evidence would come from. The one measured point: looking two moves ahead, the curious rocket lands 10/10 instead of 9/10. No factor-graph evidence exists in this workshop (`one_node` shows equivalence to the Kalman filter, not stability), so the slide says "expect" and "planned", never "makes" |
 | 19 | Do the two methods agree about where the rocket is? | Moved from Task 3. Notes: "This is the first number the final cell prints." |
-| 20–23 | PROVED, What did cpomdp let us do?, What else, Research next | Text unchanged. Slide 22's maze note can point back to Task 3 |
-| 24 | Three more experiments to try in Colab | Three cards from §5.4 |
-| 25 | Any questions? | None |
+| 20–22 | PROVED, What did cpomdp let us do?, What else | Text unchanged. Slide 22's maze note can point back to Task 3 |
+| 23 | What's already planned for the future of cpomdp? | New, Dan speaks. Three cards of three open cpomdp issues each, titled by the active inference feature they add: a homeostatic drive (#196, #201, #203), nonlinear and multi-timescale inference and planning (#21, #28, #52), parameter, category and structure learning (#231, #232, #233). No release is named for any of them, and pymdp isn't named. A footer links the issue tracker and invites comments |
+| 24 | Research next | Text unchanged |
+| 25 | Three more experiments to try in Colab | Three cards from §5.4 |
+| 26 | Any questions? | None |
 
 Every number on a slide comes from a measured-claims test. `tests/test_deck.py` passes on the regenerated `.pptx`.
 

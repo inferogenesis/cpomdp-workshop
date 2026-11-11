@@ -88,6 +88,7 @@ COLAB = (
 PYPI = "https://pypi.org/project/cpomdp/"
 SITE = "https://inferogenesis.com/"
 CPOMDP_DOCS = "https://cpomdp.inferogenesis.com/"
+CPOMDP_ISSUES = "https://github.com/inferogenesis/cpomdp/issues"
 PRESENTER_2_LINKEDIN = "https://www.linkedin.com/in/kevin-backhouse-112554253"
 KOUDAHL_REFERENCE = (
     "Koudahl, M. T., Kouw, W. M. and de Vries, B. (2021). "
@@ -420,6 +421,12 @@ def card_row(
             MARGIN + index * (width + gap), top, width, height, paragraphs,
             size=size, space_after=8,
         )  # fmt: skip
+
+
+def issue(number: int, title: str) -> list[Run]:
+    """An open cpomdp issue: its number, padded so titles line up, then its title."""
+    label = f"#{number}".ljust(4, "\u00a0") + "\u00a0"
+    return [Run(label, colour=MUTED, font=CODE_FONT, size=15), Run(title)]
 
 
 def question(page: Page, top: float, text: str, *, height: float = 0.95) -> None:
@@ -1192,6 +1199,11 @@ def task_2_balance(deck: Deck) -> None:
             "free energy has no separate dial for curiosity, so the precision is the "
             "only thing that trades one against the other. Turning the precision "
             "down is the same as turning curiosity up.",
+            "One way to picture the precision is as how urgent the goal is. If "
+            "you’re well fed, curiosity has room to grow. If you’re starving, the "
+            "drive to eat overwhelms it. That’s an analogy to make the setting "
+            "easier to picture. Whether biology works this way would have to be "
+            "shown.",
         )
     )
 
@@ -1671,6 +1683,64 @@ def research(deck: Deck) -> None:
     )
 
 
+def roadmap(deck: Deck) -> None:
+    """Nine open cpomdp issues in three groups of planned active inference features."""
+    page = deck.page(
+        "What’s already planned for the future of cpomdp?", "why it matters"
+    )
+    card_row(
+        page, 2.25, 2.65,
+        (
+            headed(
+                "Persistent goal seeking under a\u00a0homeostatic drive",
+                issue(196, "Switched dynamics"),
+                issue(201, "Energy preference"),
+                issue(203, "Per-step surprise"),
+                colour=AMBER,
+            ),
+            headed(
+                "Nonlinear, multi-timescale inference and planning",
+                issue(21, "Nonlinear sensors"),
+                issue(28, "Multiple timescales"),
+                issue(52, "Multi-step graph planning"),
+                colour=GREEN,
+            ),
+            headed(
+                "Parameter, category and structure learning",
+                issue(231, "Learned sensor noise"),
+                issue(232, "Discrete + continuous"),
+                issue(233, "Structure learning"),
+                colour=BLUE,
+            ),
+        ),
+        size=19,
+    )  # fmt: skip
+    page.text(
+        MARGIN, 5.25, FULL_WIDTH, 0.7,
+        [[Run("Every item is an open issue. Comment on one, or propose your own.  "),
+          linked(CPOMDP_ISSUES, size=15)]],
+        size=17, colour=MUTED,
+    )  # fmt: skip
+    page.notes(
+        notes(
+            "[Dan.]",
+            "Here are a few issues I’ve pulled off the open issues board on "
+            "cpomdp. They’re ones I’m personally excited to get working on, and to "
+            "share with you guys to show cpomdp has some legs. If you’ve had any "
+            "ideas for features or fixes you’d like to see in cpomdp, please let "
+            "us know.",
+            "[If asked about #232:] A combined discrete-continuous graph could help "
+            "us represent neuronal activity and other biology.",
+        ),
+        sources=(
+            ("Open issues on cpomdp", CPOMDP_ISSUES),
+            ("Persistent foraging cell, the tracking issue", f"{CPOMDP_ISSUES}/194"),
+            ("Category and structure learning, the tracking issue",
+             f"{CPOMDP_ISSUES}/226"),
+        ),
+    )  # fmt: skip
+
+
 def programmes(deck: Deck) -> None:
     """The research programmes proposed on top of cpomdp."""
     page = deck.page("Where the research goes next", "why it matters")
@@ -1848,6 +1918,7 @@ SLIDES: tuple[Callable[[Deck], None], ...] = (
     coda,
     where_cpomdp_sits,
     research,
+    roadmap,
     programmes,
     keep_going,
     thanks,

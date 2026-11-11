@@ -94,6 +94,10 @@ SET = {
     "2.6": "an equation number in the Active Inference book",
     "3.11": "the oldest Python the workshop runs on",
     "2607.20306": "the arXiv number of presenter 1's paper",
+    **dict.fromkeys(
+        ("21", "28", "52", "196", "201", "203", "231", "232", "233"),
+        "a cpomdp issue number on the roadmap slide",
+    ),
     "10.3390": "the DOI registrant prefix of the cited Koudahl paper",
     "10.5281": "the Zenodo DOI prefix for the cited cpomdp release",
 }
@@ -124,8 +128,8 @@ def pictures(slide):
 
 
 @pytest.mark.slow
-def test_the_deck_has_twenty_five_slides_each_with_notes(deck):
-    assert len(deck.slides) == 25
+def test_the_deck_has_twenty_six_slides_each_with_notes(deck):
+    assert len(deck.slides) == 26
     for slide in deck.slides:
         assert slide.notes_slide.notes_text_frame.text.strip()
 
@@ -393,6 +397,46 @@ def test_every_measured_number_names_a_claim_test_that_exists():
 
 def photo_frames(slide):
     return [shape for shape in slide.shapes if shape.name.startswith("photo ")]
+
+
+@pytest.mark.slow
+def test_the_roadmap_follows_the_examples_with_nine_issues_and_no_promises(deck):
+    assert build_deck.number_of(build_deck.roadmap) == (
+        build_deck.number_of(build_deck.research) + 1
+    )
+    slide = slide_of(deck, build_deck.roadmap)
+    cards = [shape.text_frame for shape in slide.shapes if shape.name == "card"]
+    assert len(cards) == 3
+    issues = [paragraph.text for card in cards for paragraph in card.paragraphs[1:]]
+    assert len(issues) == 9
+    assert all(re.match(r"#\d+\xa0+\S", line) for line in issues)
+    # Each issue title sits on one line beside its number.
+    assert max(len(line) for line in issues) <= 31
+    words = " ".join(
+        [shape.text_frame.text for shape in slide.shapes if shape.has_text_frame]
+        + [slide.notes_slide.notes_text_frame.text]
+    ).lower()
+    # No release is promised, and no collaboration is implied.
+    assert not re.search(r"\bv1\b|pymdp", words)
+    links = {
+        run.hyperlink.address
+        for shape in slide.shapes
+        if shape.has_text_frame
+        for paragraph in shape.text_frame.paragraphs
+        for run in paragraph.runs
+    }
+    assert build_deck.CPOMDP_ISSUES in links
+
+
+@pytest.mark.slow
+def test_the_analogy_closes_the_balance_slides_notes_and_says_it_is_one(deck):
+    slide = slide_of(deck, build_deck.task_2_balance)
+    closing = slide.notes_slide.notes_text_frame.text.split("\n\n")[-1]
+    assert closing.startswith("One way to picture the precision is as how urgent")
+    assert closing.endswith(
+        "That’s an analogy to make the setting easier to picture. Whether biology "
+        "works this way would have to be shown."
+    )
 
 
 @pytest.mark.slow
