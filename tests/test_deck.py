@@ -12,9 +12,6 @@ pytest.importorskip("segno", reason="the deck extra draws the QR codes")
 
 import cpomdp
 import segno
-from cpomdp import (
-    KalmanBackend,
-)
 from PIL import Image
 from pptx.opc.constants import RELATIONSHIP_TYPE
 from pptx.shapes.picture import Movie
@@ -26,11 +23,8 @@ import lesson
 import timer_clip
 from cpomdp_workshop import (
     WORKSHOP_CPOMDP_VERSION,
-    model_with,
-    one_node,
     plot,
 )
-from cpomdp_workshop.check import backend_differences
 
 PROSE = ("title", "text", "card", "pill", "placeholder")
 DRAWING = "http://schemas.openxmlformats.org/drawingml/2006/main"
@@ -54,7 +48,6 @@ MEASURED = {
     "0.85": "test_on_seed_3_the_curious_rocket_finds_the_pad_and_the_other_misses",
     "0.25": "test_gate_c2_curious_lands_on_8_or_more_seeds_and_incurious_on_4_or_fewer",
     "0.61": "test_gate_c2_curious_lands_on_8_or_more_seeds_and_incurious_on_4_or_fewer",
-    "7": "test_over_ten_seeds_the_hidden_pads_balance_holds_only_in_a_window",
     "6": "test_the_curious_rocket_checks_the_beacon_on_fewer_seeds_outside_the_window",
     "9": "test_the_search_is_decided_rather_than_sampled",
     "81": "test_two_moves_ahead_scores_eighty_one_plans_a_step",
@@ -69,7 +62,6 @@ SET = {
     "0.4": "k, task 2's reference, where its two rockets part",
     "0.1": "the curious rocket's preference precision",
     "0.2": "k, the precision comparison's",
-    "0.3": "a preference precision the tuning slide compares",
     "0.48": "the pad spread at which seed 3's curious rocket still finds the pad",
     "1.5": "the hidden pad's spread, in the world and in the rocket's model",
     "5": "a timer's mark, and the minutes of a brief",
@@ -132,8 +124,8 @@ def pictures(slide):
 
 
 @pytest.mark.slow
-def test_the_deck_has_twenty_six_slides_each_with_notes(deck):
-    assert len(deck.slides) == 26
+def test_the_deck_has_twenty_three_slides_each_with_notes(deck):
+    assert len(deck.slides) == 23
     for slide in deck.slides:
         assert slide.notes_slide.notes_text_frame.text.strip()
 
@@ -375,15 +367,6 @@ def test_the_route_frames_build_up_in_one_place(deck):
     assert len(sizes) == 2  # the pad's figure carries its readout, so it is shorter
 
 
-def test_the_graph_slide_shows_the_measured_maximum_difference(deck):
-    model = model_with()
-    (difference,) = backend_differences(KalmanBackend(model), one_node(model))
-    assert difference < 1e-9
-    slide = slide_of(deck, build_deck.backends)
-    (output,) = [shape for shape in slide.shapes if shape.name == "printed"]
-    assert output.text_frame.text == f"max |difference| = {difference:.1e}"
-
-
 def test_every_number_in_the_prose_and_notes_is_measured_or_set(deck):
     numbers = {
         token.replace(",", "")
@@ -424,12 +407,49 @@ def test_the_unused_features_follow_what_cpomdp_let_us_do_in_three_cards(deck):
     assert [len(card) for card in lines] == [3, 3, 3]
 
 
+def links_of(slide):
+    return {
+        run.hyperlink.address
+        for shape in slide.shapes
+        if shape.has_text_frame
+        for paragraph in shape.text_frame.paragraphs
+        for run in paragraph.runs
+    }
+
+
 @pytest.mark.slow
-def test_each_unused_feature_takes_one_line_of_its_card(deck):
+def test_the_proved_slide_names_every_warrant_and_where_the_labels_come_from(deck):
+    slide = slide_of(deck, build_deck.coda)
+    (table,) = [shape.table for shape in slide.shapes if shape.has_table]
+    labels = [row.cells[0].text for row in table.rows][1:]
+    assert labels == [warrant.value for warrant in cpomdp.Warrant]
+    assert build_deck.WARRANTLIB in links_of(slide)
+    said = " ".join(
+        [shape.text_frame.text for shape in slide.shapes if shape.has_text_frame]
+        + [slide.notes_slide.notes_text_frame.text]
+    )
+    assert "warrantlib" in said
+    # The ten-seed result carries no label in the notebook, so none is claimed for it.
+    assert "At most" in table.rows[3].cells[2].text
+
+
+@pytest.mark.slow
+def test_what_cpomdp_let_us_do_is_three_cards_of_three_lines_and_a_link(deck):
+    slide = slide_of(deck, build_deck.where_cpomdp_sits)
+    cards = cards_of(slide)
+    assert [len(card.paragraphs) - 1 for card in cards] == [3, 3, 3]
+    assert build_deck.REPOSITORY in links_of(slide)
+
+
+@pytest.mark.slow
+@pytest.mark.parametrize(
+    "listing", [build_deck.where_cpomdp_sits, build_deck.unused_features]
+)
+def test_each_listed_item_takes_one_line_of_its_card(deck, listing):
     measure = deck_layout.metrics()
     if measure is None:
         pytest.skip("no font files to measure with")
-    slide = slide_of(deck, build_deck.unused_features)
+    slide = slide_of(deck, listing)
     for card in (shape for shape in slide.shapes if shape.name == "card"):
         frame = card.text_frame
         room = Emu(card.width - frame.margin_left - frame.margin_right).inches
@@ -486,14 +506,7 @@ def test_the_roadmap_follows_the_unused_features_with_nine_issues_and_no_promise
     ).lower()
     # No release is promised, and no collaboration is implied.
     assert not re.search(r"\bv1\b|pymdp", words)
-    links = {
-        run.hyperlink.address
-        for shape in slide.shapes
-        if shape.has_text_frame
-        for paragraph in shape.text_frame.paragraphs
-        for run in paragraph.runs
-    }
-    assert build_deck.CPOMDP_ISSUES in links
+    assert {build_deck.CPOMDP_ISSUES, build_deck.CPOMDP_DISCUSSIONS} <= links_of(slide)
 
 
 @pytest.mark.slow

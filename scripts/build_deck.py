@@ -32,7 +32,7 @@ from importlib import metadata
 from pathlib import Path
 
 import numpy as np
-from cpomdp import KalmanBackend
+from cpomdp import Warrant
 from pptx.enum.text import MSO_ANCHOR, PP_ALIGN
 
 import timer_clip
@@ -42,9 +42,7 @@ from cpomdp_workshop import (
     WORKSHOP_CPOMDP_VERSION,
     after_session_3,
     axis_certificate,
-    check_backends,
     model_with,
-    one_node,
     probe,
     show_probe,
 )
@@ -89,6 +87,8 @@ PYPI = "https://pypi.org/project/cpomdp/"
 SITE = "https://inferogenesis.com/"
 CPOMDP_DOCS = "https://cpomdp.inferogenesis.com/"
 CPOMDP_ISSUES = "https://github.com/inferogenesis/cpomdp/issues"
+CPOMDP_DISCUSSIONS = "https://github.com/inferogenesis/cpomdp/discussions"
+WARRANTLIB = "https://pypi.org/project/warrantlib/"
 PRESENTER_2_LINKEDIN = "https://www.linkedin.com/in/kevin-backhouse-112554253"
 KOUDAHL_REFERENCE = (
     "Koudahl, M. T., Kouw, W. M. and de Vries, B. (2021). "
@@ -313,20 +313,11 @@ class FeatureGroup:
 
 UNUSED_FEATURES = (
     FeatureGroup(
-        "More ways to state the model and the goal",
+        "Message passing on Forney-style factor graphs",
         AMBER,
         (
-            Feature("Dynamics noise set by the state", ("CallableDynamicsNoise",)),
-            Feature("A grid over a scalar action", ("ObservationGoal", "EFESelector")),
-            Feature("Declared factors and channels", ("ModelStructure",)),
-        ),
-    ),
-    FeatureGroup(
-        "Inference and curiosity on branching graphs",
-        GREEN,
-        (
             Feature("Trees of many coupled nodes", ("CouplingGraph", "Coupling")),
-            Feature("Curiosity aimed at one node", ("FFGEFESelector",)),
+            Feature("A dynamics factor for each node", ("GaussianTransition",)),
             Feature(
                 "Partitioned beliefs across time",
                 ("CouplingGraphBackend",),
@@ -335,12 +326,21 @@ UNUSED_FEATURES = (
         ),
     ),
     FeatureGroup(
-        "Tools to differentiate, extend and check an agent",
+        "Expected free energy and state-dependent noise",
+        GREEN,
+        (
+            Feature("Curiosity aimed at one node", ("FFGEFESelector",)),
+            Feature("A grid over a scalar action", ("ObservationGoal", "EFESelector")),
+            Feature("Dynamics noise set by the state", ("CallableDynamicsNoise",)),
+        ),
+    ),
+    FeatureGroup(
+        "Tools to differentiate, extend and describe a model",
         BLUE,
         (
             Feature("jit, vmap and grad through JAX", ("expected_free_energy",)),
             Feature("Your own inference backend", ("InferenceBackend",)),
-            Feature("Graded warrants for a claim", ("Warrant",)),
+            Feature("Declared factors and channels", ("ModelStructure",)),
         ),
     ),
 )
@@ -1414,13 +1414,18 @@ def task_3_result(deck: Deck) -> None:
         size=15, colour=MUTED,
     )  # fmt: skip
     page.text(
-        ROUTE_COLUMN, 1.9, width, 2.6,
+        ROUTE_COLUMN, 1.9, width, 1.45,
         [
-            "With curiosity on, the rocket lands on 9 seeds, with a median miss of "
-            "0.25.",
-            "With curiosity off, it lands on 3, with a median miss of 0.61.",
+            "With curiosity on, the rocket lands on\u00a09.",
+            "With curiosity off, it lands on\u00a03.",
         ],
         size=19, space_after=12,
+    )  # fmt: skip
+    page.text(
+        ROUTE_COLUMN, 3.6, width, 2.2,
+        ["A rocket that is sure of its guess expects to learn nothing at the "
+         "beacon, so it never goes."],
+        size=19, bold=True, colour=AMBER,
     )  # fmt: skip
     page.notes(
         notes(
@@ -1438,205 +1443,142 @@ def task_3_result(deck: Deck) -> None:
             "You lowered pad_spread until the curious rocket stopped finding the "
             "pad. On our seed it still finds the pad at 0.48 and stops at 0.45. A "
             "rocket that's sure of its guess expects to learn nothing at the beacon, "
-            "so it doesn't go. More on that in a moment.",
+            "so it doesn't go.",
             "Across 10 seeds, the curious rocket lands on 9 and the one with "
             "curiosity off on 3. The median misses are 0.25 and 0.61. On the map "
-            "that gap looks small, which is why we print the misses in large type.",
+            "that gap looks small, so the counts are the thing to look at.",
+            "We should be honest that this works inside a window. Turn the goal "
+            "precision up from 0.1 to 1 and the curious rocket lands on 3 seeds of "
+            "10, the same as with curiosity off. Let the broadcast carry far and "
+            "both rockets land on all 10, so curiosity buys nothing. Bonus 2 lets "
+            "you find those edges yourself.",
             "Curiosity pays off here because what the rocket learns changes where it "
             "goes. There's a question on this under Checkpoint 3 in the notebook.",
         )
     )
 
 
-def task_3_tuning(deck: Deck) -> None:
-    """How narrow the window is in which curiosity pays, and where that might ease."""
-    page = deck.page("The balance takes tuning", "task 3")
-    page.text(
-        MARGIN, CONTENT_TOP, FULL_WIDTH, 0.55,
-        ["The curious rocket over 10 seeds, as we change one setting at a time. "
-         "With curiosity off, it lands on 3."],
-        size=20,
-    )  # fmt: skip
-    page.table(
-        MARGIN,
-        2.15,
-        (4.6, 2.6, FULL_WIDTH - 7.2),
-        2.75,
-        (
-            ("Setting", "Curious lands", "Visits the beacon"),
-            ("As built: precision 0.1, spread 1.5", "9", "9"),
-            ("Precision 0.3", "7", "6"),
-            ("Precision 1", "3", "1"),
-            ("Spread 0.1, an overconfident rocket", "1", "0"),
-        ),
-    )
-    page.text(
-        MARGIN, 5.05, FULL_WIDTH, 0.6,
-        ["With a broadcast that carries far, both rockets land on all 10 seeds, "
-         "and curiosity buys nothing."],
-        size=19,
-    )  # fmt: skip
-    page.text(
-        MARGIN, 5.8, FULL_WIDTH, 1.2,
-        ["Where we think this goes: longer horizons and factor-graph backends "
-         "should make the balance less fragile. One data point so far: looking two "
-         "moves ahead, the curious rocket lands on all 10 seeds."],
-        size=19, bold=True, colour=AMBER,
-    )  # fmt: skip
-    page.notes(
-        notes(
-            "[Dan.]",
-            "Task 3 works, but only inside a window, and we want to be honest about "
-            "how narrow that window is.",
-            "Precision first. At 0.1 the curious rocket lands on 9 of 10 seeds. At "
-            "0.3 it lands on 7 and visits the beacon on 6. At 1 it lands on 3, the "
-            "same as with curiosity off, and visits the beacon on only 1 seed. On "
-            "that seed the pad happens to lie that way, and the rocket with "
-            "curiosity off passes the beacon too.",
-            "Then the rocket's own uncertainty. At a spread of 0.1 it's "
-            "overconfident. It thinks there's nothing to learn, never visits the "
-            "beacon, and lands on 1 seed of 10.",
-            "Then the world. If the broadcast carries far, both rockets hear the pad "
-            "from wherever they are, and both land on all 10 seeds. Curiosity buys "
-            "nothing. A sharp radar does the same, which is why ours is coarse. "
-            "Bonus 2 lets you try both.",
-            "So getting the two scores to balance takes tuning. Where do we expect "
-            "that to get easier? This part is a direction, not a result. We expect "
-            "longer planning horizons and cpomdp's factor-graph backends to make the "
-            "balance less fragile, and the p* programme is where we plan to test "
-            "that.",
-            "We have one data point so far. Looking two moves ahead, the curious "
-            "rocket lands on all 10 seeds instead of 9. We have no factor-graph "
-            "evidence in this workshop. The one-node check on the next slide shows "
-            "the graph engine matches the Kalman filter. It doesn't show that graphs "
-            "make curiosity more stable.",
-        )
-    )
-
-
-def backends(deck: Deck) -> None:
-    """Show the difference participants measured with the two inference methods."""
-    page = deck.page(
-        "Do the two methods agree about where the rocket is?", "why it matters"
-    )
-    page.text(
-        MARGIN, CONTENT_TOP, FULL_WIDTH, 0.9,
-        ["We ran the 1960 rocket model using a Kalman filter, then ran the same "
-         "model as a graph with one node."],
-        size=22,
-    )  # fmt: skip
-    page.text(
-        MARGIN, 2.65, FULL_WIDTH, 0.7,
-        ["At every step, we compared the estimated position and its uncertainty."],
-        size=22,
-    )  # fmt: skip
-    model = model_with()
-    report = captured(check_backends, KalmanBackend(model), one_node(model))
-    page.text(
-        MARGIN, 3.75, FULL_WIDTH, 0.4, ["Reference run"],
-        size=17, colour=MUTED,
-    )  # fmt: skip
-    page.printed(MARGIN, 4.25, FULL_WIDTH, 0.85, report.splitlines()[-1], size=24)
-    page.text(
-        MARGIN, 5.8, FULL_WIDTH, 0.95,
-        ["The two methods agreed throughout the flight to within numerical rounding."],
-        size=22, colour=AMBER, bold=True,
-    )  # fmt: skip
-    page.notes(
-        notes(
-            f"[Dan. Planned at {clock('Why it matters')}. Run the final notebook "
-            "cell now, and ask the room to run it too.]",
-            "The final cell runs two checks on what we did today. This is the first. "
-            "We took the 1960 rocket and ran it two ways: through a Kalman filter, "
-            "and as a factor graph with a single node. At every step we compared "
-            "where each one thought the rocket was, and how sure it was.",
-            "The largest difference over the whole flight is down at the level of "
-            "rounding error in the computer's arithmetic. With one node, the graph "
-            "should give exactly the Kalman filter's answer. That makes it a case we "
-            "can check before we trust the graph with models that connect several "
-            "variables.",
-        )
-    )
-
-
-# --- why it matters ---------------------------------------------------------------
-
-
 def coda(deck: Deck) -> None:
-    """Compare the expected and visited counts from the notebook's certificates."""
+    """The three warrants, with the evidence behind each of today's two checks."""
     planner = after_session_3()["planner"]
     if not isinstance(planner, RecedingHorizonSelector) or planner.certificate is None:
         raise ValueError("The workshop flight did not produce a search certificate.")
-    searches = (
-        ("One step ahead, with nine possible moves", planner.certificate),
-        (
-            "Seven steps ahead, with five possible moves at each step",
-            axis_certificate(),
-        ),
-    )
-    rows = [("Search", "Possible plans", "Plans scored")]
-    for label, certificate in searches:
-        if certificate.warrant.value != "PROVED":
+    seven_steps = axis_certificate()
+    for certificate in (planner.certificate, seven_steps):
+        if certificate.warrant is not Warrant.PROVED:
             raise ValueError(
                 f"The search did not prove complete coverage: {certificate}"
             )
-        rows.append((label, f"{certificate.expected:,}", f"{certificate.visited:,}"))
+    rows = (
+        ("Warrant", "What stands behind it", "Today"),
+        (
+            Warrant.PROVED.value,
+            "A finite set, checked in full",
+            f"The planner scored all {seven_steps.visited:,} plans in its "
+            "set\u00a0of\u00a0moves",
+        ),
+        (
+            Warrant.CERTIFIED.value,
+            "A bound that holds over a whole\u00a0range",
+            "Nothing today",
+        ),
+        (
+            Warrant.CORROBORATED.value,
+            "A sample of the possible cases",
+            "At most: the curious rocket landing on 9\u00a0of\u00a010\u00a0seeds",
+        ),
+    )
 
     page = deck.page("What does PROVED mean here?", "why it matters")
-    page.table(MARGIN, 1.8, (6.65, 2.75, FULL_WIDTH - 9.4), 3.3, rows)
+    page.table(MARGIN, 1.6, (2.9, 4.1, FULL_WIDTH - 7.0), 3.0, rows)
     page.text(
-        MARGIN, 5.75, FULL_WIDTH, 1.0,
-        ["PROVED means the planner scored every plan in its set. It doesn't tell us "
-         "the model is right."],
+        MARGIN, 4.85, FULL_WIDTH, 0.95,
+        ["A passing check tells you the number held. It doesn't tell you what kind "
+         "of evidence that is."],
         size=22, colour=AMBER, bold=True,
+    )  # fmt: skip
+    page.text(
+        MARGIN, 6.05, FULL_WIDTH, 0.7,
+        [[Run("These labels come from warrantlib, which installed with cpomdp "
+              "today.  "),
+          linked(WARRANTLIB, size=15)]],
+        size=17, colour=MUTED,
     )  # fmt: skip
     page.notes(
         notes(
-            "[Kev.]",
-            "The second check is the planner's certificate. The table shows two "
-            "searches. In the first, the curious rocket looks one move ahead, with "
-            "nine moves to choose from. In the second, it looks seven moves ahead "
-            "with five moves at each step. That's 78,125 possible plans.",
-            "PROVED means the planner scored every plan in the set it was given. "
-            "Nothing was sampled, and nothing was skipped.",
-            "What it doesn't tell us is whether the model is any good. The last "
-            "slide showed that two ways of running the model agree, and this one "
-            "shows the planner looked at every option. Neither says the model "
-            "describes the world well. For that, you'd have to compare its "
-            "predictions with real observations.",
-        )
+            f"[Kev. Planned at {clock('Why it matters')}. Run the final notebook "
+            "cell now, and ask the room to run it too.]",
+            "The final cell prints the planner's certificate, and the certificate "
+            "says PROVED. That word is one of three labels, so here are all three.",
+            "PROVED means a finite set was checked in full. Our planner looked "
+            "seven moves ahead with five moves at each step. That's 78,125 possible "
+            "plans, and it scored every one. Nothing was sampled, and nothing was "
+            "skipped. The curious rocket's own search is the same kind of claim: "
+            "one move ahead, nine moves to choose from, all nine scored.",
+            "It's proved for that set of moves, though. It says nothing about the "
+            "moves in between, the ones we never put in the set.",
+            "CORROBORATED is a sample. In Task 3 the curious rocket landed on 9 "
+            "seeds of 10. Those are 10 starts out of all the ones we could have "
+            "picked. The notebook doesn't give that result a label, and if it did, "
+            "this is the most it could earn. A sample can show that "
+            "something happens, and it can catch a counterexample. It can't settle "
+            "a claim about every case.",
+            "CERTIFIED sits in between. It's for a bound that has been computed to "
+            "hold over a whole range. We didn't do one of those today.",
+            "So a passing check tells you the number held. It doesn't tell you what "
+            "kind of evidence that is. The labels keep that on the record.",
+            "[Dan, here or as an aside: say why this matters to you as a reviewer. "
+            "Thirty seconds.]",
+            "The labels come from warrantlib, a small library that installed with "
+            "cpomdp today. You can use it in your own tests. cpomdp labels its "
+            "registered research checks this way, and that part is still marked "
+            "experimental.",
+            "None of the three labels says the model is any good. For that, you'd "
+            "have to compare its predictions with real observations.",
+            "[If asked about the first line the cell prints:] It compares two of "
+            "cpomdp's inference engines on the Task 1 rocket. They agree down to "
+            "rounding error. It's a check on the library, not on today's rocket.",
+        ),
+        sources=(("warrantlib on PyPI", WARRANTLIB),),
     )
 
 
 def where_cpomdp_sits(deck: Deck) -> None:
-    """Three uses of cpomdp that participants saw in the workshop."""
+    """Nine things the room did with cpomdp in the workshop, in three groups."""
     page = deck.page("What did cpomdp let us do?", "why it matters")
     certificate = axis_certificate()
     card_row(
-        page, 1.95, 3.95,
+        page, 2.25, 2.65,
         (
             headed(
-                "Change what the rocket could learn",
-                "We made sensor noise depend on position, then made the pad's "
-                "position something the rocket had to learn. That gave moving a "
-                "reason to teach it something.",
+                "Change what the rocket could\u00a0learn",
+                "Noise that depends on position",
+                "A hidden pad it had to find",
+                "Moves that teach it something",
                 colour=AMBER,
             ),
             headed(
-                "Check the position estimates",
-                "We ran the same rocket model as a Kalman filter and as a graph "
-                "with one node. The two methods agreed on the rocket’s position "
-                "and its uncertainty.",
+                "Weigh curiosity against the rocket’s\u00a0goal",
+                "Information gain for each move",
+                "Curiosity switched on and off",
+                "A dial that balances the two",
                 colour=GREEN,
             ),
             headed(
-                "Check which plans the rocket considered",
-                "In the seven-step search, the certificate showed that the planner "
-                f"scored all {certificate.visited:,} possible plans in its set.",
+                "Check which plans the rocket\u00a0considered",
+                "A search seven moves ahead",
+                f"All {certificate.visited:,} plans scored",
+                "A certificate that says PROVED",
                 colour=BLUE,
             ),
         ),
         size=19,
+    )  # fmt: skip
+    page.text(
+        MARGIN, 5.25, FULL_WIDTH, 0.7,
+        [[Run("Every item ran in the notebook we worked through today.  "),
+          linked(REPOSITORY, size=15)]],
+        size=17, colour=MUTED,
     )  # fmt: skip
     page.notes(
         notes(
@@ -1646,8 +1588,10 @@ def where_cpomdp_sits(deck: Deck) -> None:
             "sensor's noise depend on position, and in Task 3 we made the pad part "
             "of what the rocket had to work out. That's what gave curiosity "
             "something to do.",
-            "Second, we checked the position estimates, by running the same model "
-            "as a Kalman filter and as a one-node graph and seeing that they agree. "
+            "Second, it let us weigh curiosity against the goal. In Task 1 we "
+            "measured how much each move would teach the rocket, and the answer was "
+            "nothing. From Task 2 on we could switch curiosity on and off, and the "
+            "goal precision was the dial that balanced the two scores.",
             "Third, we checked the planning. The certificate shows the planner "
             "scored every plan in the seven-step search.",
             "For context: if you know pymdp, that's the library for discrete states "
@@ -1689,21 +1633,29 @@ def unused_features(deck: Deck) -> None:
             "[Kev.]",
             "We used a small part of cpomdp today. These are features of the "
             "release we installed that our three tasks did not need.",
-            "On the left is the model. Our sensor noise depended on position, and "
-            "the noise in the dynamics can depend on the state in the same way. Our "
-            "rocket chose from a fixed set of compass moves, and cpomdp can also "
-            "search a grid over a single continuous action. We can also declare "
-            "which parts of the state belong together and which readings come from "
-            "which sensor.",
-            "In the middle are graphs. Our graph had one node, and the probe in the "
-            "Self-guided section adds a second. cpomdp runs trees of many coupled "
-            "nodes, it can aim curiosity at one of them, and it can partition the "
-            "belief that it carries from one time step to the next.",
+            "On the left is a second inference engine. Everything today ran on a "
+            "Kalman filter, which treats the whole state as one block. A factor "
+            "graph draws the model as separate variables with links between them, "
+            "and works out what it believes by passing messages along those links. "
+            "cpomdp's graph engine runs trees of many coupled nodes. Each node gets "
+            "its own dynamics factor, and we can partition the belief that the "
+            "graph carries from one time step to the next. The Self-guided section "
+            "has an example with two nodes.",
+            "[If asked how the messages work:] Each message is a Gaussian stored as "
+            "a precision and a potential, so combining two messages is an addition. "
+            "On a simple chain, passing those messages gives the Kalman filter. The "
+            "first line the final cell printed checks that on the Task 1 rocket.",
+            "In the middle is expected free energy. On a graph, we can aim "
+            "curiosity at one node. Our rocket chose from a fixed set of compass "
+            "moves, and cpomdp can also search a grid over a single continuous "
+            "action. Our sensor noise depended on position, and the noise in the "
+            "dynamics can depend on the state in the same way.",
             "On the right are the tools. The score is a JAX function, so we can "
             "compile it, run it over a batch of actions and take its gradient. We "
             "can write our own inference backend, because the Kalman filter and the "
-            "graph we compared today meet the same interface. A warrant also has "
-            "two grades below PROVED, for claims that are bounded or sampled.",
+            "graph engine meet the same interface. We can also declare "
+            "which parts of the state belong together and which readings come from "
+            "which sensor.",
             f"[The names, if someone asks, in the order of the cards: {names}.]",
             "Next, what is planned.",
         ),
@@ -1744,9 +1696,11 @@ def roadmap(deck: Deck) -> None:
         size=19,
     )  # fmt: skip
     page.text(
-        MARGIN, 5.25, FULL_WIDTH, 0.7,
+        MARGIN, 5.25, FULL_WIDTH, 1.1,
         [[Run("Every item is an open issue. Comment on one, or propose your own.  "),
-          linked(CPOMDP_ISSUES, size=15)]],
+          linked(CPOMDP_ISSUES, size=15)],
+         [Run("The research questions behind cpomdp are open for discussion too.  "),
+          linked(CPOMDP_DISCUSSIONS, size=15)]],
         size=17, colour=MUTED,
     )  # fmt: skip
     page.notes(
@@ -1757,66 +1711,24 @@ def roadmap(deck: Deck) -> None:
             "share with you guys to show cpomdp has some legs. If you’ve had any "
             "ideas for features or fixes you’d like to see in cpomdp, please let "
             "us know.",
+            "The second link is the repository’s discussions page. That’s where "
+            "the research questions behind cpomdp live, including the ones Kev and "
+            "I are working on now. None of it is finished, and we’d welcome the "
+            "conversation there.",
             "[If asked about #232:] A combined discrete-continuous graph could help "
             "us represent neuronal activity and other biology.",
+            "[If asked whether planning further ahead helps:] We have one data "
+            "point. Looking two moves ahead, today's curious rocket lands on all 10 "
+            "seeds instead of 9. That's one result, not a trend.",
         ),
         sources=(
             ("Open issues on cpomdp", CPOMDP_ISSUES),
+            ("Discussions on cpomdp", CPOMDP_DISCUSSIONS),
             ("Persistent foraging cell, the tracking issue", f"{CPOMDP_ISSUES}/194"),
             ("Category and structure learning, the tracking issue",
              f"{CPOMDP_ISSUES}/226"),
         ),
     )  # fmt: skip
-
-
-def programmes(deck: Deck) -> None:
-    """The research programmes proposed on top of cpomdp."""
-    page = deck.page("Where the research goes next", "why it matters")
-    card_row(
-        page, CONTENT_TOP, 4.1,
-        (
-            headed(
-                "p* · Certifiable active inference",
-                [Run("Active", colour=GREEN, italic=True)],
-                "The rocket might assume its sensor is more accurate than it really "
-                "is. Or it might model the sensor correctly but use a shortcut to "
-                "estimate its position. Can we measure the free energy cost of each "
-                "source of error separately?",
-                colour=AMBER,
-            ),
-            headed(
-                "Seam Networks",
-                [Run("Planned", colour=AMBER, italic=True)],
-                "Imagine two active inference agents searching the same patch for "
-                "food. When one eats, it changes what the other finds on its next "
-                "visit. How does their behaviour change over time when they can "
-                "influence each other only through the world they share?",
-            ),
-        ),
-        size=19,
-    )  # fmt: skip
-    page.text(
-        MARGIN, 6.05, FULL_WIDTH, 0.7,
-        [[Run("p* and its gates  "), linked(f"{SITE}programmes/p-star/", size=15)]],
-        size=17, colour=MUTED,
-    )  # fmt: skip
-    page.notes(
-        notes(
-            "[Kev.]",
-            "Two research programmes build on cpomdp. p*, which is under way now, "
-            "is about errors. A rocket might think its sensor is better than it is. "
-            "Or it might have the sensor right, but use a shortcut to work out where "
-            "it is, like the first-order shortcut we mentioned in Task 2. Each "
-            "mistake costs something in free energy. Can we measure those two costs "
-            "separately? And beyond measuring them, we want to put bounds on how "
-            "large each one can be.",
-            "Seam Networks is planned. Picture two agents foraging in the same "
-            "patch. When one eats, it changes what the other finds next time. They "
-            "never talk to each other, only through the world they share. How does "
-            "their behaviour change over time?",
-            "The link at the bottom has more on p*.",
-        )
-    )
 
 
 # --- close ------------------------------------------------------------------------
@@ -1941,13 +1853,10 @@ SLIDES: tuple[Callable[[Deck], None], ...] = (
     task_3_brief,
     task_3_timer,
     task_3_result,
-    task_3_tuning,
-    backends,
     coda,
     where_cpomdp_sits,
     unused_features,
     roadmap,
-    programmes,
     keep_going,
     thanks,
 )

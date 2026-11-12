@@ -69,7 +69,7 @@ These are design choices, and every one of them is honest only if the room hears
 - **The leak is a workaround for a cpomdp limit.** The preference is over readings because cpomdp 0.5.1 refuses a state goal under R(x). Slide 13's notes say so, and §10 files the issue.
 - **Every epistemic number is first-order.** cpomdp reads R at the predicted mean and drops the curvature term. Nothing in the deck calls an epistemic value exact. Slide 10 says "expected information gain" once, so nobody thinks curiosity is a drive added to the equation.
 - **The curiosity switch is a workshop helper, not a cpomdp feature.** The notebook and the notes say which.
-- **Horizons and factor graphs are a direction, not a result.** One measured point (horizon 2 lands 10/10 against 9/10) and no factor-graph evidence at all. Slide 18 names the p* programme as where the evidence would come from.
+- **Horizons and factor graphs are a direction, not a result.** One measured point (horizon 2 lands 10/10 against 9/10) and no factor-graph evidence at all. The deck makes no forecast about either. The measured point is an "if asked" note on the roadmap slide.
 
 ## 3. Reference numbers, measured 9 Nov
 
@@ -393,7 +393,7 @@ print(workshop.axis_certificate())
 | `route_3_pad.png` | New: Task 3 on/off, seed 3, with the guess, the true pad and the belief ellipse. Also the preview |
 | `route_3_blackout.png`, `route_4_rock.png`, `fig_world_rock.png` | Keep only what the self-guided cell or a slide still reads, and drop the rest |
 
-### 6.2 Deck, 26 slides
+### 6.2 Deck, 23 slides
 
 | # | Slide | Change |
 | --- | --- | --- |
@@ -411,15 +411,19 @@ print(workshop.axis_certificate())
 | 14 | Curious, or just avoiding noise? | New. `route_2_balance.png`. Text: the pragmatic score pays for distance and noise and scales with λ. The epistemic score pays for information and doesn't. At λ = 1 the route still bends and switching curiosity off changes almost nothing: quote the measured counts (0 of 36 moves at k = 0.4, 1 of 36 at k = 0.2). Two sentences the slide carries: "We chose the precision so the two terms can compete. There is no other knob in expected free energy." Notes: the preference is over readings because cpomdp refuses a state goal under R(x), which is why noise reaches the pragmatic term at all |
 | 15 | Task 3 · Find the pad | New brief. Three cards: the guess, the radar, the broadcast. A line under them: "We built this world so the information the rocket needs is away from where it wants to go." Amber question: "Which rocket finds the pad?" Notes: the goal is a radar reading with fixed noise, chosen on purpose so the pragmatic term can't do the beacon's work, and the radar is coarse on purpose |
 | 16 | Task 3 · Over to you | Steps: 1 "Fill in the two lines marked ... and run the cell." 2 "Paste your curious rocket's miss in the chat." 3 "Finished early? Try the bonuses." |
-| 17 | Who found the pad? | `route_3_pad.png`, both seed-3 misses in large type, and the 10-seed landings (9 vs 3) with the median misses (0.25 vs 0.61). The 10-seed counts stay on the slide whatever the reference seed shows. Poll 3 |
-| 18 | The balance takes tuning | New, from Dan's brief. The window that works: λ 0.1 steers, 0.3 partly, 1 never. Spread 0.1 never checks. A far-carrying broadcast makes curiosity pointless. Then a direction, labelled as one: cpomdp's longer horizons and factor-graph backends are where we expect this balance to get less volatile, and the p* programme is where the evidence would come from. The one measured point: looking two moves ahead, the curious rocket lands 10/10 instead of 9/10. No factor-graph evidence exists in this workshop (`one_node` shows equivalence to the Kalman filter, not stability), so the slide says "expect" and "planned", never "makes" |
-| 19 | Do the two methods agree about where the rocket is? | Moved from Task 3. Notes: "This is the first number the final cell prints." |
-| 20–21 | PROVED, What did cpomdp let us do? | Text unchanged. Slide 21's notes now hand over to the features slide |
-| 22 | What else can cpomdp already do? | Replaces the three modelling examples, Kev speaks. Three cards of three features each that the pinned cpomdp has and the three tasks did not use: stating the model and the goal (state-dependent dynamics noise, a grid over a scalar action, declared factors and channels), graphs (trees of many nodes, curiosity aimed at one node, a partition across time), tools (JAX transforms, a custom inference backend, graded warrants). The notes give the cpomdp name behind each feature. A footer names the pinned release and links the documentation |
-| 23 | What's already planned for the future of cpomdp? | New, Dan speaks. Three cards of three open cpomdp issues each, titled by the active inference feature they add: a homeostatic drive (#196, #201, #203), nonlinear and multi-timescale inference and planning (#21, #28, #52), parameter, category and structure learning (#231, #232, #233). No release is named for any of them, and pymdp isn't named. A footer links the issue tracker and invites comments |
-| 24 | Research next | Text unchanged |
-| 25 | Three more experiments to try in Colab | Three cards from §5.4 |
-| 26 | Any questions? | None |
+| 17 | Who found the pad? | `route_3_pad.png` and the 10-seed landings (9 vs 3). The median misses (0.25 vs 0.61) are in the notes. The takeaway is a statement beside the figure: a rocket that is sure of its guess expects to learn nothing at the beacon, so it never goes. The notes say the result holds inside a window (precision 1 lands 3 of 10, a far-carrying broadcast lands both rockets on all 10) and point to Bonus 2. It is Task 3's only discussion slide |
+| 18 | What does PROVED mean here? | Opens the closing section, and its notes carry the cue to run the final cell. One row per warrant, read from cpomdp's `Warrant`: PROVED (a finite set checked in full, the planner's 78,125 plans), CERTIFIED (a bound over a whole range, nothing today), CORROBORATED (a sample, at most the 9 of 10 seeds). The bottom line: a passing check tells you the number held, not what kind of evidence that is. A footer names warrantlib and links PyPI. The reviewer's motivation is a spoken cue and is never written down |
+| 19 | What did cpomdp let us do? | Three cards of three one-line items and a footer link, in the roadmap's layout: change what the rocket could learn, weigh curiosity against the rocket's goal, check which plans the rocket considered |
+| 20 | What else can cpomdp already do? | Kev speaks. Three cards of three features each that the pinned cpomdp has and the three tasks did not use: message passing on Forney-style factor graphs (trees of many nodes, a dynamics factor for each node, a partition across time), expected free energy and state-dependent noise (curiosity aimed at one node, a grid over a scalar action, state-dependent dynamics noise), tools (JAX transforms, a custom inference backend, declared factors and channels). This is where factor graphs first appear, and the notes introduce them in two sentences. The notes give the cpomdp name behind each feature. A footer names the pinned release and links the documentation |
+| 21 | What's already planned for the future of cpomdp? | Dan speaks. Three cards of three open cpomdp issues each, titled by the active inference feature they add: a homeostatic drive (#196, #201, #203), nonlinear and multi-timescale inference and planning (#21, #28, #52), parameter, category and structure learning (#231, #232, #233). No release is named for any of them, and pymdp isn't named. The footer links the issue tracker and the repository's discussions page, which is where the research questions behind cpomdp are pointed to. The two-moves-ahead result is an "if asked" note, worded as one result |
+| 22 | Three more experiments to try in Colab | Three cards from §5.4 |
+| 23 | Any questions? | None |
+
+Three slides of the 26-slide deck were cut on 12 November:
+
+- **The balance takes tuning.** It repeated slides 13 and 14 with a table of numbers. Its admission that the result holds inside a window moved to slide 17's notes.
+- **Do the two methods agree about where the rocket is?** No task uses a factor graph, so the check arrived unexplained. The final cell still prints its line, and slide 18's notes cover it if someone asks.
+- **Where the research goes next.** Neither programme has a result the room can check yet. The roadmap slide links the discussions page instead.
 
 Every number on a slide comes from a measured-claims test. `tests/test_deck.py` passes on the regenerated `.pptx`.
 

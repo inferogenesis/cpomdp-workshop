@@ -97,7 +97,7 @@ change is gradual: the curious rocket lands on 7 seeds at 0.5 and on 6 at 0.4.
 
 An overconfident rocket, with a spread of 0.1, believes there is nothing to learn. It
 visits the beacon on no seed and lands on 1 of 10, the same as with curiosity off. This
-bridges into slide 18.
+is the takeaway slide 17 states.
 
 The additional challenge moves the rocket's guess to (5, -2) in the learner's own Task 3
 cell, so the rocket's belief and the world disagree. With a spread of 1.5 the curious
@@ -114,14 +114,14 @@ broadcast, both rockets land on all ten seeds. With a sharp radar the curious ro
 still detours on 4 seeds, and the detour buys it nothing. The task is about whether a
 rocket goes to get information that is only available somewhere else.
 
-## Slide 18 · The balance takes tuning
+## Slide 17 · The window the result holds in
 
-The window is narrow. At a precision of 0.3 the curious rocket lands on 7 seeds, and at
-1 it lands on 3, the same as with curiosity off. Longer horizons and factor-graph
-backends are a direction for future work. The one measured point is that, looking two
-moves ahead, the curious rocket lands on all ten seeds. The workshop has no factor-graph
-evidence: the one-node check shows the graph engine matches the Kalman filter and says
-nothing about stability. Say "we expect" and "planned".
+The window is narrow, and slide 17's notes say so. At a precision of 0.3 the curious
+rocket lands on 7 seeds, and at 1 it lands on 3, the same as with curiosity off. The
+deck makes no forecast about longer horizons or factor graphs. If someone asks whether
+planning further ahead helps, the one measured point is that, looking two moves ahead,
+the curious rocket lands on all ten seeds. Say it is one result. The workshop has no
+factor-graph evidence.
 
 ## Scientific framing to preserve when presenting
 
