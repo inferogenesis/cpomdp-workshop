@@ -621,6 +621,9 @@ def drawn_modules(shape):
     [
         "https://www.linkedin.com/in/kevin-backhouse-112554253",
         "https://inferogenesis.com/",
+        "https://github.com/inferogenesis/cpomdp",
+        "https://cpomdp.inferogenesis.com/",
+        "https://cpomdp.inferogenesis.com/api/warrant/",
     ],
 )
 def test_the_thanks_slide_draws_each_qr_module_for_module(deck, url):
@@ -635,6 +638,26 @@ def test_the_thanks_slide_draws_each_qr_module_for_module(deck, url):
         if module
     }
     assert drawn_modules(code) == expected
+
+
+@pytest.mark.slow
+def test_the_thanks_slide_keeps_four_modules_clear_between_its_five_qr_codes(deck):
+    slide = slide_of(deck, build_deck.thanks)
+    codes = [shape for shape in slide.shapes if shape.name.startswith("qr ")]
+    assert len(codes) == 5
+    for code in codes:
+        url = code.name.removeprefix("qr ")
+        quiet = 4 * code.width / len(segno.make_qr(url).matrix)
+        for other in codes:
+            if other is code:
+                continue
+            apart = max(
+                other.left - (code.left + code.width),
+                code.left - (other.left + other.width),
+                other.top - (code.top + code.height),
+                code.top - (other.top + other.height),
+            )
+            assert apart >= quiet, (url, other.name)
 
 
 def test_links_are_drawn_in_ink_not_the_templates_dark_blue(deck):
