@@ -12,9 +12,6 @@ pytest.importorskip("segno", reason="the deck extra draws the QR codes")
 
 import cpomdp
 import segno
-from cpomdp import (
-    KalmanBackend,
-)
 from PIL import Image
 from pptx.opc.constants import RELATIONSHIP_TYPE
 from pptx.shapes.picture import Movie
@@ -26,11 +23,8 @@ import lesson
 import timer_clip
 from cpomdp_workshop import (
     WORKSHOP_CPOMDP_VERSION,
-    model_with,
-    one_node,
     plot,
 )
-from cpomdp_workshop.check import backend_differences
 
 PROSE = ("title", "text", "card", "pill", "placeholder")
 DRAWING = "http://schemas.openxmlformats.org/drawingml/2006/main"
@@ -132,8 +126,8 @@ def pictures(slide):
 
 
 @pytest.mark.slow
-def test_the_deck_has_twenty_six_slides_each_with_notes(deck):
-    assert len(deck.slides) == 26
+def test_the_deck_has_twenty_four_slides_each_with_notes(deck):
+    assert len(deck.slides) == 24
     for slide in deck.slides:
         assert slide.notes_slide.notes_text_frame.text.strip()
 
@@ -375,15 +369,6 @@ def test_the_route_frames_build_up_in_one_place(deck):
     assert len(sizes) == 2  # the pad's figure carries its readout, so it is shorter
 
 
-def test_the_graph_slide_shows_the_measured_maximum_difference(deck):
-    model = model_with()
-    (difference,) = backend_differences(KalmanBackend(model), one_node(model))
-    assert difference < 1e-9
-    slide = slide_of(deck, build_deck.backends)
-    (output,) = [shape for shape in slide.shapes if shape.name == "printed"]
-    assert output.text_frame.text == f"max |difference| = {difference:.1e}"
-
-
 def test_every_number_in_the_prose_and_notes_is_measured_or_set(deck):
     numbers = {
         token.replace(",", "")
@@ -446,7 +431,7 @@ def test_the_proved_slide_names_every_warrant_and_where_the_labels_come_from(dec
         + [slide.notes_slide.notes_text_frame.text]
     )
     assert "warrantlib" in said
-    # The agreement check carries no label in the notebook, so none is claimed for it.
+    # The ten-seed result carries no label in the notebook, so none is claimed for it.
     assert "At most" in table.rows[3].cells[2].text
 
 
