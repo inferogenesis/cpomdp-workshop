@@ -424,12 +424,49 @@ def test_the_unused_features_follow_what_cpomdp_let_us_do_in_three_cards(deck):
     assert [len(card) for card in lines] == [3, 3, 3]
 
 
+def links_of(slide):
+    return {
+        run.hyperlink.address
+        for shape in slide.shapes
+        if shape.has_text_frame
+        for paragraph in shape.text_frame.paragraphs
+        for run in paragraph.runs
+    }
+
+
 @pytest.mark.slow
-def test_each_unused_feature_takes_one_line_of_its_card(deck):
+def test_the_proved_slide_names_every_warrant_and_where_the_labels_come_from(deck):
+    slide = slide_of(deck, build_deck.coda)
+    (table,) = [shape.table for shape in slide.shapes if shape.has_table]
+    labels = [row.cells[0].text for row in table.rows][1:]
+    assert labels == [warrant.value for warrant in cpomdp.Warrant]
+    assert build_deck.WARRANTLIB in links_of(slide)
+    said = " ".join(
+        [shape.text_frame.text for shape in slide.shapes if shape.has_text_frame]
+        + [slide.notes_slide.notes_text_frame.text]
+    )
+    assert "warrantlib" in said
+    # The agreement check carries no label in the notebook, so none is claimed for it.
+    assert "At most" in table.rows[3].cells[2].text
+
+
+@pytest.mark.slow
+def test_what_cpomdp_let_us_do_is_three_cards_of_three_lines_and_a_link(deck):
+    slide = slide_of(deck, build_deck.where_cpomdp_sits)
+    cards = cards_of(slide)
+    assert [len(card.paragraphs) - 1 for card in cards] == [3, 3, 3]
+    assert build_deck.REPOSITORY in links_of(slide)
+
+
+@pytest.mark.slow
+@pytest.mark.parametrize(
+    "listing", [build_deck.where_cpomdp_sits, build_deck.unused_features]
+)
+def test_each_listed_item_takes_one_line_of_its_card(deck, listing):
     measure = deck_layout.metrics()
     if measure is None:
         pytest.skip("no font files to measure with")
-    slide = slide_of(deck, build_deck.unused_features)
+    slide = slide_of(deck, listing)
     for card in (shape for shape in slide.shapes if shape.name == "card"):
         frame = card.text_frame
         room = Emu(card.width - frame.margin_left - frame.margin_right).inches
@@ -486,14 +523,7 @@ def test_the_roadmap_follows_the_unused_features_with_nine_issues_and_no_promise
     ).lower()
     # No release is promised, and no collaboration is implied.
     assert not re.search(r"\bv1\b|pymdp", words)
-    links = {
-        run.hyperlink.address
-        for shape in slide.shapes
-        if shape.has_text_frame
-        for paragraph in shape.text_frame.paragraphs
-        for run in paragraph.runs
-    }
-    assert build_deck.CPOMDP_ISSUES in links
+    assert build_deck.CPOMDP_ISSUES in links_of(slide)
 
 
 @pytest.mark.slow
