@@ -87,6 +87,7 @@ PYPI = "https://pypi.org/project/cpomdp/"
 SITE = "https://inferogenesis.com/"
 CPOMDP_DOCS = "https://cpomdp.inferogenesis.com/"
 CPOMDP_ISSUES = "https://github.com/inferogenesis/cpomdp/issues"
+CPOMDP_DISCUSSIONS = "https://github.com/inferogenesis/cpomdp/discussions"
 WARRANTLIB = "https://pypi.org/project/warrantlib/"
 PRESENTER_2_LINKEDIN = "https://www.linkedin.com/in/kevin-backhouse-112554253"
 KOUDAHL_REFERENCE = (
@@ -1695,9 +1696,11 @@ def roadmap(deck: Deck) -> None:
         size=19,
     )  # fmt: skip
     page.text(
-        MARGIN, 5.25, FULL_WIDTH, 0.7,
+        MARGIN, 5.25, FULL_WIDTH, 1.1,
         [[Run("Every item is an open issue. Comment on one, or propose your own.  "),
-          linked(CPOMDP_ISSUES, size=15)]],
+          linked(CPOMDP_ISSUES, size=15)],
+         [Run("The research questions behind cpomdp are open for discussion too.  "),
+          linked(CPOMDP_DISCUSSIONS, size=15)]],
         size=17, colour=MUTED,
     )  # fmt: skip
     page.notes(
@@ -1708,6 +1711,10 @@ def roadmap(deck: Deck) -> None:
             "share with you guys to show cpomdp has some legs. If you’ve had any "
             "ideas for features or fixes you’d like to see in cpomdp, please let "
             "us know.",
+            "The second link is the repository’s discussions page. That’s where "
+            "the research questions behind cpomdp live, including the ones Kev and "
+            "I are working on now. None of it is finished, and we’d welcome the "
+            "conversation there.",
             "[If asked about #232:] A combined discrete-continuous graph could help "
             "us represent neuronal activity and other biology.",
             "[If asked whether planning further ahead helps:] We have one data "
@@ -1716,61 +1723,12 @@ def roadmap(deck: Deck) -> None:
         ),
         sources=(
             ("Open issues on cpomdp", CPOMDP_ISSUES),
+            ("Discussions on cpomdp", CPOMDP_DISCUSSIONS),
             ("Persistent foraging cell, the tracking issue", f"{CPOMDP_ISSUES}/194"),
             ("Category and structure learning, the tracking issue",
              f"{CPOMDP_ISSUES}/226"),
         ),
     )  # fmt: skip
-
-
-def programmes(deck: Deck) -> None:
-    """The research programmes proposed on top of cpomdp."""
-    page = deck.page("Where the research goes next", "why it matters")
-    card_row(
-        page, CONTENT_TOP, 4.1,
-        (
-            headed(
-                "p* · Certifiable active inference",
-                [Run("Active", colour=GREEN, italic=True)],
-                "The rocket might assume its sensor is more accurate than it really "
-                "is. Or it might model the sensor correctly but use a shortcut to "
-                "estimate its position. Can we measure the free energy cost of each "
-                "source of error separately?",
-                colour=AMBER,
-            ),
-            headed(
-                "Seam Networks",
-                [Run("Planned", colour=AMBER, italic=True)],
-                "Imagine two active inference agents searching the same patch for "
-                "food. When one eats, it changes what the other finds on its next "
-                "visit. How does their behaviour change over time when they can "
-                "influence each other only through the world they share?",
-            ),
-        ),
-        size=19,
-    )  # fmt: skip
-    page.text(
-        MARGIN, 6.05, FULL_WIDTH, 0.7,
-        [[Run("p* and its gates  "), linked(f"{SITE}programmes/p-star/", size=15)]],
-        size=17, colour=MUTED,
-    )  # fmt: skip
-    page.notes(
-        notes(
-            "[Kev.]",
-            "Two research programmes build on cpomdp. p*, which is under way now, "
-            "is about errors. A rocket might think its sensor is better than it is. "
-            "Or it might have the sensor right, but use a shortcut to work out where "
-            "it is, like the first-order shortcut we mentioned in Task 2. Each "
-            "mistake costs something in free energy. Can we measure those two costs "
-            "separately? And beyond measuring them, we want to put bounds on how "
-            "large each one can be.",
-            "Seam Networks is planned. Picture two agents foraging in the same "
-            "patch. When one eats, it changes what the other finds next time. They "
-            "never talk to each other, only through the world they share. How does "
-            "their behaviour change over time?",
-            "The link at the bottom has more on p*.",
-        )
-    )
 
 
 # --- close ------------------------------------------------------------------------
@@ -1899,7 +1857,6 @@ SLIDES: tuple[Callable[[Deck], None], ...] = (
     where_cpomdp_sits,
     unused_features,
     roadmap,
-    programmes,
     keep_going,
     thanks,
 )

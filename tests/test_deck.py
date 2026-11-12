@@ -48,7 +48,6 @@ MEASURED = {
     "0.85": "test_on_seed_3_the_curious_rocket_finds_the_pad_and_the_other_misses",
     "0.25": "test_gate_c2_curious_lands_on_8_or_more_seeds_and_incurious_on_4_or_fewer",
     "0.61": "test_gate_c2_curious_lands_on_8_or_more_seeds_and_incurious_on_4_or_fewer",
-    "7": "test_over_ten_seeds_the_hidden_pads_balance_holds_only_in_a_window",
     "6": "test_the_curious_rocket_checks_the_beacon_on_fewer_seeds_outside_the_window",
     "9": "test_the_search_is_decided_rather_than_sampled",
     "81": "test_two_moves_ahead_scores_eighty_one_plans_a_step",
@@ -63,7 +62,6 @@ SET = {
     "0.4": "k, task 2's reference, where its two rockets part",
     "0.1": "the curious rocket's preference precision",
     "0.2": "k, the precision comparison's",
-    "0.3": "a preference precision the tuning slide compares",
     "0.48": "the pad spread at which seed 3's curious rocket still finds the pad",
     "1.5": "the hidden pad's spread, in the world and in the rocket's model",
     "5": "a timer's mark, and the minutes of a brief",
@@ -126,8 +124,8 @@ def pictures(slide):
 
 
 @pytest.mark.slow
-def test_the_deck_has_twenty_four_slides_each_with_notes(deck):
-    assert len(deck.slides) == 24
+def test_the_deck_has_twenty_three_slides_each_with_notes(deck):
+    assert len(deck.slides) == 23
     for slide in deck.slides:
         assert slide.notes_slide.notes_text_frame.text.strip()
 
@@ -508,7 +506,7 @@ def test_the_roadmap_follows_the_unused_features_with_nine_issues_and_no_promise
     ).lower()
     # No release is promised, and no collaboration is implied.
     assert not re.search(r"\bv1\b|pymdp", words)
-    assert build_deck.CPOMDP_ISSUES in links_of(slide)
+    assert {build_deck.CPOMDP_ISSUES, build_deck.CPOMDP_DISCUSSIONS} <= links_of(slide)
 
 
 @pytest.mark.slow
